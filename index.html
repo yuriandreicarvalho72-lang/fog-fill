@@ -4,16 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Balde de Fog</title>
-    <script type="module" crossorigin src="/fog-fill/assets/main-DJUfcdKh.js"></script>
-    <link rel="modulepreload" crossorigin href="/fog-fill/assets/shared-Bq6c_-c7.js">
+    <script type="module" crossorigin src="/fog-fill/assets/main-BXB-p9vl.js"></script>
+    <link rel="modulepreload" crossorigin href="/fog-fill/assets/shared-CMsrMb4y.js">
     <link rel="stylesheet" crossorigin href="/fog-fill/assets/main-DsgdW2Ft.css">
   </head>
   <body>
     <main id="app">
       <h1>Balde de Fog</h1>
-      <p class="hint">Ative a ferramenta <b>Balde de Fog</b> (Shift+F) e clique numa área do mapa. A extensão pega a região de cor parecida e cobre com fog.</p>
+      <p class="hint">Ative a ferramenta <b>Balde de Fog</b> (Shift+F). Ela tem dois modos na barra:</p>
+      <p class="hint"><b>Por obstrução:</b> clique dentro de uma área cercada por obstruções do Smoke (ou paredes) e ela é preenchida exatamente até as linhas.</p>
+      <p class="hint"><b>Por cor do mapa:</b> clique numa área do mapa e o balde pega a região de cor parecida.</p>
 
       <section>
+        <h2>Por obstrução</h2>
+        <label class="check"><input id="useDrawings" type="checkbox" /> Usar também linhas comuns de desenho como borda</label>
+        <small>Por padrão, só obstruções do Smoke e paredes nativas contam como borda.</small>
+      </section>
+
+      <section>
+        <h2>Por cor do mapa</h2>
         <label>Tolerância <output id="o-tolerance"></output>
           <input id="tolerance" type="range" min="4" max="80" step="1" />
         </label>
