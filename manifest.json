@@ -1,0 +1,16 @@
+{
+  "name": "Balde de Fog",
+  "version": "1.1.0",
+  "manifest_version": 1,
+  "author": "Yuri",
+  "description": "Clique numa área do mapa e ela é coberta de fog: um balde de tinta por cor, com paredes opcionais.",
+  "icon": "/fog-fill/icon.svg",
+  "background_url": "/fog-fill/background.html",
+  "action": {
+    "title": "Balde de Fog",
+    "icon": "/fog-fill/icon.svg",
+    "popover": "/fog-fill/index.html",
+    "height": 640,
+    "width": 320
+  }
+}

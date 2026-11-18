@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Balde de Fog</title>
+    <script type="module" crossorigin src="/fog-fill/assets/main-DJUfcdKh.js"></script>
+    <link rel="modulepreload" crossorigin href="/fog-fill/assets/shared-Bq6c_-c7.js">
+    <link rel="stylesheet" crossorigin href="/fog-fill/assets/main-DsgdW2Ft.css">
+  </head>
+  <body>
+    <main id="app">
+      <h1>Balde de Fog</h1>
+      <p class="hint">Ative a ferramenta <b>Balde de Fog</b> (Shift+F) e clique numa área do mapa. A extensão pega a região de cor parecida e cobre com fog.</p>
+
+      <section>
+        <label>Tolerância <output id="o-tolerance"></output>
+          <input id="tolerance" type="range" min="4" max="80" step="1" />
+        </label>
+        <small>Quanto a cor pode variar. Se vazar para o chão, diminua; se ficar furado, aumente.</small>
+
+        <label>Suavizar borda <output id="o-smooth"></output>
+          <input id="smooth" type="range" min="0" max="10" step="1" />
+        </label>
+
+        <label>Expandir / recuar <output id="o-grow"></output>
+          <input id="grow" type="range" min="-10" max="20" step="1" />
+        </label>
+        <small>Positivo cobre também a borda de pedra; negativo deixa uma folga.</small>
+
+        <label>Simplificar contorno <output id="o-simplify"></output>
+          <input id="simplify" type="range" min="0" max="5" step="0.5" />
+        </label>
+
+        <label>Tapar buracos menores que <output id="o-minHole"></output>
+          <input id="minHole" type="range" min="0" max="5000" step="100" />
+        </label>
+
+        <label class="check"><input id="contiguous" type="checkbox" /> Só a área conectada ao clique</label>
+
+        <label>Cor do fog
+          <span class="row"><input id="color" type="color" /> <button id="color-reset" type="button">usar a da cena</button></span>
+        </label>
+      </section>
+
+      <section>
+        <h2>Contorno (visão)</h2>
+        <label>Além do fog, criar no contorno:
+          <select id="outline">
+            <option value="none">nada</option>
+            <option value="smoke">obstrução do Smoke &amp; Spectre!</option>
+            <option value="curve">linha comum (para "Convert to Obstruction")</option>
+            <option value="wall">parede nativa do Owlbear</option>
+          </select>
+        </label>
+        <label>Simplificar o contorno <output id="o-outlineSimplify"></output>
+          <input id="outlineSimplify" type="range" min="0" max="10" step="0.5" />
+        </label>
+        <small>Menos pontos deixam a visão dinâmica mais leve.</small>
+
+        <div id="smoke-box">
+          <p class="hint"><b>Ensinar o formato do Smoke:</b> desenhe uma obstrução comum com o Smoke (linha, sem porta), selecione-a e clique abaixo. O Balde passa a criar obstruções iguais a ela.</p>
+          <div class="row"><button id="learn" type="button">Aprender da seleção</button> <button id="forget" type="button">Esquecer</button></div>
+          <pre id="smoke-info" class="hint"></pre>
+        </div>
+      </section>
+
+      <section>
+        <h2>Desfazer</h2>
+        <div class="row">
+          <button id="undo" type="button">Apagar o último</button>
+          <button id="clear" type="button" class="danger">Apagar todos</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Imagem do mapa</h2>
+        <p class="hint">Se o clique avisar que não conseguiu ler o mapa, carregue aqui o mesmo arquivo de imagem que você usou no mapa.</p>
+        <div id="maps"></div>
+      </section>
+    </main>
+  </body>
+</html>
