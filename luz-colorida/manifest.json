@@ -1,0 +1,16 @@
+{
+  "name": "Luz Colorida",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "author": "Yuri",
+  "description": "Dá cor às luzes do Dynamic Fog, respeitando as paredes.",
+  "icon": "/fog-fill/luz-colorida/icon.svg",
+  "background_url": "/fog-fill/luz-colorida/background.html",
+  "action": {
+    "title": "Luz Colorida",
+    "icon": "/fog-fill/luz-colorida/icon.svg",
+    "popover": "/fog-fill/luz-colorida/index.html",
+    "height": 560,
+    "width": 320
+  }
+}

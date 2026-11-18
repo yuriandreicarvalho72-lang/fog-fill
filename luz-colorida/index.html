@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Luz Colorida</title>
+    <script type="module" crossorigin src="/fog-fill/luz-colorida/assets/main-3Sn6wS00.js"></script>
+    <link rel="modulepreload" crossorigin href="/fog-fill/luz-colorida/assets/shared-Bl-aqqnw.js">
+    <link rel="stylesheet" crossorigin href="/fog-fill/luz-colorida/assets/style-B7QTnHMN.css">
+  </head>
+  <body>
+    <main>
+      <h1>Luz Colorida</h1>
+      <p class="hint">Dá cor às luzes do <b>Dynamic Fog</b>. Clique com o botão direito num token que já tem luz e escolha <b>Cor da luz</b>.</p>
+
+      <section>
+        <h2>Mistura</h2>
+        <select id="blend"></select>
+        <label>Camada
+          <select id="layer">
+            <option value="DRAWING">sob os tokens (só o chão recebe a cor)</option>
+            <option value="ATTACHMENT">sobre os tokens (tokens também recebem a cor)</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>Paredes</h2>
+        <label class="check"><input id="shadows" type="checkbox" /> As paredes bloqueiam a cor</label>
+        <label>Limite de trechos de parede <output id="o-maxSegments"></output>
+          <input id="maxSegments" type="range" min="8" max="96" step="8" />
+        </label>
+        <small>Mais trechos = sombras mais fiéis, mais peso no computador dos jogadores.</small>
+      </section>
+
+      <section>
+        <h2>Luzes em cone</h2>
+        <label>Ajuste da direção <output id="o-dirOffset"></output>
+          <input id="dirOffset" type="range" min="-180" max="180" step="90" />
+        </label>
+        <small>Se a cor de uma lanterna sair para o lado errado, gire aqui.</small>
+      </section>
+
+      <section>
+        <h2>Na cena</h2>
+        <div id="list" class="hint"></div>
+      </section>
+    </main>
+  </body>
+</html>
