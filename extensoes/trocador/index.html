@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trocador</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Trocador</h1>
+      <p class="hint">Troque a arte de tokens e objetos entre imagens guardadas neles. Rápido: botão direito no item → <b>Trocar imagem</b>.</p>
+      <section id="sel"></section>
+      <section id="help">
+        <details>
+          <summary>Com Gatilhos e Estados</summary>
+          <p class="hint"><b>Gatilhos:</b> efeito <i>Trocar imagem (Trocador)</i>. Escolha os itens (ou "+ quem ativou") e a imagem pelo nome, ou próxima/anterior. Ex.: pisou na armadilha → token vira "Ferido".</p>
+          <p class="hint"><b>Estados:</b> marque a propriedade <i>Imagem</i> no grupo e troque a arte com o Trocador enquanto edita cada estado. O Estados mostra o nome da imagem de cada item. Ex.: "Disfarce" → todos os tokens do grupo vestem a arte "Disfarçado".</p>
+          <p class="hint">Os nomes das imagens importam: tokens diferentes com uma imagem de mesmo nome ("Ferido") trocam juntos.</p>
+        </details>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>

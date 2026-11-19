@@ -1,0 +1,16 @@
+{
+  "name": "trocador",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "test": "node test/core.mjs"
+  },
+  "dependencies": {
+    "@owlbear-rodeo/sdk": "^3.1.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21"
+  }
+}
