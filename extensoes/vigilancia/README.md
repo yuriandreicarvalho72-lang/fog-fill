@@ -25,17 +25,32 @@ Câmeras, guardas e torretas com cone de visão, e a camada de Realidade Aumenta
   O mestre recebe um popover para aprovar ou negar (ou liga "aprovar sozinho"); aprovado, o nó muda de estado.
 - Porta: hackeada ou desativada fica destravada; ativa trava de novo.
 
+## Visão especial (térmica / baixa luz)
+
+- Mestre: selecione o token e marque no painel os modos que ele tem (cyberolhos, óculos, metatipo).
+  Em itens: "Este item só aparece em: Térmica / Baixa luz" (rastro de calor, marca na parede, inimigo camuflado).
+  O item fica escondido; quem está com o modo ligado vê uma cópia local só na tela dele (térmica ganha um brilho de calor).
+- Jogador: no painel, liga e desliga os modos dos tokens dele (criador do token ou "jogador que usa este token" do Arsenal).
+  Com um modo ligado, a tela dele ganha um filtro de cor (dá para desligar o filtro no painel).
+- O mestre sempre vê os itens originais (escondidos, translúcidos), sem filtro.
+- Andares (Estados 1.4+): a câmera só vê quem está no mesmo andar do prédio. Um token escondido só porque o andar dele
+  não é o mostrado continua sendo visto pelas câmeras do andar dele.
+
 ## Integração
 
 - **Gatilhos** (1.7+): causas "Uma câmera vê alguém" (quem ativou = quem foi visto) e "Nó da Matriz muda de estado"
-  (qualquer estado ou um estado certo); efeitos "Ligar/desligar câmera" e "Mudar estado do nó da Matriz".
+  (qualquer estado ou um estado certo); efeitos "Ligar/desligar câmera", "Mudar estado do nó da Matriz" e (1.8+)
+  "Ligar/desligar modo de visão" (granada de luz desliga a baixa luz de quem ativou, por exemplo).
 - **Estados** (1.3+): propriedade "Câmera e nó da Matriz": cada estado guarda a câmera (direção, varredura...) e o estado do nó.
+  (1.4+): propriedade "Visão especial": cada estado guarda os modos do token e o "só aparece em" do item.
 - **Arsenal**: torreta = token com arma no Arsenal + câmera. Gatilho "Uma câmera vê alguém" (a torreta) →
   efeito "Disparo (Arsenal)" com atirador = torreta e alvo "+ quem ativou".
 - Canais (destino ALL; só um mestre, o de menor connectionId, executa):
   `vigilancia/viu` { camera, name, tokens (novos), all } · `vigilancia/no-mudou` { id, name, type, state, prev } ·
-  `vigilancia/mudar` { targets, state, from? } · `vigilancia/pedido` { node, action }.
-- Dados: `metadata["vigilancia/camera"]`, `metadata["vigilancia/no"]`, `metadata["vigilancia/commlink"]` nos itens;
+  `vigilancia/mudar` { targets, state, from? } · `vigilancia/pedido` { node, action } ·
+  `vigilancia/visao` { targets, mode: "termica" | "baixa" | "todos", on, from? } (jogador só mexe nos tokens dele).
+- Dados: `metadata["vigilancia/camera"]`, `metadata["vigilancia/no"]`, `metadata["vigilancia/commlink"]`,
+  `metadata["vigilancia/visao"]` { modes, on } e `metadata["vigilancia/so-em"]` nos itens;
   `vigilancia/acesso` e `vigilancia/pedidos` na cena. Cones e etiquetas da Matriz são itens locais (nada é salvo na cena).
 
 Testes: `node test/core.mjs`

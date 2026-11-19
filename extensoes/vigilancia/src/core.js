@@ -126,14 +126,15 @@ export function conePolygon(dir, cam, walls, cell, o) {
 /** Tokens que podem ser vistos por uma câmera. */
 export const isToken = (i) => i.type === "IMAGE" && (i.layer === "CHARACTER" || i.layer === "MOUNT");
 
-/** Quem a câmera vê agora. */
-export function seenBy(camItem, items, walls, cell, now = Date.now()) {
+/** Quem a câmera vê agora (groups: prédios do Estados, para os andares). */
+export function seenBy(camItem, items, walls, cell, now = Date.now(), groups = []) {
   const cam = camOf(camItem);
   if (!cam || !camOn(camItem)) return [];
   const dir = coneDir(camItem, cam, now);
   const ignore = new Set(cam.ignore || []);
   return items.filter((t) => isToken(t) && t.id !== camItem.id && !ignore.has(t.id)
-    && (cam.hiddenSeen || t.visible !== false)
+    && sameFloor(camItem, t)
+    && (cam.hiddenSeen || presentVisible(t, groups))
     && sees(camItem.position, dir, cam, t.position, walls, cell)).map((t) => t.id);
 }
 
@@ -167,4 +168,60 @@ export function doorLock(node) {
   if (node.state === "hackeado" || node.state === "desativado") return false;
   if (node.state === "ativo") return true;
   return null;
+}
+
+// ---------------- visão especial (ciberolhos) ----------------
+export const VISION = "vigilancia/visao";   // metadado do token: { modes: ["termica","baixa"], on: [...] } (o que ele tem / o que está ligado)
+export const ONLY = "vigilancia/so-em";      // metadado do item: só aparece em "termica" ou "baixa" (o item original fica escondido)
+export const MODES = [["termica", "Térmica", "🔥"], ["baixa", "Baixa luz", "🌙"]];
+export const modeLabel = (m) => MODES.find((x) => x[0] === m)?.[1] || m;
+export const TINT = { termica: [1.0, 0.42, 0.08], baixa: [0.35, 1.0, 0.45] }; // cor do filtro na tela
+
+export function visionOf(it) {
+  const v = it?.metadata?.[VISION];
+  if (!v || !Array.isArray(v.modes) || !v.modes.length) return null;
+  return { modes: v.modes.slice(), on: (Array.isArray(v.on) ? v.on : v.modes).filter((m) => v.modes.includes(m)) };
+}
+
+/** Tokens deste jogador (criados por ele, ou marcados como dele no Arsenal). */
+export const ownedBy = (playerId, items) => items.filter((i) => i.createdUserId === playerId || i.metadata?.[ARSENAL_OWNER] === playerId);
+
+/** Modos de visão ligados para este jogador (a soma dos tokens dele). O mestre vê os itens originais. */
+export function activeModes(playerId, role, items) {
+  if (role === "GM") return [];
+  const out = new Set();
+  for (const t of ownedBy(playerId, items)) for (const m of visionOf(t)?.on || []) out.add(m);
+  return [...out];
+}
+
+/** Liga/desliga um modo num token (só se ele tem o modo). mode "todos" = todos os que ele tem. */
+export function toggleVision(v, mode, on) {
+  if (!v) return v;
+  const which = mode === "todos" ? v.modes : [mode];
+  const set = new Set(v.on || []);
+  for (const m of which) if (v.modes.includes(m)) { if (on) set.add(m); else set.delete(m); }
+  return { modes: v.modes, on: v.modes.filter((m) => set.has(m)) };
+}
+
+// ---------------- andares (extensão Estados) ----------------
+export const FLOOR = "estados/andar";        // metadado do item: { g: prédio, f: andar }
+export const EST_GROUPS = "estados/grupos";  // metadado da cena: grupos e prédios do Estados
+export const EST_DATA = "estados/dados";     // metadado do item: dados de cada estado
+
+/** O token está "presente" no andar dele? Num andar que não é o mostrado ele fica escondido pelo Estados,
+ *  mas para as câmeras daquele andar ele continua lá (vale o que o Estados guardou para o andar dele). */
+export function presentVisible(t, groups) {
+  const fl = t?.metadata?.[FLOOR];
+  if (fl) {
+    const g = (groups || []).find((x) => x.id === fl.g);
+    if (g && g.current !== fl.f) return t.metadata?.[EST_DATA]?.[fl.g]?.[fl.f]?.visible !== false;
+  }
+  return t.visible !== false;
+}
+
+/** Câmera e token no mesmo andar? (sem andar marcado = vale para todos os andares) */
+export function sameFloor(a, b) {
+  const fa = a?.metadata?.[FLOOR], fb = b?.metadata?.[FLOOR];
+  if (!fa || !fb || fa.g !== fb.g) return true;
+  return fa.f === fb.f;
 }

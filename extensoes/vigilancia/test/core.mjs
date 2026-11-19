@@ -46,3 +46,24 @@ ok("sem acesso", hasAccess("u3", "PLAYER", [{ createdUserId: "u1", metadata: { [
 const prev = new Map([["c", "ativo"], ["d", "ativo"]]);
 ok("mudança de estado de nó", nodeChanges(prev, [camera, it("d", 0, 0, { [NODE]: { name: "Porta", type: "porta", state: "hackeado" } })]).map((c) => [c.id, c.prev, c.state]), [["d", "ativo", "hackeado"]]);
 ok("porta hackeada destrava, ativa trava, loop não mexe", [doorLock({ type: "porta", state: "hackeado" }), doorLock({ type: "porta", state: "ativo" }), doorLock({ type: "porta", state: "loop" }), doorLock({ type: "camera", state: "ativo" })], [false, true, null, null]);
+
+// ---------- visão especial ----------
+import { VISION, visionOf, activeModes, toggleVision, FLOOR, EST_DATA, presentVisible, sameFloor } from "../src/core.js";
+const eye = (id, by, modes, on) => ({ id, type: "IMAGE", layer: "CHARACTER", createdUserId: by, metadata: { [VISION]: { modes, on } } });
+ok("modos ligados do jogador", activeModes("p1", "PLAYER", [eye("a", "p1", ["termica", "baixa"], ["termica"]), eye("b", "p2", ["baixa"], ["baixa"])]), ["termica"]);
+ok("token marcado como dele no Arsenal conta", activeModes("p2", "PLAYER", [{ ...eye("c", "gm", ["baixa"], ["baixa"]), metadata: { [VISION]: { modes: ["baixa"], on: ["baixa"] }, "arsenal/dono": "p2" } }]), ["baixa"]);
+ok("mestre vê os originais (nenhum modo)", activeModes("gm", "GM", [eye("a", "gm", ["termica"], ["termica"])]), []);
+ok("sem 'on' = tudo ligado", visionOf({ metadata: { [VISION]: { modes: ["termica"] } } }).on, ["termica"]);
+ok("desligar térmica", toggleVision({ modes: ["termica", "baixa"], on: ["termica", "baixa"] }, "termica", false).on, ["baixa"]);
+ok("ligar modo que não tem: nada muda", toggleVision({ modes: ["baixa"], on: [] }, "termica", true).on, []);
+ok("desligar todos", toggleVision({ modes: ["termica", "baixa"], on: ["termica", "baixa"] }, "todos", false).on, []);
+
+// ---------- andares ----------
+const groups = [{ id: "pr", kind: "floors", current: "t", states: [{ id: "t" }, { id: "a1" }] }];
+const up = { ...it("u", 300, 0), visible: false, metadata: { [FLOOR]: { g: "pr", f: "a1" }, [EST_DATA]: { pr: { t: { visible: false }, a1: { visible: true } } } } };
+const camUp = { ...camera, metadata: { ...camera.metadata, [FLOOR]: { g: "pr", f: "a1" } } };
+const camDown = { ...camera, metadata: { ...camera.metadata, [FLOOR]: { g: "pr", f: "t" } } };
+ok("token escondido só porque o andar dele não é o mostrado: presente", presentVisible(up, groups), true);
+ok("mesmo andar / outro andar / sem andar", [sameFloor(camUp, up), sameFloor(camDown, up), sameFloor(camera, up)], [true, false, true]);
+ok("câmera do andar de cima vê o token de cima (mesmo com o térreo mostrado)", seenBy(camUp, [camUp, up], [], cell, 0, groups), ["u"]);
+ok("câmera do térreo não vê quem está em cima", seenBy(camDown, [camDown, up], [], cell, 0, groups), []);

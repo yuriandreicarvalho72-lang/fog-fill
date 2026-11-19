@@ -10,6 +10,7 @@ export const CH_NODE = `${ID}/no-mudou`;        // líder -> todos: { id, name, 
 export const CH_SET = `${ID}/mudar`;            // outras extensões (Gatilhos) -> líder: { targets: [id], state, from? }
 export const CH_REQ = `${ID}/pedido`;           // jogador -> líder: { node, action }
 export const CH_RES = `${ID}/resposta`;         // mestre -> todos: { by, nodeName, action, ok }
+export const CH_VISION = `${ID}/visao`;          // painel do jogador / Gatilhos -> líder: { targets: [id], mode: "termica"|"baixa"|"todos", on, from? }
 export const CH_PREFS = `${ID}/prefs`;          // painel -> segundo plano (LOCAL): preferências deste navegador mudaram
 export const APPROVE = `${ID}/aprovar`;         // id do popover de aprovação
 
@@ -20,7 +21,7 @@ export const uid = () => Math.random().toString(36).slice(2, 9);
 // preferências deste navegador (ver cones / ver a camada RA)
 const PREFS_KEY = `${ID}/prefs`;
 export function getPrefs() {
-  try { return { cones: true, ra: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return { cones: true, ra: true }; }
+  try { return { cones: true, ra: true, tint: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return { cones: true, ra: true, tint: true }; }
 }
 export function setPrefs(p) {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* sem armazenamento: vale só agora */ }

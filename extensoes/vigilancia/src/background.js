@@ -1,13 +1,14 @@
 // Vigilância em segundo plano (todos os navegadores):
 // - desenha os cones das câmeras e a camada RA da Matriz como itens LOCAIS (cada um vê o que pode ver);
 // - no mestre líder: vê quem entrou nos cones, avisa e manda o evento para o Gatilhos; aplica pedidos de hack.
-import OBR, { buildPath, buildLabel, buildShape } from "@owlbear-rodeo/sdk";
+import OBR, { buildPath, buildLabel, buildShape, buildEffect } from "@owlbear-rodeo/sdk";
 import {
   CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, conePolygon, seenBy, wallsFrom,
   hasAccess, nodeChanges, doorLock, iconOf, stateLabel,
+  VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS,
 } from "./core.js";
 import {
-  ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, APPROVE,
+  ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
   url, itemName, uid, getPrefs, setState, makeCamera, makeNode, decide,
 } from "./ops.js";
 
@@ -21,6 +22,7 @@ let access = { players: [], autoApprove: false };
 let prefs = getPrefs();
 let dpi = 150;
 let ready = false;
+let estGroups = []; // prédios/andares do Estados (câmeras só veem o próprio andar)
 
 const shown = new Map();      // id local -> assinatura do que está desenhado
 const prevSeen = new Map();   // câmera -> Set(tokens) (só no líder)
@@ -56,12 +58,23 @@ function wanted(now) {
   const out = new Map();
   const gm = role === "GM";
   const ra = prefs.ra && hasAccess(myId, role, items, access);
+  const modes = activeModes(myId, role, items);
+  // filtro de cor na tela (térmica laranja, baixa luz verde) para quem está com o modo ligado
+  if (modes.length && prefs.tint !== false) {
+    const m = modes.includes("termica") ? "termica" : "baixa";
+    const [r, g, b] = TINT[m];
+    out.set(lid("filtro", m), {
+      sig: m,
+      build: () => tag(buildEffect().effectType("VIEWPORT").sksl(`half4 main(float2 c) { return half4(${r.toFixed(2)}, ${g.toFixed(2)}, ${b.toFixed(2)}, 0.5); }`)
+        .blendMode("COLOR").layer("POST_PROCESS").name(`Visão: ${m}`)).id(lid("filtro", m)).build(),
+    });
+  }
   for (const it of items) {
     const cam = camOf(it);
     if (cam && ((gm && prefs.cones) || (cam.showAll && it.visible !== false))) {
       const st = nodeOf(it)?.state ?? "ativo";
       if (st !== "desativado" || gm) {
-        const seen = camOn(it) && seenBy(it, items, walls, dpi, now).length > 0;
+        const seen = camOn(it) && seenBy(it, items, walls, dpi, now, estGroups).length > 0;
         const look = coneLook(it, seen);
         const cmds = coneCommands(it, cam, now);
         out.set(lid("cone", it.id), {
@@ -70,6 +83,22 @@ function wanted(now) {
           build: () => tag(buildPath().position(it.position).commands(cmds).fillColor(look.fill).fillOpacity(look.op)
             .strokeColor(look.stroke).strokeOpacity(0.8).strokeWidth(Math.max(2, dpi / 50)).strokeDash(look.dash)
             .layer("DRAWING").name(`Cone: ${itemName(it)}`)).id(lid("cone", it.id)).build(),
+        });
+      }
+    }
+    // visão especial: o item "só em térmica/baixa luz" fica escondido; quem tem o modo ligado vê uma cópia local
+    const only = it.metadata?.[ONLY];
+    if (only && modes.includes(only)) {
+      const copy = JSON.parse(JSON.stringify(it));
+      delete copy.attachedTo;
+      Object.assign(copy, { id: lid("vis", it.id), visible: true, locked: true, disableHit: true, metadata: { [LOCAL]: true } });
+      out.set(copy.id, { sig: JSON.stringify([it.position, it.rotation, it.scale, it.image?.url, it.text?.plainText, it.style, it.layer]), build: () => copy });
+      if (only === "termica") {
+        const r = dpi * 0.75;
+        out.set(lid("calor", it.id), {
+          sig: JSON.stringify([it.position]),
+          build: () => tag(buildShape().shapeType("CIRCLE").position(it.position).width(r * 2).height(r * 2).fillColor("#ff6a1a").fillOpacity(0.28)
+            .strokeColor("#ffb347").strokeOpacity(0.7).strokeWidth(Math.max(2, dpi / 40)).layer("DRAWING")).id(lid("calor", it.id)).build(),
         });
       }
     }
@@ -148,7 +177,7 @@ async function clearLocal() {
 function detect(now) {
   for (const it of items) {
     if (!camOf(it)) continue;
-    const seen = camOn(it) ? seenBy(it, items, walls, dpi, now) : [];
+    const seen = camOn(it) ? seenBy(it, items, walls, dpi, now, estGroups) : [];
     const before = prevSeen.get(it.id) || new Set();
     const fresh = seen.filter((t) => !before.has(t));
     prevSeen.set(it.id, new Set(seen));
@@ -205,6 +234,22 @@ async function onSet(e) {
   if (!n) OBR.notification.show(`Vigilância${d.from ? ` (${d.from})` : ""}: nenhum dos itens é câmera ou nó da Matriz.`, "WARNING");
 }
 
+// ---------- visão especial: liga/desliga um modo (painel do jogador, Gatilhos) ----------
+async function onVision(e) {
+  const d = e.data || {};
+  if (!Array.isArray(d.targets) || !d.targets.length || !d.mode || !(await isLeader())) return;
+  const sender = (await OBR.party.getPlayers().catch(() => [])).find((x) => x.connectionId === e.connectionId);
+  let ids = d.targets;
+  // jogador só mexe nos tokens dele
+  if (sender && sender.role !== "GM") { const mine = new Set(ownedBy(sender.id, items).map((i) => i.id)); ids = ids.filter((id) => mine.has(id)); }
+  const its = items.filter((i) => ids.includes(i.id) && visionOf(i));
+  if (!its.length) {
+    if (d.from) OBR.notification.show(`Vigilância (${d.from}): nenhum desses tokens tem visão especial.`, "WARNING");
+    return;
+  }
+  await OBR.scene.items.updateItems(its.map((i) => i.id), (dr) => { for (const it of dr) it.metadata[VISION] = toggleVision(visionOf(it), d.mode, d.on !== false); });
+}
+
 // ---------- ciclo ----------
 let tm = null;
 function loop() {
@@ -225,11 +270,13 @@ async function loadScene() {
   items = await OBR.scene.items.getItems();
   localWalls = (await OBR.scene.local.getItems().catch(() => [])).filter((i) => i.type === "WALL" || i.metadata?.["com.battle-system.smoke/isVisionLine"]);
   walls = wallsFrom([...localWalls, ...items]);
-  access = { players: [], autoApprove: false, ...((await OBR.scene.getMetadata())[ACCESS] || {}) };
+  const md0 = await OBR.scene.getMetadata();
+  access = { players: [], autoApprove: false, ...(md0[ACCESS] || {}) };
+  estGroups = Array.isArray(md0[EST_GROUPS]) ? md0[EST_GROUPS] : [];
   prevSeen.clear(); prevState.clear();
   for (const it of items) { const n = nodeOf(it); if (n) prevState.set(it.id, n.state); }
   // quem já está no cone ao abrir a cena não dispara alarme
-  for (const it of items) if (camOf(it)) prevSeen.set(it.id, new Set(seenBy(it, items, walls, dpi)));
+  for (const it of items) if (camOf(it)) prevSeen.set(it.id, new Set(seenBy(it, items, walls, dpi, Date.now(), estGroups)));
   ready = true;
   draw();
 }
@@ -289,6 +336,7 @@ OBR.onReady(async () => {
   });
   OBR.broadcast.onMessage(CH_REQ, onRequest);
   OBR.broadcast.onMessage(CH_SET, onSet);
+  OBR.broadcast.onMessage(CH_VISION, onVision);
   OBR.broadcast.onMessage(CH_PREFS, (e) => { prefs = { ...prefs, ...(e.data || {}) }; draw(); });
 
   // ----- cena -----
@@ -305,6 +353,7 @@ OBR.onReady(async () => {
   });
   OBR.scene.onMetadataChange((md) => {
     access = { players: [], autoApprove: false, ...(md[ACCESS] || {}) };
+    estGroups = Array.isArray(md[EST_GROUPS]) ? md[EST_GROUPS] : [];
     draw();
   });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; draw(); });

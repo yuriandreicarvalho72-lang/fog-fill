@@ -1,8 +1,8 @@
 // Painel da Vigilância. Mestre: monta câmeras e nós, decide pedidos de hack, diz quem vê a Matriz.
 // Jogador com commlink/cyberdeck: vê os nós e pede para hackear, pôr em loop, desativar ou reativar.
 import OBR from "@owlbear-rodeo/sdk";
-import { CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken } from "./core.js";
-import { PENDING, CH_REQ, CH_RES, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
+import { CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
+import { PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -69,7 +69,21 @@ function renderSel() {
     ${cam ? camForm(it) : ""}
     ${node ? nodeForm(it) : ""}
     ${!cam || !node ? `<div class="btns">${cam ? "" : '<button type="button" id="mkCam">📷 Virar câmera</button>'}${node ? "" : '<button type="button" id="mkNode">◈ Virar nó da Matriz</button>'}</div>` : ""}
-    ${isToken(it) ? `<label class="check"><input type="checkbox" id="deck" ${it.metadata?.[DECK] === true ? "checked" : ""} /> Tem commlink/cyberdeck (o dono deste token vê a Matriz)</label>` : ""}`;
+    ${isToken(it) ? `<label class="check"><input type="checkbox" id="deck" ${it.metadata?.[DECK] === true ? "checked" : ""} /> Tem commlink/cyberdeck (o dono deste token vê a Matriz)</label>` : ""}
+    ${visionForm(it)}`;
+}
+
+/** Visão especial: modos que o token tem (ciberolhos) e itens que só aparecem num modo. */
+function visionForm(it) {
+  const v = visionOf(it);
+  const only = it.metadata?.[ONLY] || "";
+  return `<div class="effect">
+    <h3>👁 Visão especial</h3>
+    ${isToken(it) ? `<div class="row">${MODES.map(([m, l, ic]) => `<label class="check"><input type="checkbox" data-vmode="${m}" ${v?.modes.includes(m) ? "checked" : ""} /> ${ic} ${l}</label>`).join("")}</div>
+    ${v ? `<p class="hint">Ligado agora: ${v.on.length ? v.on.map(modeLabel).join(", ") : "nada"} (o jogador liga e desliga no painel dele).</p>` : '<p class="hint">Ciberolhos: marque os modos que este personagem tem. O dono do token vê os itens marcados para aquele modo.</p>'}` : ""}
+    <div class="row"><span class="hint">Este item só aparece em:</span><select id="only"><option value="" ${only ? "" : "selected"}>visão normal (todos)</option>${MODES.map(([m, l]) => `<option value="${m}" ${only === m ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    ${only ? `<p class="hint">O item fica escondido; quem está com ${modeLabel(only)} ligada vê uma cópia só na tela dele${only === "termica" ? " (com o brilho de calor)" : ""}.</p>` : ""}
+  </div>`;
 }
 
 function renderGM() {
@@ -130,13 +144,44 @@ function bindGM() {
   for (const b of document.querySelectorAll("[data-state]")) b.onclick = () => setState([one.id], b.dataset.state);
   $("nodeDel")?.addEventListener("click", () => OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) { delete it.metadata[NODE]; delete it.metadata[CAM]; } }));
   $("deck")?.addEventListener("change", (e) => OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) { if (e.target.checked) it.metadata[DECK] = true; else delete it.metadata[DECK]; } }));
+  for (const c of document.querySelectorAll("[data-vmode]")) {
+    c.onchange = () => OBR.scene.items.updateItems([one.id], (d) => {
+      for (const it of d) {
+        const v = visionOf(it) || { modes: [], on: [] };
+        const m = c.dataset.vmode;
+        const modes = c.checked ? [...new Set([...v.modes, m])] : v.modes.filter((x) => x !== m);
+        const on = c.checked ? [...new Set([...v.on, m])] : v.on.filter((x) => x !== m);
+        if (modes.length) it.metadata[VISION] = { modes, on }; else delete it.metadata[VISION];
+      }
+    });
+  }
+  $("only")?.addEventListener("change", (e) => OBR.scene.items.updateItems([one.id], (d) => {
+    for (const it of d) {
+      if (e.target.value) { it.metadata[ONLY] = e.target.value; it.visible = false; } else { delete it.metadata[ONLY]; it.visible = true; }
+    }
+  }));
 }
 
 // ---------------- jogador ----------------
+function visionPlayer() {
+  const mine = ownedBy(myId, items).filter((i) => visionOf(i));
+  if (!mine.length) return "";
+  const prefs = getPrefs();
+  return `<section><h2>👁 Visão especial</h2>
+    ${mine.map((t) => { const v = visionOf(t); return `<div class="row"><b class="grow">${esc(itemName(t))}</b>${v.modes.map((m) => {
+      const ic = MODES.find((x) => x[0] === m)?.[2] || ""; const on = v.on.includes(m);
+      return `<button type="button" class="chip${on ? " on" : ""}" data-vt="${t.id}" data-vm="${m}" data-von="${on ? 0 : 1}">${ic} ${esc(modeLabel(m))}${on ? " ✓" : ""}</button>`;
+    }).join("")}</div>`; }).join("")}
+    <label class="check"><input type="checkbox" id="pTint" ${prefs.tint !== false ? "checked" : ""} /> Filtro de cor na tela com o modo ligado</label>
+  </section>`;
+}
+
 function renderPlayer() {
   const prefs = getPrefs();
+  const vis = visionPlayer();
   if (!hasAccess(myId, role, items, access)) {
-    $("main").innerHTML = '<h1>Vigilância</h1><p class="hint">Você não está conectado à Matriz. Precisa de um commlink ou cyberdeck: fale com o mestre.</p>';
+    $("main").innerHTML = `<h1>Vigilância</h1>${vis}<p class="hint">Você não está conectado à Matriz. Precisa de um commlink ou cyberdeck: fale com o mestre.</p>`;
+    bindVision();
     return;
   }
   const nodes = items.filter((i) => nodeOf(i) && !nodeOf(i).hidden && i.visible !== false);
@@ -146,7 +191,8 @@ function renderPlayer() {
     ${nodes.length ? nodes.map((i) => { const n = nodeOf(i); const wait = asked.get(i.id); return `<div class="effect">
       <div class="row"><span class="ico">${iconOf(n.type)}</span><b class="grow mname">${esc(n.name)}</b>${chip(n.state)}</div>
       ${wait ? `<p class="hint">Aguardando o mestre: ${esc(stateLabel(wait))}…</p>` : `<div class="btns">${ACTIONS.filter(([v]) => v !== n.state).map(([v, l]) => `<button type="button" class="mini" data-req="${i.id}" data-act="${v}">${l}</button>`).join("")}</div>`}
-    </div>`; }).join("") : '<p class="hint">Nenhum nó da Matriz por aqui.</p>'}`;
+    </div>`; }).join("") : '<p class="hint">Nenhum nó da Matriz por aqui.</p>'}
+    ${vis}`;
   $("pRa").onchange = (e) => setPrefs({ ...getPrefs(), ra: e.target.checked });
   for (const b of document.querySelectorAll("[data-req]")) {
     b.onclick = () => {
@@ -155,8 +201,15 @@ function renderPlayer() {
       render();
     };
   }
+  bindVision();
 }
 
+function bindVision() {
+  for (const b of document.querySelectorAll("[data-vt]")) {
+    b.onclick = () => OBR.broadcast.sendMessage(CH_VISION, { targets: [b.dataset.vt], mode: b.dataset.vm, on: b.dataset.von === "1" }, { destination: "ALL" });
+  }
+  $("pTint")?.addEventListener("change", (e) => setPrefs({ ...getPrefs(), tint: e.target.checked }));
+}
 OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
   role = await OBR.player.getRole();
