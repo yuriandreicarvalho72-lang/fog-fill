@@ -9,9 +9,10 @@
   <body>
     <main id="app">
       <h1>Balde de Fog</h1>
-      <p class="hint">Ative a ferramenta <b>Balde de Fog</b> (Shift+F). Ela tem dois modos na barra:</p>
+      <p class="hint">Ative a ferramenta <b>Balde de Fog</b> (Shift+F). Ela tem três modos na barra:</p>
       <p class="hint"><b>Por obstrução:</b> clique dentro de uma área cercada por obstruções do Smoke (ou paredes) e ela é preenchida exatamente até as linhas.</p>
       <p class="hint"><b>Por cor do mapa:</b> clique numa área do mapa e o balde pega a região de cor parecida.</p>
+      <p class="hint"><b>Varrer:</b> um clique e tudo fora da área jogável vira fog.</p>
 
       <section>
         <h2>Por obstrução</h2>
@@ -21,7 +22,7 @@
 
       <section>
         <h2>Varrer o mapa inteiro</h2>
-        <p class="hint">Escolha o modo <b>Varrer</b> e clique uma vez no <b>vazio</b> (rocha preta, abismo, mata fechada: o que fica fora da área jogável). Todo o mapa com a mesma cor média vira fog, mesmo em pedaços separados; manchas soltas menores que ~1,5 quadrado são ignoradas. Usa a tolerância, a suavização, o expandir e o contorno abaixo. Se faltar algum pedaço, clique nele também; se errar, "Apagar o último".</p>
+        <p class="hint">Escolha o modo <b>Varrer</b> e clique <b>em qualquer lugar do mapa</b>: tudo o que está fora da área jogável vira fog de uma vez. Ele usa o fundo transparente da imagem (se houver) e a cor que domina a borda do mapa (rocha preta, abismo...). Se o vazio tiver outra cor, clique direto nele. Manchas soltas menores que ~1,5 quadrado são ignoradas. Ajuste com tolerância, suavizar e expandir (positivo cobre também a borda das paredes). Errou? "Apagar o último".</p>
       </section>
 
       <section>

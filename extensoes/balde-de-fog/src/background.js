@@ -1,9 +1,9 @@
 import OBR, { buildPath, buildWall, buildCurve, buildLine, isImage, Command } from "@owlbear-rodeo/sdk";
-import { fogFill, sweepVoid, simplifyLoop } from "./core.js";
+import { fogFill, sweepAuto, simplifyLoop } from "./core.js";
 import { itemPolylines, fillFromWalls } from "./walls.js";
 import {
   ID, TOOL_ID, MODE_ID, MODE_WALL_ID, MODE_SWEEP_ID, META, DEFAULTS, SMOKE_PREFIX,
-  getMapFile, sceneToImagePixel, imagePixelToScene,
+  getMapFile, sceneToImagePixel, imagePixelToScene, loadSettings, setLastIds, migrateToolMetadata,
 } from "./shared.js";
 
 const icon = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
@@ -102,7 +102,7 @@ function outlineItems(loopsIn, map, sceneDpi, f, s) {
 async function onClick(context, event, sweep = false) {
   const role = await OBR.player.getRole();
   if (role !== "GM") return;
-  const s = { ...DEFAULTS, ...(context.metadata || {}) };
+  const s = loadSettings();
   const sceneDpi = await OBR.scene.grid.getDpi();
   const hit = await findMapUnder(event.pointerPosition, sceneDpi);
   if (!hit) {
@@ -127,11 +127,12 @@ async function onClick(context, event, sweep = false) {
   const cellPx = (map.grid?.dpi || 150) * f; // tamanho de um quadrado na imagem processada
   const res = sweep
     // varredura: tudo no mapa com a mesma "cor média" do ponto clicado (o vazio), conectado ou não
-    ? sweepVoid(img, sx, sy, {
+    ? sweepAuto(img, sx, sy, {
       tolerance: s.tolerance,
       smooth: s.smooth * f,
       grow: s.grow * f,
       simplify: s.simplify * f,
+      cell: cellPx,
       minIsland: Math.max(64, 1.5 * cellPx * cellPx),
       minHole: Math.max(s.minHole * f * f, 0.5 * cellPx * cellPx),
     })
@@ -145,7 +146,9 @@ async function onClick(context, event, sweep = false) {
       minIsland: 64,
     });
   if (!res.loops.length) {
-    OBR.notification.show(`Balde de Fog: nada selecionado aqui (tolerância ${s.tolerance}). Tente aumentar a tolerância${sweep ? " ou clique no vazio (fora da área jogável)" : ""}.`, "WARNING");
+    OBR.notification.show(sweep
+      ? "Balde de Fog: não achei o que é \"fora do mapa\" nesta imagem (a borda não tem uma cor dominante nem transparência). Clique direto no vazio, ou use o modo Por cor."
+      : `Balde de Fog: nada selecionado aqui (tolerância ${s.tolerance}). Tente aumentar a tolerância.`, "WARNING");
     return;
   }
   if (res.pixels > (sweep ? 0.95 : 0.85) * img.width * img.height) {
@@ -185,9 +188,9 @@ async function onClick(context, event, sweep = false) {
   const outline = s.outline || (s.walls ? "wall" : "none");
   items.push(...outlineItems(res.loops, map, sceneDpi, f, s));
   await OBR.scene.items.addItems(items);
-  await OBR.tool.setMetadata(TOOL_ID, { lastIds: items.map((i) => i.id) });
+  setLastIds(items.map((i) => i.id));
   OBR.notification.show(
-    `Balde de Fog: ${sweep ? "varredura feita" : "área preenchida"} (${res.loops.length} contorno${res.loops.length > 1 ? "s" : ""}${outline === "wall" ? ", com paredes" : outline === "smoke" ? ", com obstruções do Smoke" : outline === "curve" ? ", com contorno para converter" : ""}) · ${Math.round((100 * res.pixels) / (img.width * img.height))}% do mapa · tolerância ${s.tolerance}.`,
+    `Balde de Fog: ${sweep ? { alpha: "fundo transparente coberto", border: "coberto tudo da cor da borda do mapa", click: "coberto tudo da cor clicada" }[res.mode] || "varredura feita" : "área preenchida"} (${res.loops.length} contorno${res.loops.length > 1 ? "s" : ""}${outline === "wall" ? ", com paredes" : outline === "smoke" ? ", com obstruções do Smoke" : outline === "curve" ? ", com contorno para converter" : ""}) · ${Math.round((100 * res.pixels) / (img.width * img.height))}% do mapa · tolerância ${s.tolerance}.`,
     "SUCCESS",
   );
 }
@@ -205,7 +208,7 @@ function isBoundary(i, s) {
 async function onWallClick(context, event) {
   const role = await OBR.player.getRole();
   if (role !== "GM") return;
-  const s = { ...DEFAULTS, ...(context.metadata || {}) };
+  const s = loadSettings();
   const dpi = await OBR.scene.grid.getDpi();
   const items = await OBR.scene.items.getItems((i) => isBoundary(i, s));
   const polylines = items.flatMap((i) => itemPolylines(i, dpi * 0.3));
@@ -236,7 +239,7 @@ async function onWallClick(context, event) {
     .metadata({ [META]: true })
     .build();
   await OBR.scene.items.addItems([fill]);
-  await OBR.tool.setMetadata(TOOL_ID, { lastIds: [fill.id] });
+  setLastIds([fill.id]);
   const holes = r.loops.length - 1;
   OBR.notification.show(`Balde de Fog: área preenchida pela obstrução${holes > 0 ? ` (${holes} ilha${holes > 1 ? "s" : ""} deixada${holes > 1 ? "s" : ""} de fora)` : ""}.`, "SUCCESS");
 }
@@ -247,8 +250,8 @@ OBR.onReady(async () => {
     icons: [{ icon: icon("icon.svg"), label: "Balde de Fog", filter: { roles: ["GM"] } }],
     shortcut: "Shift+F",
     defaultMode: MODE_WALL_ID,
-    defaultMetadata: { ...DEFAULTS },
   });
+  await migrateToolMetadata(OBR, TOOL_ID);
   await OBR.tool.createMode({
     id: MODE_WALL_ID,
     icons: [{ icon: icon("icon-wall.svg"), label: "Balde por obstrução", filter: { activeTools: [TOOL_ID] } }],
@@ -275,7 +278,7 @@ OBR.onReady(async () => {
   });
   await OBR.tool.createMode({
     id: MODE_SWEEP_ID,
-    icons: [{ icon: icon("icon-sweep.svg"), label: "Varrer o mapa inteiro (clique no vazio)", filter: { activeTools: [TOOL_ID] } }],
+    icons: [{ icon: icon("icon-sweep.svg"), label: "Varrer: tudo fora do mapa vira fog (um clique)", filter: { activeTools: [TOOL_ID] } }],
     cursors: [{ cursor: "crosshair" }],
     onToolClick: (context, event) => {
       OBR.notification.show("Balde de Fog: varrendo o mapa...");
