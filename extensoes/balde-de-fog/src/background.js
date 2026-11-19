@@ -145,7 +145,7 @@ async function onClick(context, event, sweep = false) {
       minIsland: 64,
     });
   if (!res.loops.length) {
-    OBR.notification.show("Balde de Fog: nada selecionado aqui. Tente aumentar a tolerância.", "WARNING");
+    OBR.notification.show(`Balde de Fog: nada selecionado aqui (tolerância ${s.tolerance}). Tente aumentar a tolerância${sweep ? " ou clique no vazio (fora da área jogável)" : ""}.`, "WARNING");
     return;
   }
   if (res.pixels > (sweep ? 0.95 : 0.85) * img.width * img.height) {
@@ -187,7 +187,7 @@ async function onClick(context, event, sweep = false) {
   await OBR.scene.items.addItems(items);
   await OBR.tool.setMetadata(TOOL_ID, { lastIds: items.map((i) => i.id) });
   OBR.notification.show(
-    `Balde de Fog: ${sweep ? "varredura feita" : "área preenchida"} (${res.loops.length} contorno${res.loops.length > 1 ? "s" : ""}${outline === "wall" ? ", com paredes" : outline === "smoke" ? ", com obstruções do Smoke" : outline === "curve" ? ", com contorno para converter" : ""}).`,
+    `Balde de Fog: ${sweep ? "varredura feita" : "área preenchida"} (${res.loops.length} contorno${res.loops.length > 1 ? "s" : ""}${outline === "wall" ? ", com paredes" : outline === "smoke" ? ", com obstruções do Smoke" : outline === "curve" ? ", com contorno para converter" : ""}) · ${Math.round((100 * res.pixels) / (img.width * img.height))}% do mapa · tolerância ${s.tolerance}.`,
     "SUCCESS",
   );
 }
