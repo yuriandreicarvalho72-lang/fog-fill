@@ -21,6 +21,8 @@ export const VIG_NODE = "vigilancia/no-mudou";  // Vigilância -> todos: { id, n
 export const VIG_SET = "vigilancia/mudar";      // { targets: [id], state, from } pede a troca de estado à Vigilância
 export const VIG_CAM = "vigilancia/camera";     // metadado do item: é câmera
 export const VIG_NODE_META = "vigilancia/no";   // metadado do item: é nó da Matriz
+export const VIG_VISION = "vigilancia/visao";   // { targets, mode: "termica"|"baixa"|"todos", on, from } liga/desliga visão especial
+export const VISION_MODES = [["termica", "térmica"], ["baixa", "baixa luz"], ["todos", "todos os modos"]];
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -59,10 +61,12 @@ export const ACTIONS = [
   { id: "weatherOff", label: "Desligar clima (Clima)", need: ["targets"] },
   { id: "lightning", label: "Relâmpago (Clima)", need: [] },
   { id: "stateSet", label: "Mudar estado (Estados)", need: ["group"] },
+  { id: "floor", label: "Mudar de andar (Estados: prédio)", need: ["floor"] },
   { id: "arsenal", label: "Disparo (Arsenal): um token atira", need: ["shooter", "targets", "weapon"] },
   { id: "swapImage", label: "Trocar imagem (Trocador)", need: ["targets", "image"] },
   { id: "camPower", label: "Ligar/desligar câmera (Vigilância)", need: ["targets", "power"] },
   { id: "nodeSet", label: "Mudar estado do nó da Matriz (Vigilância)", need: ["targets", "nodeState"] },
+  { id: "vision", label: "Ligar/desligar modo de visão (Vigilância)", need: ["targets", "vision"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -83,7 +87,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", delay: 0 };
 }
 
 // quem o teleporte leva

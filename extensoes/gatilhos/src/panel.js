@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -85,6 +85,25 @@ function vigRow(e, kind) {
     <span class="hint">Precisa da extensão Vigilância instalada.</span>`;
 }
 
+/** Mudar de andar: prédio do Estados, para onde, e se quem ativou vai junto. */
+function floorRow(e) {
+  const bs = estados.filter((g) => g.kind === "floors");
+  if (!bs.length) return '<span class="hint">Crie um prédio na extensão Estados primeiro (🏢 Novo prédio).</span>';
+  const b = bs.find((g) => g.id === e.group);
+  return `<div class="row"><select data-ek="group"><option value="">prédio…</option>${bs.map((g) => `<option value="${g.id}" ${g.id === e.group ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select>
+      <select data-ek="to"><option value="next" ${e.to === "next" ? "selected" : ""}>subir um andar</option><option value="prev" ${e.to === "prev" ? "selected" : ""}>descer um andar</option>${(b?.states || []).map((st) => `<option value="${st.id}" ${st.id === e.to ? "selected" : ""}>ir para: ${esc(st.name)}</option>`).join("")}</select></div>
+    <label class="check"><input type="checkbox" data-ekb="carry" ${e.carry !== false ? "checked" : ""} /> Levar quem ativou junto (quem usou a escada/elevador)</label>
+    <span class="hint">Para escada ou elevador: causa "Interagir" no objeto da escada. Precisa da extensão Estados.</span>`;
+}
+
+/** Ligar/desligar visão especial (térmica, baixa luz) dos tokens. */
+function visionRow(e) {
+  return `<div class="row"><select data-ek="visionMode">${VISION_MODES.map(([v, l]) => `<option value="${v}" ${(e.visionMode || "termica") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select data-ek="visionOn"><option value="on" ${e.visionOn !== "off" ? "selected" : ""}>ligar</option><option value="off" ${e.visionOn === "off" ? "selected" : ""}>desligar</option></select></div>
+    ${(e.targets || []).length ? "" : '<span class="hint warn">⚠ Sem alvo: escolha os tokens ou "+ quem ativou".</span>'}
+    <span class="hint">Só vale para tokens com esse modo (marcado na Vigilância). Ex.: granada de luz desliga a baixa luz. Precisa da extensão Vigilância.</span>`;
+}
+
 function effectRow(t, e) {
   const a = ACTIONS.find((x) => x.id === e.action) || ACTIONS[0];
   const need = new Set(a.need);
@@ -99,6 +118,8 @@ function effectRow(t, e) {
     ${need.has("image") ? imageRow(e) : ""}
     ${need.has("power") ? vigRow(e, "power") : ""}
     ${need.has("nodeState") ? vigRow(e, "nodeState") : ""}
+    ${need.has("floor") ? floorRow(e) : ""}
+    ${need.has("vision") ? visionRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
     ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
@@ -209,6 +230,7 @@ function card(t) {
         if (["action", "group", "who", "weapon"].includes(el.dataset.ek)) render();
       });
     }
+    for (const el of row.querySelectorAll("[data-ekb]")) el.addEventListener("change", () => { e[el.dataset.ekb] = el.checked; save(); });
     row.querySelector("[data-del-effect]").addEventListener("click", () => { t.effects = t.effects.filter((x) => x !== e); save(true); render(); });
   }
   div.querySelector("[data-add-effect]")?.addEventListener("click", () => { t.effects.push(newEffect("notify")); save(true); render(); });

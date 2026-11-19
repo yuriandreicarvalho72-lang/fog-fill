@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -201,6 +201,15 @@ async function doEffect(e, ctx, depth, trigger) {
       // o Trocador faz a troca (só um mestre executa); "@quem" nos alvos vira quem ativou
       if (!ids.length) return warn(`"${trigger.name}": trocar imagem está sem alvo.`);
       return OBR.broadcast.sendMessage(TROCADOR_SWAP, { targets: ids, to: e.image || "next", from: trigger.name }, { destination: "ALL" });
+    case "floor": {
+      // a extensão Estados troca o andar; quem ativou (quem usou a escada) vai junto, se marcado
+      if (!e.group) return warn(`"${trigger.name}": mudar de andar está sem prédio.`);
+      const carry = e.carry !== false ? (await actors(trigger, ctx)).map((i) => i.id) : [];
+      return OBR.broadcast.sendMessage(ESTADOS_SET, { group: e.group, to: e.to || "next", carry }, { destination: "ALL" });
+    }
+    case "vision":
+      if (!ids.length) return warn(`"${trigger.name}": ligar/desligar visão está sem token.`);
+      return OBR.broadcast.sendMessage(VIG_VISION, { targets: ids, mode: e.visionMode || "termica", on: e.visionOn !== "off", from: trigger.name }, { destination: "ALL" });
     case "camPower":
     case "nodeSet": {
       // a Vigilância faz a troca (só um mestre executa)
