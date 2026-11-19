@@ -11,6 +11,8 @@ export const CLIMA_FLASH = "clima/relampago";
 export const LUZ = "luz-colorida/cor";
 export const ESTADOS = "estados/grupos";        // grupos da extensão Estados (metadado da cena)
 export const ESTADOS_SET = "estados/mudar";     // { group, to } pede a troca de estado
+export const ARSENAL_FIRE = "arsenal/atirar";   // { shooter, weapon?, mode?, targets: [{id}], hit } pede um disparo ao Arsenal
+export const ARSENAL_WEAPONS = "arsenal/armas"; // metadado do token: repertório de armas do Arsenal
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
 export const CH_HALT = "regua/parar";     // motor -> todos: { tokenId, at, upto } (anda até points[upto], vai para "at" e para)
@@ -46,6 +48,7 @@ export const ACTIONS = [
   { id: "weatherOff", label: "Desligar clima (Clima)", need: ["targets"] },
   { id: "lightning", label: "Relâmpago (Clima)", need: [] },
   { id: "stateSet", label: "Mudar estado (Estados)", need: ["group"] },
+  { id: "arsenal", label: "Disparo (Arsenal): um token atira", need: ["shooter", "targets", "weapon"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -66,7 +69,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", delay: 0 };
 }
 
 // quem o teleporte leva
@@ -75,6 +78,7 @@ export const WHO = [
   ["zone", "todos em cima da zona"],
   ["selected", "os tokens que eu tiver selecionado"],
 ];
+export const ARSENAL_MODES = { single: "tiro único", burst: "rajada", auto: "automático", supp: "supressão", spray: "jato" };
 export const ACTOR = "@quem"; // item especial nas listas de itens: quem ativou
 export const MOVING = ["enter", "leave", "near"]; // causas com movimento (dá para barrar)
 // quem pode usar um objeto interagível

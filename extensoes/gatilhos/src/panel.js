@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 let list = [];
 let open = null;          // gatilho aberto
 let itemNames = new Map();
+let itemWeapons = new Map(); // armas do Arsenal de cada token
 let estados = [];         // grupos da extensão Estados
 const logLines = [];
 
@@ -17,6 +18,7 @@ const nameOf = (id) => (id === ACTOR ? "⚑ quem ativou" : itemNames.get(id) || 
 async function refreshNames() {
   const items = await OBR.scene.items.getItems();
   itemNames = new Map(items.map((i) => [i.id, i.text?.plainText || i.name || i.type]));
+  itemWeapons = new Map(items.map((i) => [i.id, i.metadata?.[ARSENAL_WEAPONS] || []]));
 }
 
 let saveTimer = null;
@@ -34,6 +36,20 @@ function chips(ids, key, actor = false) {
     ${actor ? `<button type="button" class="mini" data-actor="${key}" title="Inclui (ou tira) quem ativou o gatilho">${(ids || []).includes(ACTOR) ? "− quem ativou" : "+ quem ativou"}</button>` : ""}</div>`;
 }
 
+/** Arma, modo e acerto do disparo do Arsenal. */
+function arsenalRow(e) {
+  if (!e.shooter) return '<span class="hint">Escolha o atirador: selecione o token (torreta, guarda…) e clique em "usar seleção".</span>';
+  const ws = itemWeapons.get(e.shooter) || [];
+  if (!ws.length) return '<span class="hint warn">⚠ Esse token não tem armas no Arsenal. Abra o Arsenal, use-o como atirador e adicione uma arma.</span>';
+  const w = ws.find((x) => x.id === e.weapon) || ws[0];
+  return `<select data-ek="weapon">${ws.map((x) => `<option value="${x.id}" ${x.id === w.id ? "selected" : ""}>${esc(x.name)}${x.mag != null ? ` (${x.ammo ?? 0}/${x.mag})` : ""}</option>`).join("")}</select>
+    <div class="row">
+      <select data-ek="mode"><option value="">modo da arma</option>${(w.modes || []).map((m) => `<option value="${m}" ${m === e.mode ? "selected" : ""}>${ARSENAL_MODES[m] || m}</option>`).join("")}</select>
+      <select data-ek="hit"><option value="hit" ${e.hit !== "miss" && e.hit !== "half" ? "selected" : ""}>acerta</option><option value="miss" ${e.hit === "miss" ? "selected" : ""}>erra</option><option value="half" ${e.hit === "half" ? "selected" : ""}>50% de chance</option></select>
+    </div>${(e.targets || []).length ? "" : '<span class="hint warn">⚠ Sem alvo: use "+ quem ativou" para atirar em quem pisou na zona.</span>'}
+    <span class="hint">Usa a munição da arma. Precisa da extensão Arsenal instalada.</span>`;
+}
+
 function effectRow(t, e) {
   const a = ACTIONS.find((x) => x.id === e.action) || ACTIONS[0];
   const need = new Set(a.need);
@@ -42,7 +58,9 @@ function effectRow(t, e) {
       <select data-ek="action">${ACTIONS.map((x) => `<option value="${x.id}" ${x.id === e.action ? "selected" : ""}>${x.label}</option>`).join("")}</select>
       <button type="button" class="x" data-del-effect title="Remover efeito">✕</button>
     </div>
-    ${need.has("targets") ? `<div class="sub">Itens: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
+    ${need.has("shooter") ? `<div class="sub">Atirador: ${chips(e.shooter ? [e.shooter] : [], `e:${e.id}:shooter`)}</div>` : ""}
+    ${need.has("targets") ? `<div class="sub">${e.action === "arsenal" ? "Alvos" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
+    ${need.has("weapon") ? arsenalRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
     ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
@@ -123,6 +141,7 @@ function card(t) {
         const [, eid, field] = key.split(":");
         const e = t.effects.find((x) => x.id === eid);
         if (field === "dest") e.dest = sel[0] || null;
+        else if (field === "shooter") { e.shooter = sel[0] || ""; e.weapon = ""; e.mode = ""; }
         else e.targets = (e.targets || []).includes(ACTOR) ? [ACTOR, ...sel] : sel;
       }
       if (!sel.length) OBR.notification.show("Gatilhos: selecione itens no mapa primeiro (a seleção ficou vazia).", "WARNING");
@@ -144,7 +163,8 @@ function card(t) {
       el.addEventListener("change", () => {
         e[el.dataset.ek] = el.type === "number" ? Number(el.value) : el.value;
         save();
-        if (["action", "group", "who"].includes(el.dataset.ek)) render();
+        if (el.dataset.ek === "weapon") e.mode = "";
+        if (["action", "group", "who", "weapon"].includes(el.dataset.ek)) render();
       });
     }
     row.querySelector("[data-del-effect]").addEventListener("click", () => { t.effects = t.effects.filter((x) => x !== e); save(true); render(); });

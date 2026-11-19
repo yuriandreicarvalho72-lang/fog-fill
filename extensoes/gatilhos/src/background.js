@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -189,6 +189,14 @@ async function doEffect(e, ctx, depth, trigger) {
     case "stateSet":
       // a extensão Estados faz a troca (ela só executa uma vez, mesmo com dois mestres)
       return e.group ? OBR.broadcast.sendMessage(ESTADOS_SET, { group: e.group, to: e.to || "next" }, { destination: "ALL" }) : null;
+    case "arsenal": {
+      // o Arsenal faz o disparo (só um mestre executa); "@quem" nos alvos vira quem ativou
+      if (!e.shooter) return warn(`"${trigger.name}": o disparo do Arsenal está sem atirador.`);
+      const tg = ids.filter((id) => id !== e.shooter);
+      if (!tg.length) return warn(`"${trigger.name}": o disparo do Arsenal está sem alvo (use "+ quem ativou" para atirar em quem pisou na zona).`);
+      const hit = e.hit === "miss" ? false : e.hit === "half" ? Math.random() < 0.5 : true;
+      return OBR.broadcast.sendMessage(ARSENAL_FIRE, { shooter: e.shooter, weapon: e.weapon || undefined, mode: e.mode || undefined, targets: tg.map((id) => ({ id })), hit, from: trigger.name }, { destination: "ALL" });
+    }
     case "chain":
     case "rearm": {
       const t = triggers.find((x) => x.id === e.trigger);
