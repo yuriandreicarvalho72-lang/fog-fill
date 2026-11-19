@@ -5,8 +5,11 @@ import { PROFILES, MODE_LABEL, ROUNDS } from "./fx.js";
 import { JB2A_CREDIT } from "./jb2a.js";
 import { fire, reload, setActive, setTargets, getPlayerMeta, ammoOp, getRules, loadObstacles, coverOf } from "./fire.js";
 import { coverText } from "./cover.js";
+import { renderDestr, renderCharges } from "./panel-extra.js";
+import { getPlantCfg } from "./scenery.js";
+import { chargeOf } from "./destroy.js";
 import {
-  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, RULES, DEFAULT_CONFIG, GRENADES,
+  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, RULES, DEFAULT_CONFIG, GRENADES, PLANT_CFG,
   weaponFrom, decodeCatalog, fxLabel, rangeBand, metersPerUnit, itemName, isToken, uid, applyTheme, myShooters,
 } from "./shared.js";
 
@@ -22,6 +25,13 @@ let items = [];
 let scale = null;
 let party = [];          // outros jogadores na sala (para o mestre dizer de quem é cada token)
 let rules = { half: 2, three: 5 }; // bônus de cobertura da mesa (sala)
+let sel = [];            // seleção no mapa (cenário destrutível)
+let sceneMd = {};        // metadado da cena (grupos do Estados, gatilhos, pedidos de desarmar)
+
+async function renderExtras() {
+  if (me.role === "GM") { $("destr").hidden = false; renderDestr($("destr"), { items, sel, md: sceneMd }); }
+  renderCharges($("charges"), { items, me, cfg: await getPlantCfg(), md: sceneMd });
+}
 
 async function saveWeapons(mut) {
   if (!shooter) return;
@@ -215,6 +225,7 @@ async function refresh(full = false) {
   renderShooter();
   renderWeapons();
   await renderFire();
+  await renderExtras();
   if (full) { renderSearch(); renderCustom(); renderConfig(); }
 }
 
@@ -223,6 +234,8 @@ OBR.onReady(async () => {
   me = { id: await OBR.player.getId(), role: await OBR.player.getRole() };
   const load = async () => {
     items = await OBR.scene.items.getItems();
+    sel = (await OBR.player.getSelection()) || [];
+    sceneMd = await OBR.scene.getMetadata();
     scale = await OBR.scene.grid.getScale().catch(() => null);
     // primeira vez: se o jogador tem um único token, ele já é o atirador
     const { active } = await getPlayerMeta();
@@ -246,9 +259,14 @@ OBR.onReady(async () => {
   if (await OBR.scene.isReady()) await load();
   OBR.scene.onReadyChange((r) => r && load());
   $("q").addEventListener("input", renderSearch);
+  OBR.scene.onMetadataChange((md) => { sceneMd = md; if (!typing()) renderExtras(); });
+  // contagem regressiva das cargas no painel
+  setInterval(() => { if (!typing() && items.some((i) => chargeOf(i)?.mode === "timer")) renderExtras(); }, 1000);
   let lastP = "";
   OBR.player.onChange((p) => {
-    const k = JSON.stringify([p.metadata?.[ACTIVE], p.metadata?.[TARGETS], p.metadata?.[CONFIG]]);
+    const ns = p.selection || [];
+    if (JSON.stringify(ns) !== JSON.stringify(sel)) { sel = ns; if (!typing()) renderExtras(); }
+    const k = JSON.stringify([p.metadata?.[ACTIVE], p.metadata?.[TARGETS], p.metadata?.[CONFIG], p.metadata?.[PLANT_CFG]]);
     if (k === lastP) return;
     const cfgChanged = JSON.stringify(p.metadata?.[CONFIG]) !== JSON.stringify(state.config);
     lastP = k;

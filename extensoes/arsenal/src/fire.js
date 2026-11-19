@@ -5,7 +5,8 @@ import {
   WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_AMMO, RULES, DEFAULT_CONFIG,
   roundsFor, impactKind, itemName, applyAmmo,
 } from "./shared.js";
-import { obstaclesFrom, coverBetween, halfSize, DEFAULT_RULES } from "./cover.js";
+import { PROFILES } from "./fx.js";
+import { obstaclesFrom, coverBetween, firstHit, halfSize, DEFAULT_RULES } from "./cover.js";
 
 export async function getPlayerMeta() {
   const md = await OBR.player.getMetadata();
@@ -74,12 +75,29 @@ export async function fireWith({ shooterId, weaponId, mode, targets: list, hit =
   const ids = list.map((t) => t.id).filter(Boolean);
   const items = ids.length ? await OBR.scene.items.getItems(ids) : [];
   const byId = new Map(items.map((i) => [i.id, i]));
+  const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+  // cobertura: com cobertura total (ou errando um alvo com meia / três quartos) a bala bate no obstáculo
+  const obs = await loadObstacles(dpi);
+  const blocked = [];
+  const lobbed = !!PROFILES[w.fx]?.lob; // granadas jogadas e lança-granadas passam por cima
   const targets = list.map((t) => {
     const it = t.id ? byId.get(t.id) : null;
-    return { at: it ? it.position : t.at, kind: impactKind(it, impact), id: it?.id };
-  }).filter((t) => t.at);
+    const at = it ? it.position : t.at;
+    if (!at) return null;
+    const half = it ? halfSize(it, dpi) : 0;
+    const ignore = [shooter.id, it?.id].filter(Boolean);
+    const cv = coverBetween(shooter.position, at, half, obs, ignore);
+    if (!lobbed && (cv.key === "total" || (hit === false && (cv.key === "half" || cv.key === "three")))) {
+      const h = firstHit(shooter.position, at, half, obs, ignore, dpi * 0.06);
+      if (h) {
+        blocked.push({ name: it ? itemName(it) : "o ponto", total: cv.key === "total" });
+        return { at: h.at, kind: h.wall ? "ground" : "metal", id: h.id || undefined, hit: true, exact: true };
+      }
+    }
+    return { at, kind: impactKind(it, impact), id: it?.id };
+  }).filter(Boolean);
   if (!targets.length) return { error: "os alvos não estão mais na cena." };
-  const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+  if (blocked.length) OBR.notification.show(`Arsenal: ${blocked.map((b) => `${b.name} ${b.total ? "atrás de cobertura total" : "na cobertura"}`).join(", ")} — a bala bateu no obstáculo.`, "INFO");
   const spec = {
     fx: w.fx, mode: m, from: shooter.position, targets, hit: hit !== false, cell: dpi,
     seed: Math.floor(Math.random() * 2 ** 31), speed: config.speed, intensity: config.intensity,
@@ -94,25 +112,11 @@ export async function fireWith({ shooterId, weaponId, mode, targets: list, hit =
   return { ok: true };
 }
 
-let confirmUntil = 0; // cobertura total: o segundo disparo em poucos segundos confirma
-
 /** Atira com o atirador e a arma ativos do jogador, nos alvos dados (ou nos marcados com a mira). */
 export async function fire(targetsIn) {
   const { active, targets: marked, config } = await getPlayerMeta();
   if (!active.shooter) return OBR.notification.show("Arsenal: escolha um atirador (selecione seu token e abra o painel Arsenal).", "WARNING");
   const list = targetsIn?.length ? targetsIn : marked;
-  // alvo atrás de cobertura total (sem linha de tiro): avisa e só atira se confirmar
-  if (list?.length) {
-    const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
-    const items = await OBR.scene.items.getItems();
-    const shooter = items.find((i) => i.id === active.shooter);
-    const total = shooter ? coverOf(shooter, list, items, await loadObstacles(dpi), dpi).filter((c) => c.key === "total") : [];
-    if (total.length && Date.now() > confirmUntil) {
-      confirmUntil = Date.now() + 6000;
-      return OBR.notification.show(`Arsenal: ${total.map((c) => c.name).join(", ")} atrás de cobertura total (sem linha de tiro). Atire de novo em até 6 s para atirar mesmo assim.`, "WARNING");
-    }
-    confirmUntil = 0;
-  }
   const r = await fireWith({
     shooterId: active.shooter, weaponId: active.weapon, mode: active.mode,
     targets: list, hit: active.hit, impact: active.impact, config,

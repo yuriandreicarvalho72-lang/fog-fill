@@ -56,8 +56,8 @@ export function outline(item, dpi) {
 export function obstaclesFrom(items, dpi) {
   const walls = [], covers = [];
   for (const it of items) {
-    if (it.type === "WALL" && it.blocking !== false) { walls.push(...outline(it, dpi)); continue; }
-    if (it.metadata?.["com.battle-system.smoke/isVisionLine"] === true && it.metadata?.["com.battle-system.smoke/disabled"] !== true) { walls.push(...outline(it, dpi)); continue; }
+    if (it.type === "WALL" && it.blocking !== false) { walls.push(...outline(it, dpi).map((s) => ({ ...s, id: it.id }))); continue; }
+    if (it.metadata?.["com.battle-system.smoke/isVisionLine"] === true && it.metadata?.["com.battle-system.smoke/disabled"] !== true) { walls.push(...outline(it, dpi).map((s) => ({ ...s, id: it.id }))); continue; }
     const level = FROM_MARK[it.metadata?.[COVER]];
     if (level && it.visible !== false) covers.push({ id: it.id, level, segs: outline(it, dpi) });
   }
@@ -73,6 +73,39 @@ function crosses(p, q, s) {
   return t > 1e-6 && t < 1 - 1e-6 && u >= 0 && u <= 1;
 }
 const blockedBy = (p, q, segs) => segs.some((s) => crosses(p, q, s));
+
+/** Onde (fração 0..1 de p até q) o trecho cruza a parede s, ou null. */
+function crossAt(p, q, s) {
+  const rx = q.x - p.x, ry = q.y - p.y, sx = s.b.x - s.a.x, sy = s.b.y - s.a.y;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const ax = s.a.x - p.x, ay = s.a.y - p.y;
+  const t = (ax * sy - ay * sx) / den, u = (ax * ry - ay * rx) / den;
+  return t > 1e-6 && t < 1 - 1e-6 && u >= 0 && u <= 1 ? t : null;
+}
+
+/**
+ * Onde a bala bate primeiro indo do atirador até o alvo (centro; se o centro está livre, o primeiro canto bloqueado).
+ * Devolve { at (um pouquinho antes do obstáculo), id (parede ou item de cobertura; null nas linhas do Smoke), wall } ou null.
+ */
+export function firstHit(from, to, half, obs, ignore = [], back = 4) {
+  const h = half * 0.8;
+  const pts = h > 0 ? [to, { x: to.x - h, y: to.y - h }, { x: to.x + h, y: to.y - h }, { x: to.x + h, y: to.y + h }, { x: to.x - h, y: to.y + h }] : [to];
+  for (const q of pts) {
+    let best = null;
+    for (const s of obs.walls) { const t = crossAt(from, q, s); if (t != null && (!best || t < best.t)) best = { t, id: s.id || null, wall: true }; }
+    for (const c of obs.covers) {
+      if (ignore.includes(c.id)) continue;
+      for (const s of c.segs) { const t = crossAt(from, q, s); if (t != null && (!best || t < best.t)) best = { t, id: c.id, wall: false }; }
+    }
+    if (best) {
+      const L = Math.hypot(q.x - from.x, q.y - from.y) || 1;
+      const k = Math.max(0, best.t - back / L);
+      return { at: { x: from.x + (q.x - from.x) * k, y: from.y + (q.y - from.y) * k }, id: best.id, wall: best.wall };
+    }
+  }
+  return null;
+}
 
 /**
  * Cobertura do alvo visto do atirador. from: centro do atirador; to: centro do alvo; half: meio tamanho do alvo

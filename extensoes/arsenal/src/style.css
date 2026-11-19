@@ -101,3 +101,11 @@ body.hud .trow { padding: 2px 4px; }
 body.hud .modes { margin: 5px 0 0; }
 body.hud button.primary { padding: 3px 10px; }
 .keys { font-size: 10.5px; margin: 6px 0 0; }
+.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; white-space: nowrap; }
+.tag.broken { color: #ff8a7a; border-color: #ff8a7a66; }
+.effect.destr input[type=number] { width: 48px; }
+.hint.warn { color: #ffb35a; }
+.mrow .mini { flex: none; }
+.mrow[data-dpick] { cursor: pointer; }
+.mrow.sel { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.mrow .mname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

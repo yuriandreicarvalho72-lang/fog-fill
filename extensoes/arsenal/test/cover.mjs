@@ -27,3 +27,17 @@ ok("ponto no mapa (sem cantos): parede no meio = total", coverBetween(from, { x:
 ok("forma desenhada vira contorno", outline({ type: "SHAPE", shapeType: "RECTANGLE", position: { x: 0, y: 0 }, width: 10, height: 10 }, dpi).length, 4);
 ok("texto com o bônus d20 padrão", [coverText("half"), coverText("three"), coverText("total"), coverText("none")], ["meia cobertura (+2 defesa)", "três quartos (+5 defesa)", "cobertura total (sem linha de tiro)", "sem cobertura"]);
 ok("bônus configurável", coverText("half", { half: 1 }), "meia cobertura (+1 defesa)");
+
+// a bala bate no obstáculo
+import { firstHit } from "../src/cover.js";
+{
+  const obs = obstaclesFrom([wall(200, -500, 500)], dpi);
+  const h = firstHit(from, { x: 400, y: 0 }, 0, obs, [], 4);
+  ok("bate na parede (um pouquinho antes)", [Math.round(h.at.x), h.at.y, h.id, h.wall], [196, 0, "w200-500", true]);
+  ok("sem obstáculo: nada", firstHit(from, { x: 400, y: 0 }, 0, obstaclesFrom([], dpi)), null);
+  const crate = { id: "cx", type: "SHAPE", shapeType: "RECTANGLE", position: { x: 150, y: -50 }, rotation: 0, scale: { x: 1, y: 1 }, width: 50, height: 100, metadata: { [COVER]: "total" } };
+  const h2 = firstHit(from, { x: 400, y: 0 }, 0, obstaclesFrom([crate, wall(300, -500, 500)], dpi), [], 4);
+  ok("bate no caixote antes da parede", [h2.id, h2.wall, Math.round(h2.at.x)], ["cx", false, 146]);
+  const low = obstaclesFrom([wall(200, 10, 500)], dpi);
+  ok("centro livre: bate onde o canto bloqueado cruza", firstHit(from, { x: 400, y: 0 }, H, low, [], 4)?.id, "w20010");
+}

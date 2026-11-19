@@ -8,8 +8,13 @@ import { buildShotJB2A } from "./jb2a.js";
 import { play, clearAll } from "./render.js";
 import { fire, fireWith, reload, setActive, setTargets, getPlayerMeta, cycleShooter, getRules, loadObstacles, coverOf } from "./fire.js";
 import { COVER, MARKS } from "./cover.js";
+import { DESTR, CHARGE, damageEvents, buildDebris, buildBlast, chargeOf, remaining, seesCountdown, canControl } from "./destroy.js";
+import {
+  markDestructible, breakNow, applyEvents, createCharge, chargesFor, detonate, disarm, addDisarmRequest, plant, requestCharges, getPlantCfg,
+} from "./scenery.js";
 import {
   ID, META_AIM, WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_CLEAR, CH_AMMO, CH_REMOTE, TOOL, MODE_AIM, HUD,
+  CH_DESTROYED, CH_BLAST, CH_PLANT, CH_DETONATE, MODE_PLANT,
   DEFAULT_CONFIG, url, isToken, itemName, rangeBand, metersPerUnit, applyAmmo, myShooters,
 } from "./shared.js";
 
@@ -57,11 +62,92 @@ async function onRemoteFire(d) {
   if (r.error) OBR.notification.show(`Arsenal (${d.from || "gatilho"}): ${r.error}`, "WARNING");
 }
 
+// ---------- cenário destrutível: o líder conta o dano quando o tiro / a explosão chega ----------
+async function onShotDamage(data) {
+  if (!data?.spec || !(await isLeader())) return;
+  const evs = damageEvents(data.spec);
+  const slots = new Map(); // agrupa por meio segundo
+  for (const ev of evs) { const k = Math.round(ev.t * 2) / 2; if (!slots.has(k)) slots.set(k, []); slots.get(k).push(ev); }
+  for (const [t, list] of slots) setTimeout(() => applyEvents(list, data.shooter || null).catch((e) => console.error(`[${ID}]`, e)), t * 1000);
+}
+const hasVideo = () => (config.jb2a !== false && jb2aFiles ? (f) => jb2aFiles.has(f) : null);
+
+// ---------- cargas plantadas ----------
+let sceneItems = [];
+const sender = async (e) => (await OBR.party.getPlayers().catch(() => [])).find((x) => x.connectionId === e.connectionId) || null;
+
+async function onPlant(e) {
+  if (!(await isLeader())) return;
+  const p = await sender(e);
+  if (!p && e.connectionId !== myConn) return;
+  await createCharge(e.data || {}, p ? { id: p.id, name: p.name } : { id: me.id, name: await OBR.player.getName().catch(() => "") });
+}
+
+async function onDetonate(e) {
+  if (!(await isLeader())) return;
+  const d = e.data || {};
+  const p = await sender(e);
+  const gm = !p || p.role === "GM"; // sem remetente na lista = este mesmo navegador (o mestre líder, ou o Gatilhos dele)
+  const list = chargesFor(d.ids, await OBR.scene.items.getItems());
+  if (!list.length) { if (d.from) OBR.notification.show(`Arsenal (${d.from}): nenhuma carga nesses itens.`, "WARNING"); return; }
+  for (const it of list) {
+    const c = chargeOf(it);
+    const ok = gm || canControl(c, p.id, p.role);
+    if (d.op === "desarmar") { if (ok) await disarm(it, p?.name || ""); else await addDisarmRequest(it, p); }
+    else if (ok) await detonate(it);
+  }
+}
+
+/** Timers (só o líder) e o que cada navegador desenha: a cópia da carga para quem plantou e a contagem regressiva. */
+const CARGO_LOCAL = `${ID}/carga-local`;
+const cShown = new Map();
+let cBusy = false;
+async function tickCharges() {
+  if (cBusy) return;
+  cBusy = true;
+  try {
+    const now = Date.now();
+    const charges = sceneItems.filter((i) => i.metadata?.[CHARGE]);
+    if (me.role === "GM" && charges.some((i) => chargeOf(i).mode === "timer" && chargeOf(i).endsAt <= now) && (await isLeader())) {
+      for (const it of charges) { const c = chargeOf(it); if (c.mode === "timer" && c.endsAt <= now) await detonate(it).catch(() => {}); }
+    }
+    const want = new Map();
+    for (const it of charges) {
+      const c = chargeOf(it);
+      const mine = c.by === me.id;
+      if (me.role !== "GM" && mine && it.visible === false) {
+        const id = `${ID}-cg-${it.id}`;
+        want.set(id, { sig: JSON.stringify(it.position), build: () => {
+          const copy = JSON.parse(JSON.stringify(it));
+          delete copy.attachedTo;
+          return Object.assign(copy, { id, visible: true, locked: true, disableHit: true, metadata: { [CARGO_LOCAL]: true } });
+        } });
+      }
+      const left = remaining(c, now);
+      const showTimer = c.mode === "timer" && seesCountdown(c, me);
+      const showRemote = c.mode === "remote" && (me.role === "GM" || mine);
+      if (showTimer || showRemote) {
+        const id = `${ID}-cd-${it.id}`;
+        const text = showTimer ? `💣 ${left} s` : "📡 remoto";
+        const at = { x: it.position.x, y: it.position.y - dpi * 0.35 };
+        want.set(id, { sig: JSON.stringify([text, at]), build: () => buildLabel().position(at).plainText(text)
+          .backgroundColor(showTimer && left <= 3 ? "#b3121a" : "#3a1010").backgroundOpacity(0.9).fillColor("#ffffff").fontWeight(700)
+          .cornerRadius(6).pointerDirection("DOWN").pointerHeight(5).pointerWidth(8).layer("ATTACHMENT").locked(true).disableHit(true)
+          .metadata({ [CARGO_LOCAL]: true }).id(id).build() });
+      }
+    }
+    const del = [...cShown.keys()].filter((k) => !want.has(k) || cShown.get(k) !== want.get(k).sig);
+    const add = [...want.keys()].filter((k) => cShown.get(k) !== want.get(k).sig);
+    if (del.length) { await OBR.scene.local.deleteItems(del).catch(() => {}); for (const k of del) cShown.delete(k); }
+    if (add.length) { await OBR.scene.local.addItems(add.map((k) => want.get(k).build())).catch(() => {}); for (const k of add) cShown.set(k, want.get(k).sig); }
+  } finally { cBusy = false; }
+}
+
 // ---------- painel de mira (canto inferior esquerdo, enquanto a ferramenta está ativa) ----------
 async function openHud() {
   const h = await OBR.viewport.getHeight().catch(() => 800);
   await OBR.popover.open({
-    id: HUD, url: url("hud.html"), width: 300, height: 252,
+    id: HUD, url: url("hud.html"), width: 300, height: 282,
     anchorReference: "POSITION", anchorPosition: { left: 72, top: h - 16 },
     anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" }, transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
     disableClickAway: true, marginThreshold: 8,
@@ -144,7 +230,24 @@ OBR.onReady(async () => {
   loadJB2A();
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; drawAims(); });
 
-  OBR.broadcast.onMessage(CH_SHOT, (e) => onShot(e.data));
+  OBR.broadcast.onMessage(CH_SHOT, (e) => { onShot(e.data); onShotDamage(e.data); });
+  OBR.broadcast.onMessage(CH_DESTROYED, (e) => {
+    const d = e.data || {};
+    if (d.at) play(buildDebris(d.at, d.size || 1, dpi, Math.floor(Math.random() * 1e9), hasVideo()), JB2A_BASE).catch(() => {});
+  });
+  OBR.broadcast.onMessage(CH_BLAST, (e) => {
+    const d = e.data || {};
+    if (d.at) play(buildBlast(d.at, d.radius || 2, dpi, d.seed || 1, hasVideo()), JB2A_BASE).catch(() => {});
+  });
+  OBR.broadcast.onMessage(CH_PLANT, onPlant);
+  OBR.broadcast.onMessage(CH_DETONATE, onDetonate);
+  // cargas: itens da cena, cópias locais e contagem
+  const leftC = await OBR.scene.local.getItems((i) => i.metadata?.[CARGO_LOCAL]).catch(() => []);
+  if (leftC.length) await OBR.scene.local.deleteItems(leftC.map((i) => i.id)).catch(() => {});
+  if (await OBR.scene.isReady()) sceneItems = await OBR.scene.items.getItems();
+  OBR.scene.onReadyChange(async (r) => { cShown.clear(); sceneItems = r ? await OBR.scene.items.getItems() : []; });
+  OBR.scene.items.onChange((its) => { sceneItems = its; });
+  setInterval(() => { tickCharges().catch(() => {}); }, 250);
   OBR.broadcast.onMessage(CH_LABEL, (e) => { if (e.data?.at) play(labelAnim(e.data.at, e.data.text, dpi)).catch(() => {}); });
   OBR.broadcast.onMessage(CH_CLEAR, () => clearAll());
   OBR.broadcast.onMessage(CH_REMOTE, (e) => onRemoteFire(e.data));
@@ -206,6 +309,22 @@ OBR.onReady(async () => {
       else if (k === "Tab") await cycleShooter(myShooters(await OBR.scene.items.getItems(), me), ev.shiftKey ? -1 : 1);
     },
   });
+  await OBR.tool.createMode({
+    id: MODE_PLANT,
+    icons: [{ icon: url("charge.svg"), label: "Plantar carga (clique no chão, ou num objeto para colar nele)", filter: { activeTools: [TOOL] } }],
+    cursors: [{ cursor: "crosshair" }],
+    onActivate: async () => {
+      const c = await getPlantCfg();
+      OBR.notification.show(`Arsenal: clique para plantar — ${c.mode === "timer" ? `temporizador de ${c.sec} s` : "detonação remota"}, raio de ${c.radius} quadrado(s). Mude no painel Arsenal → Cargas.`, "INFO");
+    },
+    onToolClick: async (_ctx, ev) => {
+      const { active } = await getPlayerMeta();
+      const it = ev.target;
+      const attach = it && it.layer !== "MAP" && it.id !== active.shooter && !it.metadata?.[CHARGE] ? it.id : null;
+      await plant(ev.pointerPosition, attach, active.shooter || null, myConn);
+      return false;
+    },
+  });
   await OBR.tool.createAction({
     id: `${ID}/acao-atirar`,
     icons: [{ icon: url("fire.svg"), label: "Atirar nos alvos marcados (Enter)", filter: { activeTools: [TOOL] } }],
@@ -250,6 +369,32 @@ OBR.onReady(async () => {
       await OBR.scene.items.updateItems(ctx.items.map((i) => i.id), (d) => { for (const it of d) { if (next) it.metadata[COVER] = next; else delete it.metadata[COVER]; } });
       const label = MARKS.find(([k]) => k === next)?.[1];
       OBR.notification.show(label ? `Arsenal: ${ctx.items.length > 1 ? `${ctx.items.length} itens dão` : "dá"} cobertura ${label}.` : "Arsenal: não é mais cobertura.", "INFO");
+    },
+  });
+  // cenário destrutível (mestre)
+  await OBR.contextMenu.create({
+    id: `${ID}/destrutivel`,
+    icons: [{ icon: url("destr.svg"), label: "Arsenal: tornar destrutível", filter: { roles: ["GM"], every: [{ key: ["metadata", DESTR], value: undefined }, { key: ["metadata", CHARGE], value: undefined }] } }],
+    onClick: async (ctx) => { await markDestructible(ctx.items.map((i) => i.id)); OBR.action.open().catch(() => {}); },
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/quebrar`,
+    icons: [{ icon: url("destr.svg"), label: "Arsenal: quebrar agora", filter: { roles: ["GM"], every: [{ key: ["metadata", DESTR], value: undefined, operator: "!=" }] } }],
+    onClick: async (ctx) => { for (const it of ctx.items) await breakNow(it.id); },
+  });
+  // cargas: quem plantou (ou o mestre) detona; desarmar de outro jogador vai para o mestre aprovar
+  const isCharge = { every: [{ key: ["metadata", CHARGE], value: undefined, operator: "!=" }] };
+  await OBR.contextMenu.create({
+    id: `${ID}/detonar`,
+    icons: [{ icon: url("charge.svg"), label: "Arsenal: detonar carga", filter: isCharge }],
+    onClick: (ctx) => requestCharges(ctx.items.map((i) => i.id), "detonar"),
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/desarmar`,
+    icons: [{ icon: url("defuse.svg"), label: "Arsenal: desarmar carga", filter: isCharge }],
+    onClick: async (ctx) => {
+      await requestCharges(ctx.items.map((i) => i.id), "desarmar");
+      if (me.role !== "GM" && ctx.items.some((i) => chargeOf(i)?.by !== me.id)) OBR.notification.show("Arsenal: pedido enviado ao mestre (role o teste de desarmar).", "INFO");
     },
   });
   await OBR.contextMenu.create({

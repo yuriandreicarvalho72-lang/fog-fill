@@ -18,6 +18,21 @@ export const TOOL = `${ID}/tool`;
 export const MODE_AIM = `${ID}/mirar`;
 export const HUD = `${ID}/hud`;
 export const RULES = `${ID}/regras`;        // metadado da sala: bônus de cobertura do d20 { half, three } (o mestre muda)
+// cenário destrutível e cargas plantadas (só um mestre, o líder, executa o que muda a cena)
+export const CH_DESTROYED = `${ID}/destruido`; // líder -> todos: { id, name, at, size, by (token que atirou), byName }
+export const CH_BLAST = `${ID}/explodiu`;       // líder -> todos: { id, at, radius, by (token de quem plantou), byPlayer, name, caught: [tokens] }
+export const CH_PLANT = `${ID}/plantar`;        // jogador -> líder: { at, attach?, mode, sec, show, radius, token }
+export const CH_DETONATE = `${ID}/detonar`;     // todos / Gatilhos -> líder: { ids: [carga ou item com carga], op: "detonar" | "desarmar", from? }
+export const PENDING = `${ID}/pedidos`;         // metadado da cena: pedidos de desarmar [{ id, charge, by, byName, at }]
+export const PLANT_CFG = `${ID}/carga-cfg`;     // metadado do jogador: como ele planta { mode, sec, show, radius }
+export const MODE_PLANT = `${ID}/plantar-modo`; // modo da ferramenta: plantar carga
+// outras extensões
+export const ESTADOS_GROUPS = "estados/grupos";
+export const ESTADOS_SET = "estados/mudar";
+export const GATILHOS_LIST = "gatilhos/lista";
+export const GATILHOS_FIRE = "gatilhos/disparar";
+export const TROCADOR_SWAP = "trocador/trocar";
+export const TROCADOR_IMAGES = "trocador/imagens";
 
 export const DEFAULT_CONFIG = { intensity: 1, speed: 1, ownColor: false, color: "#ffd27a", gore: true, casings: true, smokeSec: 30, jb2a: true, mapLabel: false, hud: true };
 

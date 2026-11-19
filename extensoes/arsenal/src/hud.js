@@ -5,6 +5,8 @@ import { MODE_LABEL, ROUNDS } from "./fx.js";
 import { fire, reload, setActive, setTargets, getPlayerMeta, cycleShooter, getRules, loadObstacles, coverOf } from "./fire.js";
 import { WEAPONS, ACTIVE, TARGETS, RULES, rangeBand, metersPerUnit, itemName, myShooters, applyTheme } from "./shared.js";
 import { coverText } from "./cover.js";
+import { chargeOf, canControl } from "./destroy.js";
+import { requestCharges } from "./scenery.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -44,6 +46,7 @@ async function render() {
         rows.push(`<div class="trow"><span>${it ? esc(itemName(it)) : "ponto no mapa"}</span><span class="band ${band?.key || ""} cov-${cv}" title="${esc(coverText(cv, rules))}">${m < 10 ? m.toFixed(1) : Math.round(m)} m${band ? ` · ${SHORT[band.key]}` : ""}${coverShort(cv, rules)}</span></div>`);
       }
       const hit = active.hit !== false;
+      const remotes = items.filter((i) => chargeOf(i)?.mode === "remote" && canControl(chargeOf(i), me.id, me.role) && (me.role !== "GM" || chargeOf(i).by === me.id));
       const ammo = w ? (w.mag == null ? "∞" : `${w.ammo ?? 0}/${w.mag}`) : "";
       const low = w && w.mag != null && (w.ammo ?? 0) <= Math.max(1, w.mag * 0.2);
       $("hud").innerHTML = `
@@ -68,6 +71,7 @@ async function render() {
           <button type="button" class="mini" id="clr" title="Limpar alvos (Esc)" ${rows.length ? "" : "disabled"}>✕</button>
           <button type="button" class="primary" id="shoot" ${rows.length && w ? "" : "disabled"}>Atirar ⏎</button>
         </div>
+        ${remotes.length ? `<div class="row"><span class="hint grow">💣 ${remotes.length} carga${remotes.length > 1 ? "s" : ""} remota${remotes.length > 1 ? "s" : ""}</span><button type="button" class="primary" id="boom">💥 Detonar</button></div>` : ""}
         <small class="keys">Clique: alvo · Shift+clique: atirador · Tab: próximo atirador</small>`;
       $("who").addEventListener("change", (e) => {
         const s = items.find((i) => i.id === e.target.value);
@@ -81,6 +85,7 @@ async function render() {
       for (const b of document.querySelectorAll("[data-hit]")) b.addEventListener("click", () => setActive({ hit: b.dataset.hit === "1" }));
       $("clr").addEventListener("click", () => setTargets([]));
       $("shoot").addEventListener("click", () => fire());
+      $("boom")?.addEventListener("click", () => requestCharges(remotes.map((i) => i.id), "detonar"));
     } while (again);
   } finally { busy = false; }
 }

@@ -352,10 +352,11 @@ export function buildShot(spec) {
   }
 
   const aimPoint = (tg, i, total) => {
+    if (tg.exact) return tg.at;
     // dispersão: cresce na rajada/automático; erro joga o ponto para o lado
     const spread = mode === "single" ? 0.05 : mode === "burst" ? 0.18 : mode === "supp" ? 1.4 : 0.12 + 0.05 * i;
     let p = V.add(tg.at, V.mul(V.rot({ x: 1, y: 0 }, R() * Math.PI * 2), cell * spread * R()));
-    if (!hit) {
+    if (!(tg.hit ?? hit)) {
       const dir = V.norm(V.sub(tg.at, from));
       p = V.add(V.add(tg.at, V.mul(V.perp(dir), cell * (0.7 + R() * 0.6) * (R() > 0.5 ? 1 : -1))), V.mul(dir, cell * R()));
     }
@@ -366,7 +367,7 @@ export function buildShot(spec) {
     for (const tg of targets) { landLog.push({ t: start, from, dest: tg.at, target: tg }); spray(start, from, tg.at, P.spray, 0.95); }
   } else if (P.lob) {
     for (const tg of targets) {
-      const dest = hit ? tg.at : aimPoint(tg, 0, 1);
+      const dest = (tg.hit ?? hit) ? tg.at : aimPoint(tg, 0, 1);
       landLog.push({ t: start, from, dest, target: tg, lobLand: start + 0.75 });
       if (!P.thrown) muzzle(start, V.norm(V.sub(dest, from)), P.flash * 0.6);
       const land = lob(start, V.add(from, V.mul(V.norm(V.sub(dest, from)), cell * 0.4)), dest, 0.09, P.lob === "flashbang" ? "#e8e8e8" : P.lob === "smoke" ? "#6f7a73" : "#3d4a2f", 0.75);
@@ -378,7 +379,7 @@ export function buildShot(spec) {
     }
   } else if (P.rocket) {
     for (const tg of targets) {
-      const dest = hit ? tg.at : aimPoint(tg, 0, 1);
+      const dest = (tg.hit ?? hit) ? tg.at : aimPoint(tg, 0, 1);
       const dir = V.norm(V.sub(dest, from));
       landLog.push({ t: start, from, dest, target: tg });
       muzzle(start, V.mul(dir, -1), P.flash); // jato de trás
@@ -401,6 +402,7 @@ export function buildShot(spec) {
       const p = aimPoint(tg, i, shots);
       const dir = V.norm(V.sub(p, from));
       const muzzleAt = V.add(from, V.mul(dir, cell * 0.45));
+      const hit = tg.hit ?? spec.hit !== false; // alvo atrás de cobertura: a bala bate no obstáculo
       const rec = { t, i, from: muzzleAt, to: p, target: tg, hit };
       shotLog.push(rec);
       muzzle(t, dir, P.flash * (i ? 0.85 : 1));
