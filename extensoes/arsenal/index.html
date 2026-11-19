@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arsenal</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Arsenal</h1>
+      <div id="shooter"></div>
+      <section id="weapons"></section>
+      <section id="fire"></section>
+      <section>
+        <h2>Adicionar arma</h2>
+        <input type="text" id="q" placeholder="Buscar no catálogo (nome, categoria, apelido…)" />
+        <div id="results"></div>
+        <details>
+          <summary>Criar arma própria</summary>
+          <div id="custom"></div>
+        </details>
+      </section>
+      <section>
+        <details>
+          <summary>Aparência</summary>
+          <div id="config"></div>
+        </details>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>
