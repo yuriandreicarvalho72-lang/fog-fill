@@ -13,6 +13,8 @@ export const ESTADOS = "estados/grupos";        // grupos da extensão Estados (
 export const ESTADOS_SET = "estados/mudar";     // { group, to } pede a troca de estado
 export const ARSENAL_FIRE = "arsenal/atirar";   // { shooter, weapon?, mode?, targets: [{id}], hit } pede um disparo ao Arsenal
 export const ARSENAL_WEAPONS = "arsenal/armas"; // metadado do token: repertório de armas do Arsenal
+export const TROCADOR_SWAP = "trocador/trocar";  // { targets: [id], to: "next"|"prev"|nome } pede a troca de imagem ao Trocador
+export const TROCADOR_IMAGES = "trocador/imagens"; // metadado do item: imagens guardadas pelo Trocador
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
 export const CH_HALT = "regua/parar";     // motor -> todos: { tokenId, at, upto } (anda até points[upto], vai para "at" e para)
@@ -49,6 +51,7 @@ export const ACTIONS = [
   { id: "lightning", label: "Relâmpago (Clima)", need: [] },
   { id: "stateSet", label: "Mudar estado (Estados)", need: ["group"] },
   { id: "arsenal", label: "Disparo (Arsenal): um token atira", need: ["shooter", "targets", "weapon"] },
+  { id: "swapImage", label: "Trocar imagem (Trocador)", need: ["targets", "image"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -69,7 +72,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", delay: 0 };
 }
 
 // quem o teleporte leva

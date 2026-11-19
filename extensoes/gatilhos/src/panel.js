@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -9,6 +9,7 @@ let list = [];
 let open = null;          // gatilho aberto
 let itemNames = new Map();
 let itemWeapons = new Map(); // armas do Arsenal de cada token
+let itemImages = new Map();  // nomes das imagens do Trocador de cada item
 let estados = [];         // grupos da extensão Estados
 const logLines = [];
 
@@ -19,6 +20,7 @@ async function refreshNames() {
   const items = await OBR.scene.items.getItems();
   itemNames = new Map(items.map((i) => [i.id, i.text?.plainText || i.name || i.type]));
   itemWeapons = new Map(items.map((i) => [i.id, i.metadata?.[ARSENAL_WEAPONS] || []]));
+  itemImages = new Map(items.filter((i) => Array.isArray(i.metadata?.[TROCADOR_IMAGES])).map((i) => [i.id, i.metadata[TROCADOR_IMAGES].map((v) => v.name)]));
 }
 
 let saveTimer = null;
@@ -50,6 +52,24 @@ function arsenalRow(e) {
     <span class="hint">Usa a munição da arma. Precisa da extensão Arsenal instalada.</span>`;
 }
 
+/** Qual imagem o Trocador usa: próxima/anterior ou uma pelo nome (nomes das imagens dos alvos). */
+function imageRow(e) {
+  const tg = e.targets || [];
+  const pool = tg.includes(ACTOR) ? [...itemImages.values()] : tg.map((id) => itemImages.get(id) || []);
+  const names = [...new Set(pool.flat())];
+  const cur = e.image || "next";
+  const known = ["next", "prev", ...names].includes(cur);
+  return `<div class="row"><span class="hint">Imagem:</span><select data-ek="image">
+      <option value="next" ${cur === "next" ? "selected" : ""}>próxima</option>
+      <option value="prev" ${cur === "prev" ? "selected" : ""}>anterior</option>
+      ${names.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}
+      ${known ? "" : `<option value="${esc(cur)}" selected>${esc(cur)} (nenhum alvo tem)</option>`}
+    </select></div>
+    ${!names.length && tg.length && !tg.includes(ACTOR) ? '<span class="hint warn">⚠ Esses itens ainda não têm imagens no Trocador (botão direito no item → Trocar imagem → + imagens).</span>' : ""}
+    ${tg.length ? "" : '<span class="hint warn">⚠ Sem alvo: escolha os itens ou "+ quem ativou".</span>'}
+    <span class="hint">Itens com uma imagem de mesmo nome trocam juntos. Precisa da extensão Trocador instalada.</span>`;
+}
+
 function effectRow(t, e) {
   const a = ACTIONS.find((x) => x.id === e.action) || ACTIONS[0];
   const need = new Set(a.need);
@@ -61,6 +81,7 @@ function effectRow(t, e) {
     ${need.has("shooter") ? `<div class="sub">Atirador: ${chips(e.shooter ? [e.shooter] : [], `e:${e.id}:shooter`)}</div>` : ""}
     ${need.has("targets") ? `<div class="sub">${e.action === "arsenal" ? "Alvos" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
     ${need.has("weapon") ? arsenalRow(e) : ""}
+    ${need.has("image") ? imageRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
     ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
