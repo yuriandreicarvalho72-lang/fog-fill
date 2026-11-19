@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Estados",
-        version: "1.3.0",
+        version: "1.4.0",
         manifest_version: 1,
         author: "Yuri",
         description: "Estados da cena: ponte intacta → destruída, sala normal → alarme. Troca posição, imagem, luz e clima de uma vez.",

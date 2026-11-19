@@ -1,7 +1,8 @@
 // Painel dos Estados (mestre): grupos, estados, membros e botões no mapa.
 import OBR from "@owlbear-rodeo/sdk";
-import { PROPS, capture } from "./core.js";
-import { GROUPS, DATA, BUTTON, CH_SET, TRANSITIONS, TROCADOR_IMAGES, newGroup, uid, applyTheme } from "./shared.js";
+import { PROPS, capture, FLOOR, isBuilding, floorName } from "./core.js";
+import { GROUPS, DATA, BUTTON, CH_SET, TRANSITIONS, TROCADOR_IMAGES, newGroup, newBuilding, uid, applyTheme } from "./shared.js";
+import { assignFloor, leaveBuilding, moveFloor } from "./floors.js";
 
 const $ = (id) => document.getElementById(id);
 let groups = [];
@@ -42,7 +43,7 @@ function imageInfo(it, gid) {
 
 function recount(items) {
   counts = new Map(); buttons = new Map(); memberList = new Map(); buttonList = new Map();
-  const push = (m, gid, it) => { if (!m.has(gid)) m.set(gid, []); m.get(gid).push({ id: it.id, name: itemName(it), layer: it.layer, visible: it.visible !== false, ...imageInfo(it, gid) }); };
+  const push = (m, gid, it) => { if (!m.has(gid)) m.set(gid, []); m.get(gid).push({ id: it.id, name: itemName(it), layer: it.layer, visible: it.visible !== false, fl: it.metadata?.[FLOOR]?.g === gid ? it.metadata[FLOOR].f : null, ...imageInfo(it, gid) }); };
   for (const it of items) {
     for (const gid of Object.keys(it.metadata?.[DATA] || {})) { counts.set(gid, (counts.get(gid) || 0) + 1); push(memberList, gid, it); }
     const b = it.metadata?.[BUTTON];
@@ -52,14 +53,14 @@ function recount(items) {
 }
 
 /** Lista clicável: clicar seleciona o item no mapa; ✕ tira do grupo (ou deixa de ser botão). */
-function itemRows(list, kind) {
+function itemRows(list, kind, g = null) {
   if (!list?.length) return `<p class="hint">${kind === "btn" ? "Nenhum botão neste grupo." : "Nenhum item ainda: selecione no mapa e clique em + seleção."}</p>`;
   return `<div class="mlist">${list.map((m) => `
     <div class="mrow${selected.has(m.id) ? " sel" : ""}" data-pick="${m.id}" title="Clique para selecionar no mapa">
       <span class="ico">${LAYER_ICON[m.layer] || "•"}</span>
       <span class="mname">${esc(m.name)}</span>
       ${m.img ? `<span class="tag img" title="${esc(m.imgTip || "Imagem do Trocador")}">🖼 ${esc(m.img)}</span>` : ""}
-      ${m.visible ? "" : '<span class="tag">escondido</span>'}
+      ${m.fl && g ? `<span class="tag fl">${esc(g.states.find((x) => x.id === m.fl)?.name || "?")}</span>` : m.visible ? "" : '<span class="tag">escondido</span>'}
       <button type="button" class="x" data-un${kind}="${m.id}" title="${kind === "btn" ? "Deixa de ser botão" : "Tirar do grupo"}">✕</button>
     </div>`).join("")}</div>`;
 }
@@ -217,11 +218,96 @@ function card(g) {
   return div;
 }
 
+/** Prédio com andares: cada estado é um andar; cada item mora num andar e só aparece quando ele é o mostrado. */
+function buildingCard(g) {
+  const isOpen = open === g.id;
+  const div = document.createElement("div");
+  div.className = "card building";
+  const list = memberList.get(g.id) || [];
+  const per = (sid) => list.filter((m) => m.fl === sid).length;
+  const idx = g.states.findIndex((s) => s.id === g.current);
+  div.innerHTML = `
+    <div class="head">
+      <button type="button" class="name">🏢 ${esc(g.name)}<small>${g.states.length} andares · ${list.length} ite${list.length === 1 ? "m" : "ns"} · mostrando: ${esc(g.states[idx]?.name || "?")}</small></button>
+    </div>
+    <div class="states floors">
+      <button type="button" class="mini" data-go="prev" title="Mostrar o andar de baixo" ${idx > 0 ? "" : "disabled"}>▼ descer</button>
+      ${g.states.map((s) => `<button type="button" class="chip st ${s.id === g.current ? "on" : ""}" data-go="${s.id}" title="${per(s.id)} item(ns)">${esc(s.name)}</button>`).join("")}
+      <button type="button" class="mini" data-go="next" title="Mostrar o andar de cima" ${idx < g.states.length - 1 ? "" : "disabled"}>▲ subir</button>
+    </div>
+    ${isOpen ? `<div class="body">
+      <input type="text" data-k="name" value="${esc(g.name)}" />
+      <h3>Andares (de baixo para cima)</h3>
+      ${g.states.map((s) => `<div class="row" data-sid="${s.id}"><input type="text" data-sk="name" value="${esc(s.name)}" /><span class="tag">${per(s.id)}</span>${g.states.length > 1 ? '<button type="button" class="x" data-del-floor title="Apagar andar (os itens dele vão para o térreo)">✕</button>' : ""}</div>`).join("")}
+      <button type="button" data-add-floor>+ Andar em cima</button>
+      <h3>Itens</h3>
+      <div class="btns"><button type="button" data-fl="add">+ seleção no andar mostrado</button><button type="button" data-fl="leave">− tirar do prédio</button></div>
+      <div class="btns"><button type="button" data-fl="up">seleção ▲ andar de cima</button><button type="button" data-fl="down">seleção ▼ andar de baixo</button></div>
+      <div class="btns"><button type="button" data-fl="show">selecionar o andar mostrado</button></div>
+      ${itemRows(list, "flr", g)}
+      <p class="hint">Mapa, paredes, portas e tokens de cada andar: ponha cada um no andar dele. Trocar de andar mostra só aquele andar para todos. Escada/elevador: no Gatilhos, objeto interagível → efeito <i>Mudar de andar</i> (com "levar quem ativou junto"). Câmeras da Vigilância só veem o próprio andar.</p>
+      <div class="row"><button type="button" class="danger" data-del-group>Apagar prédio (todos os itens aparecem)</button></div>
+    </div>` : ""}`;
+  const sel = async () => (await OBR.player.getSelection()) || [];
+  div.querySelector(".name").addEventListener("click", () => { open = isOpen ? null : g.id; render(); });
+  for (const b of div.querySelectorAll("[data-go]")) b.addEventListener("click", () => setState(g, b.dataset.go));
+  div.querySelector("[data-k='name']")?.addEventListener("change", (e) => { g.name = e.target.value.trim() || g.name; save(); render(); });
+  for (const row of div.querySelectorAll("[data-sid]")) {
+    const s = g.states.find((x) => x.id === row.dataset.sid);
+    row.querySelector("[data-sk]").addEventListener("change", (e) => { s.name = e.target.value.trim() || s.name; save(); render(); });
+    row.querySelector("[data-del-floor]")?.addEventListener("click", async () => {
+      const keep = g.states.find((x) => x.id !== s.id);
+      const on = (await members(g.id)).filter((i) => i.metadata?.[FLOOR]?.f === s.id).map((i) => i.id);
+      g.states = g.states.filter((x) => x !== s);
+      if (g.current === s.id) g.current = keep.id;
+      await save(true);
+      if (on.length) await assignFloor(g, on, keep.id);
+      // os outros itens perdem os dados do andar apagado
+      const m = await members(g.id);
+      if (m.length) await OBR.scene.items.updateItems(m.map((i) => i.id), (d) => { for (const it of d) { const all = JSON.parse(JSON.stringify(it.metadata[DATA])); delete all[g.id][s.id]; it.metadata[DATA] = all; } });
+      setState(g, g.current);
+    });
+  }
+  div.querySelector("[data-add-floor]")?.addEventListener("click", async () => {
+    const s = { id: uid(), name: floorName(g.states.length), note: "" };
+    g.states.push(s);
+    await save(true);
+    // ninguém mora no andar novo: todo mundo fica escondido nele
+    const m = await members(g.id);
+    if (m.length) await OBR.scene.items.updateItems(m.map((i) => i.id), (d) => { for (const it of d) { const all = JSON.parse(JSON.stringify(it.metadata[DATA])); all[g.id][s.id] = { visible: false }; it.metadata[DATA] = all; } });
+    render();
+  });
+  for (const b of div.querySelectorAll("[data-fl]")) {
+    b.addEventListener("click", async () => {
+      const ids = await sel();
+      const k = b.dataset.fl;
+      if (k === "show") { const m = (await members(g.id)).filter((i) => i.metadata?.[FLOOR]?.f === g.current); if (m.length) OBR.player.select(m.map((i) => i.id), false); return; }
+      if (!ids.length) return OBR.notification.show("Estados: selecione itens no mapa primeiro.", "WARNING");
+      if (k === "add") await assignFloor(g, ids, g.current);
+      else if (k === "leave") await leaveBuilding(g.id, ids);
+      else {
+        const its = (await OBR.scene.items.getItems(ids)).filter((i) => i.metadata?.[FLOOR]?.g === g.id);
+        const n = await moveFloor(groups, its, k === "up" ? 1 : -1);
+        if (!n) OBR.notification.show(`Estados: ${k === "up" ? "já está no último andar" : "já está no térreo"} (ou os itens não são do prédio).`, "WARNING");
+      }
+    });
+  }
+  for (const row of div.querySelectorAll("[data-pick]")) row.addEventListener("click", (ev) => { if (!ev.target.closest("button")) OBR.player.select([row.dataset.pick], true); });
+  for (const b of div.querySelectorAll("[data-unflr]")) b.addEventListener("click", () => leaveBuilding(g.id, [b.dataset.unflr]));
+  div.querySelector("[data-del-group]")?.addEventListener("click", async () => {
+    const m = await members(g.id);
+    await leaveBuilding(g.id, m.map((i) => i.id));
+    groups = groups.filter((x) => x !== g);
+    save(true); render();
+  });
+  return div;
+}
+
 function render() {
   const box = $("list");
   box.innerHTML = "";
   if (!groups.length) box.innerHTML = '<p class="hint">Nenhum grupo. Selecione no mapa o que muda junto (uma ponte, uma porta, as luzes de uma sala) e clique em <b>Novo grupo com a seleção</b>.</p>';
-  for (const g of groups) box.appendChild(card(g));
+  for (const g of groups) box.appendChild(isBuilding(g) ? buildingCard(g) : card(g));
 }
 
 OBR.onReady(async () => {
@@ -259,6 +345,14 @@ OBR.onReady(async () => {
     if ([...next].join() === [...selected].join()) return;
     selected = next;
     for (const row of document.querySelectorAll("[data-pick]")) row.classList.toggle("sel", selected.has(row.dataset.pick));
+  });
+  $("newB").addEventListener("click", async () => {
+    const sel = await selection();
+    const g = newBuilding(`Prédio ${groups.filter(isBuilding).length + 1}`);
+    groups.push(g); open = g.id;
+    await save(true);
+    if (sel.length) await assignFloor(g, sel, g.current);
+    render();
   });
   $("new").addEventListener("click", async () => {
     const sel = await selection();

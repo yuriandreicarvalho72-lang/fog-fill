@@ -46,3 +46,21 @@ const plain = { id: "p", type: "IMAGE", position: { x: 0, y: 0 }, metadata: {} }
 const none = capture(plain, ["matrix"]);
 const later = JSON.parse(JSON.stringify(camItem)); applyTo(later, none, ["matrix"]);
 ok("estado sem câmera tira a câmera", [later.metadata["vigilancia/camera"], later.metadata["vigilancia/no"]], [undefined, undefined]);
+// prédios com andares
+import { floorData, neighborFloor, isBuilding, floorName } from "../src/core.js";
+const pr = { id: "pr", kind: "floors", current: "t", states: [{ id: "t", name: "Térreo" }, { id: "a1", name: "1º andar" }, { id: "a2", name: "2º andar" }] };
+ok("é prédio", [isBuilding(pr), isBuilding({ kind: undefined })], [true, false]);
+ok("item do 1º andar: visível só nele", floorData(pr, "a1"), { t: { visible: false }, a1: { visible: true }, a2: { visible: false } });
+ok("item escondido de propósito no andar dele continua escondido", floorData(pr, "t", false).t, { visible: false });
+ok("andar de cima / de baixo / sem vizinho", [neighborFloor(pr, "t", 1).id, neighborFloor(pr, "a1", -1).id, neighborFloor(pr, "a2", 1)], ["a1", "t", null]);
+ok("nomes automáticos", [floorName(0), floorName(3)], ["Térreo", "3º andar"]);
+// trocar de andar usa o motor de sempre: aplicar o estado do andar esconde/mostra
+const tok = { id: "k", type: "IMAGE", position: { x: 0, y: 0 }, visible: true, metadata: {} };
+const dk = JSON.parse(JSON.stringify(tok)); applyTo(dk, floorData(pr, "a1").t, ["visible"]);
+const uk = JSON.parse(JSON.stringify(tok)); uk.visible = false; applyTo(uk, floorData(pr, "a1").a1, ["visible"]);
+ok("mostrando o térreo, item do 1º some; mostrando o 1º, aparece", [dk.visible, uk.visible], [false, true]);
+// Vigilância: visão especial
+const eyes = { id: "e", type: "IMAGE", position: { x: 0, y: 0 }, metadata: { "vigilancia/visao": { modes: ["termica"], on: ["termica"] } } };
+const sv = capture(eyes, ["vision"]);
+const off2 = JSON.parse(JSON.stringify(eyes)); off2.metadata["vigilancia/visao"].on = [];
+ok("visão: percebe e restaura", [changedProps(off2, sv, ["vision"]), (applyTo(off2, sv, ["vision"]), off2.metadata["vigilancia/visao"].on)], [["vision"], ["termica"]]);

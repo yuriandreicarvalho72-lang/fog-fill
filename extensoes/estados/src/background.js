@@ -2,7 +2,8 @@
 // No MESTRE: grava sozinho o que você muda no estado atual (modo Editando) e troca os estados.
 // Em TODOS: percebe quando alguém clica num item-botão e pede a troca ao mestre.
 import OBR from "@owlbear-rodeo/sdk";
-import { capture, changedProps, applyTo, resolveTarget, findGroup, frame } from "./core.js";
+import { capture, changedProps, applyTo, resolveTarget, findGroup, frame, FLOOR, isBuilding } from "./core.js";
+import { assignFloor, moveFloor } from "./floors.js";
 import { ID, GROUPS, DATA, BUTTON, CH_SET, CH_CHANGED, CH_NOTE, url } from "./shared.js";
 
 let role = "PLAYER";
@@ -27,7 +28,7 @@ async function isLeader() {
 
 // ---------- gravação ao vivo ----------
 function record(items) {
-  const live = groups.filter((g) => g.rec && !busy.has(g.id));
+  const live = groups.filter((g) => g.rec && !isBuilding(g) && !busy.has(g.id)); // prédios não gravam ao vivo
   if (!live.length) return;
   const todo = new Map(); // itemId -> { [gid]: { [sid]: dados } }
   for (const it of items) {
@@ -58,22 +59,24 @@ function record(items) {
 }
 
 // ---------- troca de estado ----------
-async function change(ref, to) {
+async function change(ref, to, carry = []) {
   const g = findGroup(groups, ref);
   if (!g) return;
   const prev = queue.get(g.id) || Promise.resolve();
-  const p = prev.then(() => doChange(g.id, to)).catch((e) => console.error(`[${ID}]`, e));
+  const p = prev.then(() => doChange(g.id, to, carry)).catch((e) => console.error(`[${ID}]`, e));
   queue.set(g.id, p);
   return p;
 }
 
-async function doChange(gid, to) {
+async function doChange(gid, to, carry = []) {
   const g = groups.find((x) => x.id === gid);
   if (!g) return;
   const target = resolveTarget(g, to);
   if (!target) return;
   busy.add(g.id);
   try {
+    // prédio: quem sobe/desce junto (ex.: quem usou a escada) passa a morar no andar novo
+    if (isBuilding(g) && carry?.length) await assignFloor({ ...g, current: target.id }, carry, target.id);
     const items = (await OBR.scene.items.getItems()).filter((i) => i.metadata?.[DATA]?.[g.id]);
     // dados do novo estado; item que ainda não tem esse estado herda como está agora
     const tdata = new Map();
@@ -199,7 +202,7 @@ OBR.onReady(async () => {
       const sender = (await OBR.party.getPlayers().catch(() => [])).find((x) => x.connectionId === e.connectionId);
       if (sender?.role === "GM" || !(await isLeader())) return;
     }
-    change(e.data?.group, e.data?.to ?? "next");
+    change(e.data?.group, e.data?.to ?? "next", Array.isArray(e.data?.carry) ? e.data.carry : []);
   });
 
   await OBR.contextMenu.create({
@@ -212,6 +215,36 @@ OBR.onReady(async () => {
       const gids = new Set();
       for (const it of ctx.items) for (const gid of Object.keys(it.metadata?.[DATA] || {})) gids.add(gid);
       for (const gid of gids) change(gid, "next");
+    },
+  });
+
+  // ----- prédios: ver outro andar / levar itens de andar -----
+  const inBuilding = { roles: ["GM"], every: [{ key: ["metadata", FLOOR], value: undefined, operator: "!=" }] };
+  const buildingOf = (ctx) => [...new Set(ctx.items.map((i) => i.metadata?.[FLOOR]?.g).filter(Boolean))];
+  await OBR.contextMenu.create({
+    id: `${ID}/andar-cima`,
+    icons: [{ icon: url("up.svg"), label: "Prédio: mostrar o andar de cima", filter: inBuilding }],
+    onClick: (ctx) => { for (const gid of buildingOf(ctx)) change(gid, "next"); },
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/andar-baixo`,
+    icons: [{ icon: url("down.svg"), label: "Prédio: mostrar o andar de baixo", filter: inBuilding }],
+    onClick: (ctx) => { for (const gid of buildingOf(ctx)) change(gid, "prev"); },
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/levar-cima`,
+    icons: [{ icon: url("up.svg"), label: "Prédio: levar para o andar de cima", filter: inBuilding }],
+    onClick: async (ctx) => {
+      const n = await moveFloor(groups, ctx.items, 1);
+      OBR.notification.show(n ? `Estados: ${n} item(ns) no andar de cima.` : "Estados: já está no último andar.", n ? "INFO" : "WARNING");
+    },
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/levar-baixo`,
+    icons: [{ icon: url("down.svg"), label: "Prédio: levar para o andar de baixo", filter: inBuilding }],
+    onClick: async (ctx) => {
+      const n = await moveFloor(groups, ctx.items, -1);
+      OBR.notification.show(n ? `Estados: ${n} item(ns) no andar de baixo.` : "Estados: já está no térreo.", n ? "INFO" : "WARNING");
     },
   });
 });

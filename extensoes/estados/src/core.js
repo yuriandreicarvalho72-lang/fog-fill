@@ -5,6 +5,8 @@ export const LUZ = "luz-colorida/cor";
 export const CLIMA = "clima/camadas";
 export const VIG_CAM = "vigilancia/camera"; // câmera da Vigilância (direção, abertura, varredura...)
 export const VIG_NODE = "vigilancia/no";    // nó da Matriz da Vigilância (estado: ativo, desativado, loop, hackeado)
+export const VIG_VISION = "vigilancia/visao"; // visão especial do token (térmica, baixa luz; o que está ligado)
+export const VIG_ONLY = "vigilancia/so-em";   // item que só aparece em térmica ou baixa luz
 
 /** Propriedades que um grupo pode controlar. */
 export const PROPS = [
@@ -17,6 +19,7 @@ export const PROPS = [
   { id: "light", label: "Luz (Luz Colorida)" },
   { id: "weather", label: "Clima (camadas do Clima)" },
   { id: "matrix", label: "Câmera e nó da Matriz (Vigilância)" },
+  { id: "vision", label: "Visão especial: térmica / baixa luz (Vigilância)" },
 ];
 export const DEFAULT_PROPS = ["position", "rotation", "scale", "visible"];
 
@@ -36,6 +39,7 @@ export function capture(item, props) {
     else if (p === "light") d.light = clone(item.metadata?.[LUZ]) ?? null;
     else if (p === "weather") d.weather = clone(item.metadata?.[CLIMA]) ?? null;
     else if (p === "matrix") d.matrix = { cam: clone(item.metadata?.[VIG_CAM]) ?? null, node: clone(item.metadata?.[VIG_NODE]) ?? null };
+    else if (p === "vision") d.vision = { modes: clone(item.metadata?.[VIG_VISION]) ?? null, only: item.metadata?.[VIG_ONLY] ?? null };
   }
   return d;
 }
@@ -66,6 +70,10 @@ export function applyTo(draft, data, props) {
     else if (p === "matrix" && v) {
       draft.metadata[VIG_CAM] = v.cam === null ? undefined : clone(v.cam);
       draft.metadata[VIG_NODE] = v.node === null ? undefined : clone(v.node);
+    }
+    else if (p === "vision" && v) {
+      draft.metadata[VIG_VISION] = v.modes === null ? undefined : clone(v.modes);
+      draft.metadata[VIG_ONLY] = v.only === null ? undefined : v.only;
     }
   }
 }
@@ -103,3 +111,27 @@ export function frame(from, to, t) {
   if (from.scale && to.scale) out.scale = { x: lerp(from.scale.x, to.scale.x, k), y: lerp(from.scale.y, to.scale.y, k) };
   return out;
 }
+
+// ---------------- prédios com andares ----------------
+// Um prédio é um grupo (kind "floors") cujos estados são os andares (0 = térreo, de baixo para cima).
+// Cada item pertence a um andar: no andar dele fica visível, nos outros escondido (os dados de cada estado guardam isso),
+// então trocar de andar usa o mesmo motor de troca de estado.
+export const FLOOR = "estados/andar"; // metadado do item: { g: prédio, f: andar }
+export const isBuilding = (g) => g?.kind === "floors";
+
+/** Dados de cada andar para um item que mora no andar floorId (visível só nele). */
+export function floorData(group, floorId, visibleHere = true) {
+  const out = {};
+  for (const s of group.states || []) out[s.id] = { visible: s.id === floorId ? visibleHere : false };
+  return out;
+}
+
+/** Andar vizinho: dir +1 = de cima, -1 = de baixo (sem dar a volta). */
+export function neighborFloor(group, floorId, dir) {
+  const st = group.states || [];
+  const i = st.findIndex((s) => s.id === floorId);
+  return i < 0 ? null : st[i + dir] || null;
+}
+
+/** Nome automático do próximo andar. */
+export const floorName = (n) => (n === 0 ? "Térreo" : `${n}º andar`);
