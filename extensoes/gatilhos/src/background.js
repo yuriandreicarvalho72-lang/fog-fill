@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -201,6 +201,13 @@ async function doEffect(e, ctx, depth, trigger) {
       // o Trocador faz a troca (só um mestre executa); "@quem" nos alvos vira quem ativou
       if (!ids.length) return warn(`"${trigger.name}": trocar imagem está sem alvo.`);
       return OBR.broadcast.sendMessage(TROCADOR_SWAP, { targets: ids, to: e.image || "next", from: trigger.name }, { destination: "ALL" });
+    case "camPower":
+    case "nodeSet": {
+      // a Vigilância faz a troca (só um mestre executa)
+      if (!ids.length) return warn(`"${trigger.name}": ${e.action === "camPower" ? "ligar/desligar câmera" : "mudar estado do nó"} está sem alvo.`);
+      const state = e.action === "camPower" ? (e.power === "on" ? "ativo" : "desativado") : e.nodeState || "hackeado";
+      return OBR.broadcast.sendMessage(VIG_SET, { targets: ids, state, from: trigger.name }, { destination: "ALL" });
+    }
     case "chain":
     case "rearm": {
       const t = triggers.find((x) => x.id === e.trigger);
@@ -301,7 +308,7 @@ function check(items) {
 
   const fired = [];
   for (const tr of triggers) {
-    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact") continue;
+    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact" || VIG_CAUSES.includes(tr.cause)) continue;
     if (tr.cause === "appear" || tr.cause === "disappear") {
       for (const zid of tr.zones || []) {
         const it = byId.get(zid);
@@ -447,6 +454,27 @@ OBR.onReady(async () => {
     }
     if (!best) return;
     OBR.broadcast.sendMessage(CH_HALT, { tokenId, at: haltPoint(best, dpi, gridSquare), upto: best.seg - 1 }, { destination: "ALL" }).catch(() => {});
+  });
+
+  // Vigilância: uma câmera viu alguém (quem ativou = quem foi visto) / um nó da Matriz mudou de estado
+  OBR.broadcast.onMessage(VIG_SEEN, async (e) => {
+    const d = e.data || {};
+    if (role !== "GM" || !d.camera || !(await isLeader())) return;
+    for (const tr of triggers) {
+      if (!tr.armed || tr.cause !== "cameraSees" || !(tr.zones || []).includes(d.camera)) continue;
+      if (tr.once) tr.armed = false;
+      run(tr, { on: d.tokens || [], cause: "cameraSees" });
+    }
+  });
+  OBR.broadcast.onMessage(VIG_NODE, async (e) => {
+    const d = e.data || {};
+    if (role !== "GM" || !d.id || !(await isLeader())) return;
+    for (const tr of triggers) {
+      if (!tr.armed || tr.cause !== "nodeState" || !(tr.zones || []).includes(d.id)) continue;
+      if (tr.nodeTo && tr.nodeTo !== d.state) continue;
+      if (tr.once) tr.armed = false;
+      run(tr, { cause: "nodeState" });
+    }
   });
 
   // disparo manual pelo painel

@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -10,6 +10,7 @@ let open = null;          // gatilho aberto
 let itemNames = new Map();
 let itemWeapons = new Map(); // armas do Arsenal de cada token
 let itemImages = new Map();  // nomes das imagens do Trocador de cada item
+let itemVig = new Map();     // câmeras e nós da Vigilância: id -> { cam, node }
 let estados = [];         // grupos da extensão Estados
 const logLines = [];
 
@@ -21,6 +22,7 @@ async function refreshNames() {
   itemNames = new Map(items.map((i) => [i.id, i.text?.plainText || i.name || i.type]));
   itemWeapons = new Map(items.map((i) => [i.id, i.metadata?.[ARSENAL_WEAPONS] || []]));
   itemImages = new Map(items.filter((i) => Array.isArray(i.metadata?.[TROCADOR_IMAGES])).map((i) => [i.id, i.metadata[TROCADOR_IMAGES].map((v) => v.name)]));
+  itemVig = new Map(items.filter((i) => i.metadata?.[VIG_CAM] || i.metadata?.[VIG_NODE_META]).map((i) => [i.id, { cam: !!i.metadata[VIG_CAM], node: !!i.metadata[VIG_NODE_META] }]));
 }
 
 let saveTimer = null;
@@ -70,6 +72,19 @@ function imageRow(e) {
     <span class="hint">Itens com uma imagem de mesmo nome trocam juntos. Precisa da extensão Trocador instalada.</span>`;
 }
 
+/** Ligar/desligar câmera e estado do nó (Vigilância). */
+function vigRow(e, kind) {
+  const tg = (e.targets || []).filter((id) => id !== ACTOR);
+  const bad = tg.length && !tg.some((id) => (kind === "power" ? itemVig.get(id)?.cam : itemVig.get(id)));
+  const sel = kind === "power"
+    ? `<select data-ek="power"><option value="off" ${e.power !== "on" ? "selected" : ""}>desligar</option><option value="on" ${e.power === "on" ? "selected" : ""}>ligar</option></select>`
+    : `<select data-ek="nodeState">${NODE_STATES.map(([v, l]) => `<option value="${v}" ${(e.nodeState || "hackeado") === v ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  return `<div class="row"><span class="hint">${kind === "power" ? "Câmera:" : "Novo estado:"}</span>${sel}</div>
+    ${bad ? `<span class="hint warn">⚠ ${kind === "power" ? "Nenhum desses itens é câmera" : "Nenhum desses itens é câmera ou nó da Matriz"} (botão direito no item → ${kind === "power" ? "Virar câmera" : "Virar nó da Matriz"}).</span>` : ""}
+    ${(e.targets || []).length ? "" : '<span class="hint warn">⚠ Sem alvo: escolha as câmeras ou nós.</span>'}
+    <span class="hint">Precisa da extensão Vigilância instalada.</span>`;
+}
+
 function effectRow(t, e) {
   const a = ACTIONS.find((x) => x.id === e.action) || ACTIONS[0];
   const need = new Set(a.need);
@@ -82,6 +97,8 @@ function effectRow(t, e) {
     ${need.has("targets") ? `<div class="sub">${e.action === "arsenal" ? "Alvos" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
     ${need.has("weapon") ? arsenalRow(e) : ""}
     ${need.has("image") ? imageRow(e) : ""}
+    ${need.has("power") ? vigRow(e, "power") : ""}
+    ${need.has("nodeState") ? vigRow(e, "nodeState") : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
     ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
@@ -114,7 +131,11 @@ function card(t) {
       <h3>Quando</h3>
       <select data-k="cause">${CAUSES.map((c) => `<option value="${c.id}" ${c.id === t.cause ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       ${t.cause === "near" ? `<label class="inline">raio <input type="number" data-k="radius" min="0.5" step="0.5" value="${t.radius ?? 2}" /> quadrados</label>` : ""}
-      <div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>
+      <div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>
+      ${t.cause === "cameraSees" ? `<p class="hint">Dispara quando a câmera (extensão Vigilância) vê alguém entrar no cone. "Quem ativou" = quem foi visto.</p>
+        ${(t.zones || []).length && !(t.zones || []).some((id) => itemVig.get(id)?.cam) ? '<span class="hint warn">⚠ Nenhum desses itens é câmera (botão direito → Virar câmera).</span>' : ""}` : ""}
+      ${t.cause === "nodeState" ? `<div class="row"><span class="hint">Quando ficar:</span><select data-k="nodeTo"><option value="">qualquer estado</option>${NODE_STATES.map(([v, l]) => `<option value="${v}" ${t.nodeTo === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        ${(t.zones || []).length && !(t.zones || []).some((id) => itemVig.get(id)) ? '<span class="hint warn">⚠ Nenhum desses itens é nó da Matriz (botão direito → Virar nó da Matriz).</span>' : ""}` : ""}
       ${t.cause === "interact" ? `
       <p class="hint">O jogador usa clicando no objeto, pelo botão direito → Interagir, ou pela lista no painel dele. "Quem ativou" = o personagem dele mais perto. Arrastar o objeto não funciona: ele volta para o lugar.</p>
       <div class="row">

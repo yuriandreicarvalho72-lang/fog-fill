@@ -15,6 +15,13 @@ export const ARSENAL_FIRE = "arsenal/atirar";   // { shooter, weapon?, mode?, ta
 export const ARSENAL_WEAPONS = "arsenal/armas"; // metadado do token: repertório de armas do Arsenal
 export const TROCADOR_SWAP = "trocador/trocar";  // { targets: [id], to: "next"|"prev"|nome } pede a troca de imagem ao Trocador
 export const TROCADOR_IMAGES = "trocador/imagens"; // metadado do item: imagens guardadas pelo Trocador
+// extensão Vigilância (câmeras e Matriz)
+export const VIG_SEEN = "vigilancia/viu";       // Vigilância -> todos: { camera, tokens: [novos], all }
+export const VIG_NODE = "vigilancia/no-mudou";  // Vigilância -> todos: { id, name, type, state, prev }
+export const VIG_SET = "vigilancia/mudar";      // { targets: [id], state, from } pede a troca de estado à Vigilância
+export const VIG_CAM = "vigilancia/camera";     // metadado do item: é câmera
+export const VIG_NODE_META = "vigilancia/no";   // metadado do item: é nó da Matriz
+export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
 export const CH_HALT = "regua/parar";     // motor -> todos: { tokenId, at, upto } (anda até points[upto], vai para "at" e para)
@@ -30,6 +37,8 @@ export const CAUSES = [
   { id: "appear", label: "A zona aparece (fica visível)" },
   { id: "disappear", label: "A zona some (fica escondida)" },
   { id: "interact", label: "Interagir: o jogador clica no objeto (alavanca, porta, botão…)" },
+  { id: "cameraSees", label: "Uma câmera vê alguém (Vigilância)" },
+  { id: "nodeState", label: "Nó da Matriz muda de estado (Vigilância)" },
   { id: "manual", label: "Só quando eu disparar" },
 ];
 
@@ -52,6 +61,8 @@ export const ACTIONS = [
   { id: "stateSet", label: "Mudar estado (Estados)", need: ["group"] },
   { id: "arsenal", label: "Disparo (Arsenal): um token atira", need: ["shooter", "targets", "weapon"] },
   { id: "swapImage", label: "Trocar imagem (Trocador)", need: ["targets", "image"] },
+  { id: "camPower", label: "Ligar/desligar câmera (Vigilância)", need: ["targets", "power"] },
+  { id: "nodeSet", label: "Mudar estado do nó da Matriz (Vigilância)", need: ["targets", "nodeState"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -67,12 +78,12 @@ export function newTrigger(zones = [], name = "Gatilho") {
     id: uid(), name, armed: true, once: true, delay: 0,
     zones, cause: "enter", radius: 2,
     who: "chars", tokens: [], ignoreHidden: true, halt: false,
-    reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d",
+    reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d", nodeTo: "",
     effects: [newEffect("show")],
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", delay: 0 };
 }
 
 // quem o teleporte leva
@@ -84,6 +95,7 @@ export const WHO = [
 export const ARSENAL_MODES = { single: "tiro único", burst: "rajada", auto: "automático", supp: "supressão", spray: "jato" };
 export const ACTOR = "@quem"; // item especial nas listas de itens: quem ativou
 export const MOVING = ["enter", "leave", "near"]; // causas com movimento (dá para barrar)
+export const VIG_CAUSES = ["cameraSees", "nodeState"]; // causas que chegam da Vigilância
 // quem pode usar um objeto interagível
 export const CAN_USE = [["all", "jogadores e mestre"], ["players", "só jogadores"], ["gm", "só o mestre"]];
 
