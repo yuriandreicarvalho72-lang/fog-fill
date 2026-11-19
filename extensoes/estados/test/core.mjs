@@ -34,3 +34,15 @@ ok("grupo por nome", findGroup([g], "ponte").id, "g");
 const f = frame({ position: { x: 0, y: 0 }, rotation: 350 }, { position: { x: 100, y: 0 }, rotation: 10 }, 0.5);
 ok("meio do caminho", f.position, { x: 50, y: 0 });
 ok("gira pelo lado curto", Math.round(f.rotation), 360);
+// Vigilância: câmera e nó da Matriz
+const camItem = { id: "c", type: "IMAGE", position: { x: 0, y: 0 }, metadata: { "vigilancia/camera": { angle: 90, dir: 30 }, "vigilancia/no": { name: "Câmera", type: "camera", state: "ativo" } } };
+const snap = capture(camItem, ["matrix"]);
+ok("grava câmera e nó", [snap.matrix.cam.dir, snap.matrix.node.state], [30, "ativo"]);
+const off = JSON.parse(JSON.stringify(camItem)); off.metadata["vigilancia/no"].state = "loop"; off.metadata["vigilancia/camera"].dir = 90;
+ok("percebe a mudança", changedProps(off, snap, ["matrix"]), ["matrix"]);
+applyTo(off, snap, ["matrix"]);
+ok("restaura", [off.metadata["vigilancia/camera"].dir, off.metadata["vigilancia/no"].state], [30, "ativo"]);
+const plain = { id: "p", type: "IMAGE", position: { x: 0, y: 0 }, metadata: {} };
+const none = capture(plain, ["matrix"]);
+const later = JSON.parse(JSON.stringify(camItem)); applyTo(later, none, ["matrix"]);
+ok("estado sem câmera tira a câmera", [later.metadata["vigilancia/camera"], later.metadata["vigilancia/no"]], [undefined, undefined]);

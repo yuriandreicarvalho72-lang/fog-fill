@@ -3,6 +3,8 @@
 
 export const LUZ = "luz-colorida/cor";
 export const CLIMA = "clima/camadas";
+export const VIG_CAM = "vigilancia/camera"; // câmera da Vigilância (direção, abertura, varredura...)
+export const VIG_NODE = "vigilancia/no";    // nó da Matriz da Vigilância (estado: ativo, desativado, loop, hackeado)
 
 /** Propriedades que um grupo pode controlar. */
 export const PROPS = [
@@ -14,6 +16,7 @@ export const PROPS = [
   { id: "image", label: "Imagem (troca a arte: porta aberta/fechada; escolha com o Trocador)" },
   { id: "light", label: "Luz (Luz Colorida)" },
   { id: "weather", label: "Clima (camadas do Clima)" },
+  { id: "matrix", label: "Câmera e nó da Matriz (Vigilância)" },
 ];
 export const DEFAULT_PROPS = ["position", "rotation", "scale", "visible"];
 
@@ -32,6 +35,7 @@ export function capture(item, props) {
     else if (p === "image") d.image = isImage(item) ? { content: clone(item.image), grid: clone(item.grid) } : null;
     else if (p === "light") d.light = clone(item.metadata?.[LUZ]) ?? null;
     else if (p === "weather") d.weather = clone(item.metadata?.[CLIMA]) ?? null;
+    else if (p === "matrix") d.matrix = { cam: clone(item.metadata?.[VIG_CAM]) ?? null, node: clone(item.metadata?.[VIG_NODE]) ?? null };
   }
   return d;
 }
@@ -59,6 +63,10 @@ export function applyTo(draft, data, props) {
     else if (p === "image") { if (v && isImage(draft)) { draft.image = clone(v.content); draft.grid = clone(v.grid); } }
     else if (p === "light") draft.metadata[LUZ] = v === null ? undefined : clone(v);
     else if (p === "weather") draft.metadata[CLIMA] = v === null ? undefined : clone(v);
+    else if (p === "matrix" && v) {
+      draft.metadata[VIG_CAM] = v.cam === null ? undefined : clone(v.cam);
+      draft.metadata[VIG_NODE] = v.node === null ? undefined : clone(v.node);
+    }
   }
 }
 
