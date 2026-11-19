@@ -1,0 +1,16 @@
+{
+  "name": "Régua",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "author": "Yuri",
+  "description": "Régua no estilo Roll20: mover token por pontos (direito confirma, Esc cancela), medir distância e áreas de D&D.",
+  "icon": "/fog-fill/regua/icon.svg",
+  "background_url": "/fog-fill/regua/background.html",
+  "action": {
+    "title": "Régua",
+    "icon": "/fog-fill/regua/icon.svg",
+    "popover": "/fog-fill/regua/index.html",
+    "height": 560,
+    "width": 330
+  }
+}

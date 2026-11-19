@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Régua</title>
+    <script type="module" crossorigin src="/fog-fill/regua/assets/main-CWxecHMU.js"></script>
+    <link rel="modulepreload" crossorigin href="/fog-fill/regua/assets/geom-C4sfN2IE.js">
+    <link rel="stylesheet" crossorigin href="/fog-fill/regua/assets/main-DfJGnR4k.css">
+  </head>
+  <body>
+    <main>
+      <h1>Régua</h1>
+      <p class="hint">Atalho da ferramenta: <kbd>Q</kbd>. Escolha o modo na barra que aparece ao lado.</p>
+
+      <section>
+        <h2>Mover personagem e medir</h2>
+        <div class="keys">
+          <span>Clique no token</span><span>começa o movimento (no modo medir, clique no chão)</span>
+          <span><kbd>Esquerdo</kbd></span><span>cria um ponto no caminho</span>
+          <span id="k-confirm"><kbd>Direito</kbd></span><span>confirma: o token vai até o fim do caminho</span>
+          <span><kbd>Esc</kbd></span><span>cancela, o token volta</span>
+          <span><kbd>Backspace</kbd></span><span>desfaz o último ponto</span>
+          <span><kbd>Alt</kbd></span><span>segure para não encaixar na grade</span>
+        </div>
+        <label>Confirmar com
+          <select id="confirm">
+            <option value="right">botão direito do mouse</option>
+            <option value="native">duplo clique ou Enter</option>
+          </select>
+        </label>
+        <small id="confirm-hint"></small>
+      </section>
+
+      <section>
+        <h2>Áreas (D&amp;D)</h2>
+        <p class="hint">1º clique: origem (num token, sai do centro dele). Mova para o tamanho e a direção. 2º clique: fixa no mapa. <kbd>Esc</kbd> cancela.</p>
+        <label>Quadrados atingidos
+          <select id="cellRule">
+            <option value="center">o centro do quadrado está dentro</option>
+            <option value="half">metade do quadrado coberta</option>
+            <option value="touch">qualquer parte tocada</option>
+          </select>
+        </label>
+        <label class="check"><input id="showCells" type="checkbox" /> Destacar os quadrados atingidos</label>
+        <label class="check"><input id="keepAreas" type="checkbox" /> O 2º clique deixa a área no mapa</label>
+        <label>Opacidade <output id="o-areaOpacity"></output>
+          <input id="areaOpacity" type="range" min="0.05" max="0.6" step="0.01" />
+        </label>
+        <label>Largura da linha <output id="o-lineWidth"></output>
+          <input id="lineWidth" type="range" min="1" max="6" step="1" />
+        </label>
+        <small>As áreas ficam na camada de desenho: dá para mover ou apagar como qualquer desenho, ou usar a lixeira da barra.</small>
+      </section>
+    </main>
+  </body>
+</html>
