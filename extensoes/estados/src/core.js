@@ -11,7 +11,7 @@ export const PROPS = [
   { id: "scale", label: "Tamanho" },
   { id: "visible", label: "Visível / escondido" },
   { id: "locked", label: "Travado" },
-  { id: "image", label: "Imagem (troca a arte: porta aberta/fechada)" },
+  { id: "image", label: "Imagem (troca a arte: porta aberta/fechada; escolha com o Trocador)" },
   { id: "light", label: "Luz (Luz Colorida)" },
   { id: "weather", label: "Clima (camadas do Clima)" },
 ];

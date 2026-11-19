@@ -9,6 +9,7 @@ export const BUTTON = `${ID}/botao`;      // metadado do item-botão: { group, t
 export const CH_SET = `${ID}/mudar`;      // { group: id|nome, to: "next"|"prev"|id|nome }
 export const CH_CHANGED = `${ID}/mudou`;  // { group, groupName, state, stateName }
 export const CH_NOTE = `${ID}/aviso`;     // { text }
+export const TROCADOR_IMAGES = "trocador/imagens"; // metadado do item: imagens guardadas pela extensão Trocador
 
 export const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 export const uid = () => Math.random().toString(36).slice(2, 9);

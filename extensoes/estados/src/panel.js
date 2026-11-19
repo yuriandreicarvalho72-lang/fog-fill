@@ -1,7 +1,7 @@
 // Painel dos Estados (mestre): grupos, estados, membros e botões no mapa.
 import OBR from "@owlbear-rodeo/sdk";
 import { PROPS, capture } from "./core.js";
-import { GROUPS, DATA, BUTTON, CH_SET, TRANSITIONS, newGroup, uid, applyTheme } from "./shared.js";
+import { GROUPS, DATA, BUTTON, CH_SET, TRANSITIONS, TROCADOR_IMAGES, newGroup, uid, applyTheme } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 let groups = [];
@@ -27,9 +27,22 @@ function save(now = false) {
 const setState = (g, to) => OBR.broadcast.sendMessage(CH_SET, { group: g.id, to }, { destination: "LOCAL" });
 const selection = async () => (await OBR.player.getSelection()) || [];
 
+/** Nome da imagem do Trocador que o item usa agora e em cada estado do grupo (se ele tiver imagens no Trocador). */
+function imageInfo(it, gid) {
+  const list = Array.isArray(it.metadata?.[TROCADOR_IMAGES]) ? it.metadata[TROCADOR_IMAGES] : [];
+  if (!list.length || it.type !== "IMAGE") return {};
+  const nameOf = (url) => list.find((v) => v.url === url)?.name || "outra arte";
+  const g = groups.find((x) => x.id === gid);
+  const per = g && g.props.includes("image") ? g.states.map((s) => {
+    const u = it.metadata?.[DATA]?.[gid]?.[s.id]?.image?.content?.url;
+    return u ? `${s.name}: ${nameOf(u)}` : null;
+  }).filter(Boolean) : [];
+  return { img: nameOf(it.image?.url), imgTip: per.join(" · ") };
+}
+
 function recount(items) {
   counts = new Map(); buttons = new Map(); memberList = new Map(); buttonList = new Map();
-  const push = (m, gid, it) => { if (!m.has(gid)) m.set(gid, []); m.get(gid).push({ id: it.id, name: itemName(it), layer: it.layer, visible: it.visible !== false }); };
+  const push = (m, gid, it) => { if (!m.has(gid)) m.set(gid, []); m.get(gid).push({ id: it.id, name: itemName(it), layer: it.layer, visible: it.visible !== false, ...imageInfo(it, gid) }); };
   for (const it of items) {
     for (const gid of Object.keys(it.metadata?.[DATA] || {})) { counts.set(gid, (counts.get(gid) || 0) + 1); push(memberList, gid, it); }
     const b = it.metadata?.[BUTTON];
@@ -45,6 +58,7 @@ function itemRows(list, kind) {
     <div class="mrow${selected.has(m.id) ? " sel" : ""}" data-pick="${m.id}" title="Clique para selecionar no mapa">
       <span class="ico">${LAYER_ICON[m.layer] || "•"}</span>
       <span class="mname">${esc(m.name)}</span>
+      ${m.img ? `<span class="tag img" title="${esc(m.imgTip || "Imagem do Trocador")}">🖼 ${esc(m.img)}</span>` : ""}
       ${m.visible ? "" : '<span class="tag">escondido</span>'}
       <button type="button" class="x" data-un${kind}="${m.id}" title="${kind === "btn" ? "Deixa de ser botão" : "Tirar do grupo"}">✕</button>
     </div>`).join("")}</div>`;
