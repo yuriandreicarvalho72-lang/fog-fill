@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gatilhos</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Gatilhos</h1>
+      <p class="hint">Causa e efeito: quando um token entra, sai, passa por cima ou chega perto de uma zona, coisas acontecem. Funciona com qualquer movimento, inclusive o dos jogadores, sem ferramenta especial. O motor roda no navegador do mestre (o mestre precisa estar na sala).</p>
+      <div class="btns">
+        <button id="new" type="button">+ Novo gatilho com a seleção</button>
+        <button id="rearm" type="button">Rearmar todos</button>
+      </div>
+      <div id="list"></div>
+      <section>
+        <h2>Últimos disparos</h2>
+        <div id="log"></div>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>

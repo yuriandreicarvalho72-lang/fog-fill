@@ -1,0 +1,57 @@
+:root { --fg: #e8eef5; --muted: #a9b4c2; --line: rgba(255,255,255,.12); --btn: rgba(255,255,255,.08); --btn-h: rgba(255,255,255,.16); --accent: #ffb35a; }
+:root.light { --fg: #1d2129; --muted: #5b6573; --line: rgba(0,0,0,.12); --btn: rgba(0,0,0,.06); --btn-h: rgba(0,0,0,.12); --accent: #c46a00; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; color: var(--fg); font: 13px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; }
+main { padding: 12px 14px 16px; }
+body.embed { padding: 8px 10px; }
+h1 { font-size: 16px; margin: 0 0 4px; }
+h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+section { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+label { display: block; margin: 8px 0 2px; }
+label output { float: right; color: var(--accent); font-variant-numeric: tabular-nums; }
+label.check { display: flex; gap: 6px; align-items: center; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+select { width: 100%; margin-top: 3px; background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; font: inherit; }
+select option { color: #111; }
+small, .hint { color: var(--muted); display: block; margin: 0 0 4px; }
+button { background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; cursor: pointer; font: inherit; }
+button:hover { background: var(--btn-h); }
+.row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.grow { flex: 1; margin: 0; }
+.swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+.sw { height: 24px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); }
+.sw:hover { transform: scale(1.12); }
+input[type=color] { width: 34px; height: 30px; border: 1px solid var(--line); border-radius: 6px; background: none; padding: 0; }
+.li { display: flex; gap: 6px; align-items: center; margin-top: 3px; color: var(--fg); }
+.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid var(--line); }
+.card { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; padding: 4px 6px; }
+.card.off { opacity: .5; }
+.card .head { display: flex; align-items: center; gap: 6px; }
+.card .head .name { flex: 1; text-align: left; background: none; border: 0; padding: 4px 2px; font-weight: 600; }
+.card .head .x { background: none; border: 0; color: var(--muted); padding: 2px 6px; }
+.card .head .sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); display: inline-block; }
+.card .body { padding: 2px 2px 6px; }
+.card .body label { margin: 6px 0 0; }
+.dirrow { display: flex; align-items: center; gap: 8px; }
+.arrow { display: inline-block; font-size: 16px; width: 18px; text-align: center; color: var(--accent); }
+.top { display: flex; gap: 6px; }
+.top select { flex: 1; margin: 0; }
+.btns { display: flex; gap: 6px; margin-top: 8px; }
+.btns button { flex: 1; }
+#flash { background: #f5d742; color: #1b1b1b; border-color: #f5d742; font-weight: 700; }
+[hidden] { display: none !important; }
+.card .head .name { display: flex; flex-direction: column; }
+.card .head .name small { font-weight: 400; color: var(--muted); }
+.card h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); margin: 10px 0 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 3px 0; }
+.chip { background: var(--btn-h); color: var(--fg); border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+.mini { padding: 1px 7px; font-size: 12px; }
+.fire { font-size: 14px; }
+.effect { border-left: 3px solid var(--accent); padding: 4px 0 6px 8px; margin: 6px 0; }
+.effect .row select { flex: 1; margin: 0; }
+.sub { margin: 4px 0; color: var(--muted); }
+input[type=text] { width: 100%; margin-top: 4px; background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; font: inherit; }
+input[type=number] { width: 58px; background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 3px; font: inherit; }
+label.inline { display: inline-flex; gap: 4px; align-items: center; margin: 6px 0 0; color: var(--muted); }
+button.danger { color: #ff7a7a; }
+#log { font-size: 12px; font-variant-numeric: tabular-nums; }
