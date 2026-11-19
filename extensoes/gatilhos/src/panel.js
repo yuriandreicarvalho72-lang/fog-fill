@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -104,6 +104,13 @@ function visionRow(e) {
     <span class="hint">Só vale para tokens com esse modo (marcado na Vigilância). Ex.: granada de luz desliga a baixa luz. Precisa da extensão Vigilância.</span>`;
 }
 
+/** Detonar ou desarmar uma carga do Arsenal. */
+function chargeRow(e) {
+  return `<div class="row"><span class="hint">Carga:</span><select data-ek="chargeOp">${CHARGE_OPS.map(([v, l]) => `<option value="${v}" ${(e.chargeOp || "detonar") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    ${(e.targets || []).length ? "" : '<span class="hint warn">⚠ Sem alvo: escolha a carga (você vê as escondidas) ou o objeto onde ela está colada.</span>'}
+    <span class="hint">Vale para a carga escolhida e para as cargas coladas nos itens escolhidos. Precisa da extensão Arsenal.</span>`;
+}
+
 function effectRow(t, e) {
   const a = ACTIONS.find((x) => x.id === e.action) || ACTIONS[0];
   const need = new Set(a.need);
@@ -120,6 +127,7 @@ function effectRow(t, e) {
     ${need.has("nodeState") ? vigRow(e, "nodeState") : ""}
     ${need.has("floor") ? floorRow(e) : ""}
     ${need.has("vision") ? visionRow(e) : ""}
+    ${need.has("chargeOp") ? chargeRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
     ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
@@ -152,9 +160,11 @@ function card(t) {
       <h3>Quando</h3>
       <select data-k="cause">${CAUSES.map((c) => `<option value="${c.id}" ${c.id === t.cause ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       ${t.cause === "near" ? `<label class="inline">raio <input type="number" data-k="radius" min="0.5" step="0.5" value="${t.radius ?? 2}" /> quadrados</label>` : ""}
-      <div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>
+      <div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : t.cause === "destroyed" ? "Objeto(s) destrutível(is)" : t.cause === "chargeBlew" ? "Perto de (vazio = qualquer carga)" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>
       ${t.cause === "cameraSees" ? `<p class="hint">Dispara quando a câmera (extensão Vigilância) vê alguém entrar no cone. "Quem ativou" = quem foi visto.</p>
         ${(t.zones || []).length && !(t.zones || []).some((id) => itemVig.get(id)?.cam) ? '<span class="hint warn">⚠ Nenhum desses itens é câmera (botão direito → Virar câmera).</span>' : ""}` : ""}
+      ${t.cause === "destroyed" ? '<p class="hint">Dispara quando o objeto quebra no Arsenal (tiros pesados, explosões, cargas). "Quem ativou" = quem atirou ou plantou a carga.</p>' : ""}
+      ${t.cause === "chargeBlew" ? '<p class="hint">Dispara quando uma carga do Arsenal explode (perto de um dos itens escolhidos, ou qualquer uma se a lista estiver vazia). "Quem ativou" = os tokens pegos na explosão (ou quem plantou, se ninguém foi pego).</p>' : ""}
       ${t.cause === "nodeState" ? `<div class="row"><span class="hint">Quando ficar:</span><select data-k="nodeTo"><option value="">qualquer estado</option>${NODE_STATES.map(([v, l]) => `<option value="${v}" ${t.nodeTo === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
         ${(t.zones || []).length && !(t.zones || []).some((id) => itemVig.get(id)) ? '<span class="hint warn">⚠ Nenhum desses itens é nó da Matriz (botão direito → Virar nó da Matriz).</span>' : ""}` : ""}
       ${t.cause === "interact" ? `

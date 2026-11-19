@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -210,6 +210,10 @@ async function doEffect(e, ctx, depth, trigger) {
     case "vision":
       if (!ids.length) return warn(`"${trigger.name}": ligar/desligar visão está sem token.`);
       return OBR.broadcast.sendMessage(VIG_VISION, { targets: ids, mode: e.visionMode || "termica", on: e.visionOn !== "off", from: trigger.name }, { destination: "ALL" });
+    case "charge":
+      // o Arsenal detona ou desarma (só um mestre executa); alvo = a carga, ou o objeto onde ela está colada
+      if (!ids.length) return warn(`"${trigger.name}": a carga está sem alvo (escolha a carga ou o objeto onde ela está colada).`);
+      return OBR.broadcast.sendMessage(ARSENAL_DETONATE, { ids, op: e.chargeOp || "detonar", from: trigger.name }, { destination: "ALL" });
     case "camPower":
     case "nodeSet": {
       // a Vigilância faz a troca (só um mestre executa)
@@ -317,7 +321,7 @@ function check(items) {
 
   const fired = [];
   for (const tr of triggers) {
-    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact" || VIG_CAUSES.includes(tr.cause)) continue;
+    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact" || VIG_CAUSES.includes(tr.cause) || ARSENAL_CAUSES.includes(tr.cause)) continue;
     if (tr.cause === "appear" || tr.cause === "disappear") {
       for (const zid of tr.zones || []) {
         const it = byId.get(zid);
@@ -486,10 +490,34 @@ OBR.onReady(async () => {
     }
   });
 
-  // disparo manual pelo painel
+  // Arsenal: um objeto foi destruído (quem ativou = quem atirou) / uma carga explodiu (quem ativou = quem foi pego)
+  OBR.broadcast.onMessage(ARSENAL_DESTROYED, async (e) => {
+    const d = e.data || {};
+    if (role !== "GM" || !d.id || !(await isLeader())) return;
+    for (const tr of triggers) {
+      if (!tr.armed || tr.cause !== "destroyed" || !(tr.zones || []).includes(d.id)) continue;
+      if (tr.once) tr.armed = false;
+      run(tr, { on: d.by ? [d.by] : [], cause: "destroyed" });
+    }
+  });
+  OBR.broadcast.onMessage(ARSENAL_BLAST, async (e) => {
+    const d = e.data || {};
+    if (role !== "GM" || !d.at || !(await isLeader())) return;
+    const all = await OBR.scene.items.getItems();
+    for (const tr of triggers) {
+      if (!tr.armed || tr.cause !== "chargeBlew") continue;
+      // sem zona: qualquer carga; com zona: a explosão pega a zona (ou a carga estava colada nela)
+      const zs = (tr.zones || []).map((id) => all.find((i) => i.id === id)).filter(Boolean);
+      if ((tr.zones || []).length && !zs.some((z) => z.id === d.id || Math.hypot(z.position.x - d.at.x, z.position.y - d.at.y) <= ((d.radius || 2) + 0.5) * dpi)) continue;
+      if (tr.once) tr.armed = false;
+      run(tr, { on: d.caught?.length ? d.caught : d.by ? [d.by] : [], cause: "chargeBlew" });
+    }
+  });
+
+  // disparo manual pelo painel (ou pelo Arsenal, com quem ativou)
   OBR.broadcast.onMessage(CH_FIRE, (e) => {
     if (role !== "GM") return;
     const t = triggers.find((x) => x.id === e.data?.id);
-    if (t) run(t, {});
+    if (t) run(t, Array.isArray(e.data?.on) && e.data.on.length ? { on: e.data.on } : {});
   });
 });

@@ -23,6 +23,12 @@ export const VIG_CAM = "vigilancia/camera";     // metadado do item: é câmera
 export const VIG_NODE_META = "vigilancia/no";   // metadado do item: é nó da Matriz
 export const VIG_VISION = "vigilancia/visao";   // { targets, mode: "termica"|"baixa"|"todos", on, from } liga/desliga visão especial
 export const VISION_MODES = [["termica", "térmica"], ["baixa", "baixa luz"], ["todos", "todos os modos"]];
+// extensão Arsenal: cenário destrutível e cargas plantadas
+export const ARSENAL_DESTROYED = "arsenal/destruido"; // Arsenal -> todos: { id, name, at, by (token que atirou) }
+export const ARSENAL_BLAST = "arsenal/explodiu";      // Arsenal -> todos: { id, at, radius, by, caught: [tokens] }
+export const ARSENAL_DETONATE = "arsenal/detonar";    // { ids, op: "detonar"|"desarmar", from } pede ao Arsenal
+export const ARSENAL_CAUSES = ["destroyed", "chargeBlew"];
+export const CHARGE_OPS = [["detonar", "detonar"], ["desarmar", "desarmar"]];
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -41,6 +47,8 @@ export const CAUSES = [
   { id: "interact", label: "Interagir: o jogador clica no objeto (alavanca, porta, botão…)" },
   { id: "cameraSees", label: "Uma câmera vê alguém (Vigilância)" },
   { id: "nodeState", label: "Nó da Matriz muda de estado (Vigilância)" },
+  { id: "destroyed", label: "Um objeto foi destruído (Arsenal)" },
+  { id: "chargeBlew", label: "Uma carga explodiu (Arsenal)" },
   { id: "manual", label: "Só quando eu disparar" },
 ];
 
@@ -67,6 +75,7 @@ export const ACTIONS = [
   { id: "camPower", label: "Ligar/desligar câmera (Vigilância)", need: ["targets", "power"] },
   { id: "nodeSet", label: "Mudar estado do nó da Matriz (Vigilância)", need: ["targets", "nodeState"] },
   { id: "vision", label: "Ligar/desligar modo de visão (Vigilância)", need: ["targets", "vision"] },
+  { id: "charge", label: "Carga (Arsenal): detonar ou desarmar", need: ["targets", "chargeOp"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -87,7 +96,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0 };
 }
 
 // quem o teleporte leva
