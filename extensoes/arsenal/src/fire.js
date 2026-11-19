@@ -2,13 +2,37 @@
 // e por outras extensões (Gatilhos). Quem atira monta o disparo e manda para TODOS; cada navegador desenha.
 import OBR from "@owlbear-rodeo/sdk";
 import {
-  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_AMMO, DEFAULT_CONFIG,
+  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_AMMO, RULES, DEFAULT_CONFIG,
   roundsFor, impactKind, itemName, applyAmmo,
 } from "./shared.js";
+import { obstaclesFrom, coverBetween, halfSize, DEFAULT_RULES } from "./cover.js";
 
 export async function getPlayerMeta() {
   const md = await OBR.player.getMetadata();
   return { active: md[ACTIVE] || {}, targets: md[TARGETS] || [], config: { ...DEFAULT_CONFIG, ...(md[CONFIG] || {}) } };
+}
+
+/** Bônus de cobertura da mesa (sala), com padrão d20: meia +2, três quartos +5. */
+export async function getRules() {
+  const md = await OBR.room.getMetadata().catch(() => ({}));
+  return { ...DEFAULT_RULES, ...(md[RULES] || {}) };
+}
+
+/** Obstáculos da cena: paredes da névoa dinâmica (locais e da cena) e itens marcados como cobertura. */
+export async function loadObstacles(dpi) {
+  const [local, items] = await Promise.all([OBR.scene.local.getItems().catch(() => []), OBR.scene.items.getItems()]);
+  return obstaclesFrom([...local, ...items], dpi);
+}
+
+/** Cobertura de cada alvo ([{ id } | { at }]) visto do atirador: [{ key, name, ... }]. */
+export function coverOf(shooter, targets, items, obs, dpi) {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  return targets.map((t) => {
+    const it = t.id ? byId.get(t.id) : null;
+    const at = it ? it.position : t.at;
+    if (!at || !shooter) return { key: "none", name: "" };
+    return { ...coverBetween(shooter.position, at, it ? halfSize(it, dpi) : 0, obs, [shooter.id, it?.id].filter(Boolean)), name: it ? itemName(it) : "o ponto marcado" };
+  });
 }
 
 const say = (at, text) => OBR.broadcast.sendMessage(CH_LABEL, { at, text }, { destination: "ALL" }).catch(() => {});
@@ -70,13 +94,28 @@ export async function fireWith({ shooterId, weaponId, mode, targets: list, hit =
   return { ok: true };
 }
 
+let confirmUntil = 0; // cobertura total: o segundo disparo em poucos segundos confirma
+
 /** Atira com o atirador e a arma ativos do jogador, nos alvos dados (ou nos marcados com a mira). */
 export async function fire(targetsIn) {
   const { active, targets: marked, config } = await getPlayerMeta();
   if (!active.shooter) return OBR.notification.show("Arsenal: escolha um atirador (selecione seu token e abra o painel Arsenal).", "WARNING");
+  const list = targetsIn?.length ? targetsIn : marked;
+  // alvo atrás de cobertura total (sem linha de tiro): avisa e só atira se confirmar
+  if (list?.length) {
+    const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+    const items = await OBR.scene.items.getItems();
+    const shooter = items.find((i) => i.id === active.shooter);
+    const total = shooter ? coverOf(shooter, list, items, await loadObstacles(dpi), dpi).filter((c) => c.key === "total") : [];
+    if (total.length && Date.now() > confirmUntil) {
+      confirmUntil = Date.now() + 6000;
+      return OBR.notification.show(`Arsenal: ${total.map((c) => c.name).join(", ")} atrás de cobertura total (sem linha de tiro). Atire de novo em até 6 s para atirar mesmo assim.`, "WARNING");
+    }
+    confirmUntil = 0;
+  }
   const r = await fireWith({
     shooterId: active.shooter, weaponId: active.weapon, mode: active.mode,
-    targets: targetsIn?.length ? targetsIn : marked, hit: active.hit, impact: active.impact, config,
+    targets: list, hit: active.hit, impact: active.impact, config,
   });
   if (r.error) OBR.notification.show(`Arsenal: ${r.error}`, "WARNING");
 }

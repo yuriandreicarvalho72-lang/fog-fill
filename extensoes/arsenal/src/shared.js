@@ -17,6 +17,7 @@ export const OWNER = `${ID}/dono`;          // metadado do token: id do jogador 
 export const TOOL = `${ID}/tool`;
 export const MODE_AIM = `${ID}/mirar`;
 export const HUD = `${ID}/hud`;
+export const RULES = `${ID}/regras`;        // metadado da sala: bônus de cobertura do d20 { half, three } (o mestre muda)
 
 export const DEFAULT_CONFIG = { intensity: 1, speed: 1, ownColor: false, color: "#ffd27a", gore: true, casings: true, smokeSec: 30, jb2a: true, mapLabel: false, hud: true };
 

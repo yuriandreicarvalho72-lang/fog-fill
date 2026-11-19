@@ -3,9 +3,10 @@ import OBR from "@owlbear-rodeo/sdk";
 import rawCatalog from "./catalog.json";
 import { PROFILES, MODE_LABEL, ROUNDS } from "./fx.js";
 import { JB2A_CREDIT } from "./jb2a.js";
-import { fire, reload, setActive, setTargets, getPlayerMeta, ammoOp } from "./fire.js";
+import { fire, reload, setActive, setTargets, getPlayerMeta, ammoOp, getRules, loadObstacles, coverOf } from "./fire.js";
+import { coverText } from "./cover.js";
 import {
-  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, DEFAULT_CONFIG, GRENADES,
+  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, RULES, DEFAULT_CONFIG, GRENADES,
   weaponFrom, decodeCatalog, fxLabel, rangeBand, metersPerUnit, itemName, isToken, uid, applyTheme, myShooters,
 } from "./shared.js";
 
@@ -20,6 +21,7 @@ let shooter = null;      // item do atirador
 let items = [];
 let scale = null;
 let party = [];          // outros jogadores na sala (para o mestre dizer de quem é cada token)
+let rules = { half: 2, three: 5 }; // bônus de cobertura da mesa (sala)
 
 async function saveWeapons(mut) {
   if (!shooter) return;
@@ -98,14 +100,18 @@ async function renderFire() {
   const w = list.find((x) => x.id === state.active.weapon) || list[0];
   const mpu = metersPerUnit(scale?.parsed?.unit) * (scale?.parsed?.multiplier || 1);
   const rows = [];
-  for (const t of state.targets) {
+  const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+  const covers = state.targets.length ? coverOf(shooter, state.targets, items, await loadObstacles(dpi), dpi) : [];
+  for (const [k, t] of state.targets.entries()) {
     const it = t.id ? items.find((i) => i.id === t.id) : null;
     const at = it ? it.position : t.at;
     if (!at) continue;
     const cells = await OBR.scene.grid.getDistance(shooter.position, at).catch(() => 0);
     const m = cells * mpu;
     const band = w ? rangeBand(m, w.range) : null;
-    rows.push(`<div class="trow"><span>${it ? esc(itemName(it)) : "ponto no mapa"}</span><span class="band ${band?.key || ""}">${m < 10 ? m.toFixed(1) : Math.round(m)} m${band ? ` · ${band.label}` : ""}</span></div>`);
+    const cv = covers[k]?.key || "none";
+    rows.push(`<div class="trow"><span>${it ? esc(itemName(it)) : "ponto no mapa"}</span><span class="band ${band?.key || ""}">${m < 10 ? m.toFixed(1) : Math.round(m)} m${band ? ` · ${band.label}` : ""}</span></div>
+      <div class="cov cov-${cv}">${esc(coverText(cv, rules))}</div>`);
   }
   const hit = state.active.hit !== false, imp = state.active.impact || "auto";
   box.innerHTML = `<h2>Disparo</h2>
@@ -179,6 +185,10 @@ function renderConfig() {
     <label class="check"><input type="checkbox" id="kG" ${c.gore ? "checked" : ""} /> Mostrar sangue (só para você)</label>
     <label class="check"><input type="checkbox" id="kCas" ${c.casings ? "checked" : ""} /> Cápsulas caindo (só para você)</label>
     <label class="inline">Fumaça dura <input type="number" id="kSm" min="5" max="600" step="5" value="${c.smokeSec}" /> s</label>
+    <h3>Cobertura (d20)</h3>
+    ${me.role === "GM" ? `<div class="row"><label class="inline">meia: + <input type="number" id="kCh" min="0" max="20" value="${rules.half}" /></label><label class="inline">três quartos: + <input type="number" id="kCt" min="0" max="20" value="${rules.three}" /></label><span class="hint">de defesa</span></div>
+    <small>Vale para a mesa toda. Paredes da névoa dinâmica contam sozinhas; caixotes, carros e muretas: botão direito → Arsenal: é cobertura.</small>`
+    : `<small>Meia cobertura: +${rules.half} de defesa · três quartos: +${rules.three} · total: sem linha de tiro (o mestre muda).</small>`}
     <div class="row"><button type="button" class="mini" id="kClear">Limpar fumaça e efeitos (para todos)</button></div>
     <p class="credit">${JB2A_CREDIT} · <a href="https://jb2a.com" target="_blank" rel="noopener">jb2a.com</a> · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">licença</a></p>`;
   $("kJ").addEventListener("change", (e) => setConfig({ jb2a: e.target.checked }));
@@ -191,6 +201,9 @@ function renderConfig() {
   $("kG").addEventListener("change", (e) => setConfig({ gore: e.target.checked }));
   $("kCas").addEventListener("change", (e) => setConfig({ casings: e.target.checked }));
   $("kSm").addEventListener("change", (e) => setConfig({ smokeSec: Number(e.target.value) || 30 }));
+  const setRule = (patch) => OBR.room.setMetadata({ [RULES]: { ...rules, ...patch } });
+  $("kCh")?.addEventListener("change", (e) => setRule({ half: Math.max(0, Number(e.target.value) || 0) }));
+  $("kCt")?.addEventListener("change", (e) => setRule({ three: Math.max(0, Number(e.target.value) || 0) }));
   $("kClear").addEventListener("click", () => OBR.broadcast.sendMessage(CH_CLEAR, {}, { destination: "ALL" }));
 }
 
@@ -221,6 +234,13 @@ OBR.onReady(async () => {
     }
     await refresh(true);
   };
+  rules = await getRules();
+  OBR.room.onMetadataChange((md) => {
+    const next = { ...rules, ...(md[RULES] || {}) };
+    if (JSON.stringify(next) === JSON.stringify(rules)) return;
+    rules = next;
+    refresh(false).then(() => { if (!typing()) renderConfig(); });
+  });
   party = await OBR.party.getPlayers().catch(() => []);
   OBR.party.onChange((p) => { party = p; renderShooter(); });
   if (await OBR.scene.isReady()) await load();

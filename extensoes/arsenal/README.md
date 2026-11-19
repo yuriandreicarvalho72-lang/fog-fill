@@ -12,13 +12,19 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 - Painel de mira: abre no canto da tela enquanto a ferramenta Arsenal está ativa (atirador, arma, munição, modo, alvos com
   distância e faixa de alcance). Na mira: clique = alvo · Shift+clique = atirador · Tab = próximo atirador · Enter = atirar ·
   R = recarregar · Esc = limpar.
+- **Cobertura (d20)**: ao mirar, cada alvo mostra a cobertura vista do atirador (painel de mira, painel e rótulo no mapa):
+  sem cobertura, meia (+2 de defesa), três quartos (+5) ou total (sem linha de tiro; a mira fica cinza).
+  Paredes da névoa dinâmica do Owlbear (e linhas de visão do Smoke & Spectre) contam sozinhas: 5 linhas do atirador até o
+  centro e os cantos do alvo; 1-2 bloqueadas = meia, 3-4 = três quartos, todas = total. Caixote, carro, mureta: botão direito →
+  **Arsenal: é cobertura** (clique de novo para três quartos, total, nada). Os bônus são da mesa (o mestre muda no painel,
+  em Aparência). Com cobertura total, o primeiro Atirar só avisa; atirar de novo em até 6 s atira mesmo assim.
 - Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.
   Se o jogador não puder editar o token, a munição é descontada pelo mestre (precisa de um mestre na sala).
 - Para outras extensões: o canal `arsenal/disparo` recebe { spec, shooter, shooterName, weapon, rounds, targets, hit } a cada tiro.
 - Disparo pedido por outra extensão (ex.: Gatilhos): mande para `arsenal/atirar` (destino ALL)
   { shooter, weapon?, mode?, targets: [{ id } | { at }], hit?, impact? }. Só um mestre executa.
 - Atualizar o catálogo: `python3 tools/catalogo.py <planilha.xlsx> src/catalog.json`
-- Testes: `node test/fx.mjs` · fotos dos efeitos desenhados: `node test/sheet.mjs saida.png` ·
+- Testes: `node test/fx.mjs` · `node test/cover.mjs` · fotos dos efeitos desenhados: `node test/sheet.mjs saida.png` ·
   fotos dos vídeos no lugar certo: `npm run jb2a && node test/jb2a-sheet.mjs saida.png` (precisam do Playwright)
 
 ## Créditos e licença das animações

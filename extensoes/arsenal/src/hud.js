@@ -1,9 +1,10 @@
 // Painel de mira (abre no canto da tela enquanto a ferramenta Arsenal está ativa):
-// atirador (troca rápida), arma, munição, modo, alvos com distância e faixa de alcance, atirar.
+// atirador (troca rápida), arma, munição, modo, alvos com distância, faixa de alcance e cobertura, atirar.
 import OBR from "@owlbear-rodeo/sdk";
 import { MODE_LABEL, ROUNDS } from "./fx.js";
-import { fire, reload, setActive, setTargets, getPlayerMeta, cycleShooter } from "./fire.js";
-import { WEAPONS, ACTIVE, TARGETS, rangeBand, metersPerUnit, itemName, myShooters, applyTheme } from "./shared.js";
+import { fire, reload, setActive, setTargets, getPlayerMeta, cycleShooter, getRules, loadObstacles, coverOf } from "./fire.js";
+import { WEAPONS, ACTIVE, TARGETS, RULES, rangeBand, metersPerUnit, itemName, myShooters, applyTheme } from "./shared.js";
+import { coverText } from "./cover.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -12,7 +13,10 @@ const SHORT = { short: "curto", medium: "médio", long: "longo (desv.)", out: "f
 let me = { id: "", role: "PLAYER" };
 let items = [];
 let scale = null;
+let dpi = 150;
 let busy = false, again = false;
+// cobertura em poucas letras (o texto inteiro fica na dica ao passar o mouse)
+const coverShort = (k, r) => ({ half: ` · meia +${r.half}`, three: ` · ¾ +${r.three}`, total: " · ⛔ total" })[k] || "";
 
 async function render() {
   if (busy) { again = true; return; }
@@ -28,13 +32,16 @@ async function render() {
       const mode = w && w.modes.includes(active.mode) ? active.mode : w?.mode || w?.modes?.[0];
       const mpu = metersPerUnit(scale?.parsed?.unit) * (scale?.parsed?.multiplier || 1);
       const rows = [];
-      for (const t of targets) {
+      const rules = await getRules();
+      const covers = shooter && targets.length ? coverOf(shooter, targets, items, await loadObstacles(dpi), dpi) : [];
+      for (const [k, t] of targets.entries()) {
         const it = t.id ? items.find((i) => i.id === t.id) : null;
         const at = it ? it.position : t.at;
         if (!at || !shooter) continue;
         const m = (await OBR.scene.grid.getDistance(shooter.position, at).catch(() => 0)) * mpu;
         const band = w ? rangeBand(m, w.range) : null;
-        rows.push(`<div class="trow"><span>${it ? esc(itemName(it)) : "ponto no mapa"}</span><span class="band ${band?.key || ""}">${m < 10 ? m.toFixed(1) : Math.round(m)} m${band ? ` · ${SHORT[band.key]}` : ""}</span></div>`);
+        const cv = covers[k]?.key || "none";
+        rows.push(`<div class="trow"><span>${it ? esc(itemName(it)) : "ponto no mapa"}</span><span class="band ${band?.key || ""} cov-${cv}" title="${esc(coverText(cv, rules))}">${m < 10 ? m.toFixed(1) : Math.round(m)} m${band ? ` · ${SHORT[band.key]}` : ""}${coverShort(cv, rules)}</span></div>`);
       }
       const hit = active.hit !== false;
       const ammo = w ? (w.mag == null ? "∞" : `${w.ammo ?? 0}/${w.mag}`) : "";
@@ -83,7 +90,9 @@ OBR.onReady(async () => {
   me = { id: await OBR.player.getId(), role: await OBR.player.getRole() };
   items = await OBR.scene.items.getItems();
   scale = await OBR.scene.grid.getScale().catch(() => null);
+  dpi = await OBR.scene.grid.getDpi().catch(() => 150);
   render();
+  OBR.room.onMetadataChange((md) => { if (md[RULES]) render(); });
   let last = "";
   OBR.player.onChange((p) => {
     const k = JSON.stringify([p.metadata?.[ACTIVE], p.metadata?.[TARGETS]]);
