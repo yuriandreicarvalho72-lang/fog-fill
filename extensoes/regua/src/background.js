@@ -95,7 +95,10 @@ function areaMode(kind, icon, label) {
       if (!area) {
         const [grid, color, playerId] = await Promise.all([loadGrid(), OBR.player.getColor(), OBR.player.getId()]);
         const origin = areaOrigin(kind, event.pointerPosition, grid, event.target, event.altKey);
-        area = new AreaSession({ kind, origin, grid, color, settings: loadSettings(), playerId });
+        const settings = loadSettings();
+        // paredes e tokens: a área respeita linha de efeito e mostra a cobertura de quem está dentro
+        const [obstacles, tokens] = settings.areaWalls === false ? [null, []] : await Promise.all([loadObstacles(grid.dpi), sceneTokens(grid.dpi)]);
+        area = new AreaSession({ kind, origin, grid, color, settings, playerId, obstacles, tokens });
         await area.begin();
         area.move(event.pointerPosition, event.altKey);
         setMeasuring(true);

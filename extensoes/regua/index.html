@@ -77,6 +77,8 @@
           </select>
         </label>
         <label class="check"><input id="showCells" type="checkbox" /> Destacar os quadrados atingidos</label>
+        <label class="check"><input id="areaWalls" type="checkbox" /> Paredes bloqueiam a área (linha de efeito) e mostrar a cobertura de quem está dentro</label>
+        <small>Quadrados atrás de parede ficam escuros e não contam. Tokens dentro ganham anel <span style="color:#5fd35f">livre</span>, <span style="color:#e0cc3a">½ (+2 Des)</span>, <span style="color:#e0903a">¾ (+5 Des)</span> ou <span style="color:#e05252">protegido</span>, e o rótulo resume os alvos.</small>
         <label class="check"><input id="difficult" type="checkbox" /> As próximas áreas fixadas viram <b>terreno difícil</b></label>
         <small>Terreno difícil fica no mapa (tracejado, cor de terra) e a régua de mover/medir conta esses quadrados em dobro (o rótulo ganha ⛰). Atalho: segure <kbd>Shift</kbd> no 2º clique. Numa área já fixada: botão direito → <b>Virar terreno difícil</b>.</small>
         <label>Opacidade <output id="o-areaOpacity"></output>
