@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clima</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Clima</h1>
+      <p class="hint">Clique com o botão direito num <b>mapa</b> e escolha <b>Clima</b>. Também funciona em <b>formas e desenhos</b>: o clima fica só dentro do retângulo daquela forma (ex.: brasas só na arena do chefe). Deixe a forma transparente para virar uma "zona de clima".</p>
+      <section>
+        <h2>Na cena</h2>
+        <div id="list" class="hint"></div>
+      </section>
+      <section>
+        <h2>Atalhos do mestre</h2>
+        <div class="btns"><button id="flash" type="button">⚡ Relâmpago em todas as tempestades</button></div>
+        <div class="btns"><button id="pause" type="button">Pausar todo o clima</button><button id="resume" type="button">Retomar</button></div>
+        <small>O relâmpago aparece ao mesmo tempo para todos os jogadores. Tempestades também têm relâmpagos sozinhas, de vez em quando.</small>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Clima</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="embed">
+    <div class="top">
+      <select id="preset"></select>
+    </div>
+    <div class="top" style="margin-top:6px">
+      <select id="add"></select>
+    </div>
+    <p id="empty" class="hint" style="margin-top:8px">Sem clima aqui. Escolha uma receita pronta ou adicione um clima. Dá para empilhar vários (ex.: brasas + fumaça + pulso).</p>
+    <div id="layers"></div>
+    <div class="btns">
+      <button id="flash" type="button" hidden title="Clarão em todas as tempestades, para todos os jogadores">⚡ Relâmpago!</button>
+    </div>
+    <div class="btns">
+      <button id="clear" type="button">Tirar todo o clima</button>
+    </div>
+    <script type="module" src="./src/context.js"></script>
+  </body>
+</html>
