@@ -343,3 +343,81 @@ export function sweepVoid(img, sx, sy, opt = {}) {
     .filter((l) => l.length >= 3 && loopArea(l) >= 4);
   return { loops, pixels: count, mask: m };
 }
+
+/**
+ * Varredura automática (um clique): cobre de fog o que está FORA da área jogável, no mapa inteiro.
+ *  - partes transparentes da imagem são sempre fog;
+ *  - clique no vazio (transparente ou da cor que domina a borda da imagem): tudo com essa cor vira fog;
+ *  - clique em qualquer outro lugar (chão, móveis): usa a cor dominante da borda como "vazio".
+ * Devolve { loops, pixels, mask, mode: "click" | "border" | "alpha", alphaFrac }.
+ */
+export function sweepAuto(img, sx, sy, opt = {}) {
+  const { data, width: w, height: h } = img;
+  const N = w * h;
+  const cell = opt.cell ?? 50;              // lado de um quadrado em px da imagem processada
+  const tol = opt.tolerance ?? 22;
+  const r = Math.max(1, Math.round(opt.blur ?? Math.max(w, h) / 220));
+  const alpha = new Uint8Array(N);
+  let nA = 0;
+  for (let p = 0; p < N; p++) if (data[p * 4 + 3] < 128) { alpha[p] = 1; nA++; }
+  const bl = boxBlur(img, r);
+  const B = bl.data;
+  const seedAlpha = alpha[sy * w + sx] === 1;
+
+  // cor do clique (janela desfocada, só pixels opacos)
+  let seedC = null;
+  {
+    let R = 0, G = 0, Bb = 0, n = 0;
+    for (let y = Math.max(0, sy - r - 2); y <= Math.min(h - 1, sy + r + 2); y++)
+      for (let x = Math.max(0, sx - r - 2); x <= Math.min(w - 1, sx + r + 2); x++) {
+        const p = y * w + x; if (alpha[p]) continue;
+        R += B[p * 4]; G += B[p * 4 + 1]; Bb += B[p * 4 + 2]; n++;
+      }
+    if (n) seedC = [R / n, G / n, Bb / n];
+  }
+  // cor que domina a moldura da imagem (histograma grosso das bordas opacas)
+  const fw = Math.max(2, Math.round(Math.min(w, h) * 0.02));
+  const bins = new Map();
+  let nBorder = 0, nBorderOpaque = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!(x < fw || y < fw || x >= w - fw || y >= h - fw)) continue;
+    nBorder++;
+    const p = y * w + x; if (alpha[p]) continue;
+    nBorderOpaque++;
+    const i = p * 4, key = ((B[i] >> 4) << 8) | ((B[i + 1] >> 4) << 4) | (B[i + 2] >> 4);
+    const e = bins.get(key) || [0, 0, 0, 0];
+    e[0] += B[i]; e[1] += B[i + 1]; e[2] += B[i + 2]; e[3]++; bins.set(key, e);
+  }
+  let borderC = null, best = 0;
+  for (const e of bins.values()) if (e[3] > best) { best = e[3]; borderC = [e[0] / e[3], e[1] / e[3], e[2] / e[3]]; }
+  // só vale como "vazio" se dominar boa parte da moldura opaca
+  if (best < 0.25 * nBorderOpaque || nBorderOpaque < 0.2 * nBorder) borderC = null;
+
+  const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  let ref = null, mode;
+  if (seedAlpha) mode = "alpha";
+  else if (seedC && borderC && d(seedC, borderC) <= tol * 1.5) { ref = seedC; mode = "click"; }
+  else if (borderC) { ref = borderC; mode = "border"; }
+  else mode = "alpha";
+  if (mode === "alpha" && nA < 0.005 * N) return { loops: [], pixels: 0, mask: new Uint8Array(N), mode: "none", alphaFrac: nA / N };
+
+  let fog = new Uint8Array(N);
+  const t2 = tol * tol;
+  for (let p = 0; p < N; p++) {
+    if (alpha[p]) { fog[p] = 1; continue; }
+    if (ref) { const i = p * 4; const dr = B[i] - ref[0], dg = B[i + 1] - ref[1], db = B[i + 2] - ref[2]; if (dr * dr + dg * dg + db * db <= t2) fog[p] = 1; }
+  }
+  const s = Math.round(opt.smooth ?? 2) + 1;
+  fog = erode(dilate(fog, w, h, s), w, h, s);
+  fog = dilate(erode(fog, w, h, s), w, h, s);
+  for (let p = 0; p < N; p++) if (alpha[p]) fog[p] = 1; // a suavização não pode comer o transparente
+  fog = removeSmallIslands(fog, w, h, opt.minIsland ?? 1.5 * cell * cell);
+  fog = fillSmallHoles(fog, w, h, opt.minHole ?? 0.5 * cell * cell);
+  const g = Math.round(opt.grow ?? 0);
+  if (g > 0) fog = dilate(fog, w, h, g); else if (g < 0) { fog = erode(fog, w, h, -g); for (let p = 0; p < N; p++) if (alpha[p]) fog[p] = 1; }
+  let count = 0; for (let i = 0; i < N; i++) count += fog[i];
+  const loops = traceLoops(fog, w, h)
+    .map((l) => simplifyLoop(l, opt.simplify ?? 1.5))
+    .filter((l) => l.length >= 3 && loopArea(l) >= 4);
+  return { loops, pixels: count, mask: fog, mode, alphaFrac: nA / N };
+}
