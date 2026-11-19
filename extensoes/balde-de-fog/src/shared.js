@@ -91,3 +91,38 @@ export function templateFromItem(item) {
     metadata: meta,
   };
 }
+
+// ---- Ajustes do mestre: ficam no navegador (localStorage), não no metadado da ferramenta ----
+// (o metadado da ferramenta tem limite de tamanho; com muitos itens em "lastIds" ele parava de aceitar mudanças)
+const SETTINGS_KEY = `${ID}/settings`;
+const LAST_KEY = `${ID}/lastIds`;
+export function loadSettings() {
+  try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null") || {}) }; } catch { return { ...DEFAULTS }; }
+}
+export function hasSavedSettings() {
+  try { return localStorage.getItem(SETTINGS_KEY) !== null; } catch { return false; }
+}
+export function saveSettings(patch) {
+  const s = { ...loadSettings(), ...patch };
+  delete s.lastIds;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* bloqueado: segue com o que tem */ }
+  return s;
+}
+export function getLastIds() {
+  try { return JSON.parse(localStorage.getItem(LAST_KEY) || "[]"); } catch { return []; }
+}
+export function setLastIds(ids) {
+  try { localStorage.setItem(LAST_KEY, JSON.stringify(ids)); } catch { /* idem */ }
+}
+/** Traz os ajustes antigos do metadado da ferramenta (uma vez) e esvazia o metadado. */
+export async function migrateToolMetadata(OBR, TOOL_ID) {
+  try {
+    const md = (await OBR.tool.getMetadata(TOOL_ID)) || {};
+    if (!hasSavedSettings()) {
+      const { lastIds, ...rest } = md;
+      saveSettings(rest);
+      if (Array.isArray(lastIds)) setLastIds(lastIds);
+    }
+    if (md.lastIds?.length || md.smokeTemplate) await OBR.tool.setMetadata(TOOL_ID, { lastIds: [], smokeTemplate: null });
+  } catch (e) { console.warn("[fog-fill] migração dos ajustes", e); }
+}

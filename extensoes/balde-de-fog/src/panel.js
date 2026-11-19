@@ -1,5 +1,5 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
-import { TOOL_ID, META, DEFAULTS, putMapFile, getMapFile, templateFromItem } from "./shared.js";
+import { TOOL_ID, META, DEFAULTS, putMapFile, getMapFile, templateFromItem, loadSettings, saveSettings, getLastIds, setLastIds, migrateToolMetadata } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 const RANGES = ["tolerance", "smooth", "grow", "simplify", "minHole", "outlineSimplify"];
@@ -8,8 +8,7 @@ const fmt = { tolerance: (v) => v, smooth: (v) => `${v} px`, grow: (v) => `${v >
 let settings = { ...DEFAULTS };
 
 async function save(patch) {
-  settings = { ...settings, ...patch };
-  await OBR.tool.setMetadata(TOOL_ID, patch);
+  settings = saveSettings(patch);
 }
 
 function render() {
@@ -67,7 +66,8 @@ OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
   OBR.theme.onChange(applyTheme);
 
-  settings = { ...DEFAULTS, ...((await OBR.tool.getMetadata(TOOL_ID)) || {}) };
+  await migrateToolMetadata(OBR, TOOL_ID);
+  settings = loadSettings();
   render();
   $("color").value = settings.color || (await OBR.scene.fog.getColor()) || "#222222";
 
@@ -100,11 +100,10 @@ OBR.onReady(async () => {
   });
 
   $("undo").addEventListener("click", async () => {
-    const meta = (await OBR.tool.getMetadata(TOOL_ID)) || {};
-    const ids = meta.lastIds || [];
+    const ids = getLastIds();
     if (!ids.length) { OBR.notification.show("Balde de Fog: nada para desfazer."); return; }
     await OBR.scene.items.deleteItems(ids);
-    await OBR.tool.setMetadata(TOOL_ID, { lastIds: [] });
+    setLastIds([]);
   });
   $("clear").addEventListener("click", async () => {
     const items = await OBR.scene.items.getItems((i) => i.metadata?.[META] === true);
