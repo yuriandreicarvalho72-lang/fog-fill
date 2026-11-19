@@ -92,37 +92,37 @@ export function templateFromItem(item) {
   };
 }
 
-// ---- Ajustes do mestre: ficam no navegador (localStorage), não no metadado da ferramenta ----
-// (o metadado da ferramenta tem limite de tamanho; com muitos itens em "lastIds" ele parava de aceitar mudanças)
-const SETTINGS_KEY = `${ID}/settings`;
-const LAST_KEY = `${ID}/lastIds`;
-export function loadSettings() {
-  try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null") || {}) }; } catch { return { ...DEFAULTS }; }
+// ---- Ajustes do mestre: no metadado da ferramenta (o Owlbear entrega igual ao painel e ao background) ----
+// O "Apagar o último" NÃO vai mais para o metadado (era isso que lotava e travava os ajustes):
+// a lista fica na memória do background, e o painel pede o desfazer por mensagem.
+export const UNDO_CHANNEL = `${ID}/undo`;
+export async function loadSettings(OBR, TOOL_ID) {
+  const md = (await OBR.tool.getMetadata(TOOL_ID).catch(() => null)) || {};
+  const { lastIds, ...rest } = md;
+  return { ...DEFAULTS, ...rest };
 }
-export function hasSavedSettings() {
-  try { return localStorage.getItem(SETTINGS_KEY) !== null; } catch { return false; }
+export async function saveSettings(OBR, TOOL_ID, patch) {
+  await OBR.tool.setMetadata(TOOL_ID, patch);
 }
-export function saveSettings(patch) {
-  const s = { ...loadSettings(), ...patch };
-  delete s.lastIds;
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* bloqueado: segue com o que tem */ }
-  return s;
-}
-export function getLastIds() {
-  try { return JSON.parse(localStorage.getItem(LAST_KEY) || "[]"); } catch { return []; }
-}
-export function setLastIds(ids) {
-  try { localStorage.setItem(LAST_KEY, JSON.stringify(ids)); } catch { /* idem */ }
-}
-/** Traz os ajustes antigos do metadado da ferramenta (uma vez) e esvazia o metadado. */
-export async function migrateToolMetadata(OBR, TOOL_ID) {
+/**
+ * Limpeza das versões 1.3/1.4: tira a lista "lastIds" do metadado e,
+ * se este navegador tiver ajustes salvos pela 1.4 (localStorage), devolve-os ao metadado uma única vez.
+ */
+export async function cleanupLegacy(OBR, TOOL_ID, fromLocal = false) {
   try {
     const md = (await OBR.tool.getMetadata(TOOL_ID)) || {};
-    if (!hasSavedSettings()) {
-      const { lastIds, ...rest } = md;
-      saveSettings(rest);
-      if (Array.isArray(lastIds)) setLastIds(lastIds);
+    const patch = {};
+    if (Array.isArray(md.lastIds) && md.lastIds.length) patch.lastIds = [];
+    if (fromLocal) {
+      let local = null;
+      try { if (!localStorage.getItem(`${ID}/migrated-back`)) local = JSON.parse(localStorage.getItem(`${ID}/settings`) || "null"); } catch { /* sem acesso */ }
+      if (local) {
+        delete local.lastIds;
+        if (!local.smokeTemplate && md.smokeTemplate) delete local.smokeTemplate;
+        Object.assign(patch, local);
+        try { localStorage.setItem(`${ID}/migrated-back`, "1"); } catch { /* idem */ }
+      }
     }
-    if (md.lastIds?.length || md.smokeTemplate) await OBR.tool.setMetadata(TOOL_ID, { lastIds: [], smokeTemplate: null });
-  } catch (e) { console.warn("[fog-fill] migração dos ajustes", e); }
+    if (Object.keys(patch).length) await OBR.tool.setMetadata(TOOL_ID, patch);
+  } catch (e) { console.warn("[fog-fill] limpeza dos ajustes antigos", e); }
 }

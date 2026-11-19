@@ -3,13 +3,15 @@ import { fogFill, sweepAuto, simplifyLoop } from "./core.js";
 import { itemPolylines, fillFromWalls } from "./walls.js";
 import {
   ID, TOOL_ID, MODE_ID, MODE_WALL_ID, MODE_SWEEP_ID, META, DEFAULTS, SMOKE_PREFIX,
-  getMapFile, sceneToImagePixel, imagePixelToScene, loadSettings, setLastIds, migrateToolMetadata,
+  getMapFile, sceneToImagePixel, imagePixelToScene, loadSettings, cleanupLegacy, UNDO_CHANNEL,
 } from "./shared.js";
 
 const icon = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 
 // cache de pixels por URL da imagem do mapa
 const cache = new Map();
+// itens do último preenchimento (para "Apagar o último"), só na memória
+let lastIds = [];
 
 async function decode(blob, maxDim) {
   const bmp = await createImageBitmap(blob);
@@ -102,7 +104,7 @@ function outlineItems(loopsIn, map, sceneDpi, f, s) {
 async function onClick(context, event, sweep = false) {
   const role = await OBR.player.getRole();
   if (role !== "GM") return;
-  const s = loadSettings();
+  const s = await loadSettings(OBR, TOOL_ID);
   const sceneDpi = await OBR.scene.grid.getDpi();
   const hit = await findMapUnder(event.pointerPosition, sceneDpi);
   if (!hit) {
@@ -188,7 +190,7 @@ async function onClick(context, event, sweep = false) {
   const outline = s.outline || (s.walls ? "wall" : "none");
   items.push(...outlineItems(res.loops, map, sceneDpi, f, s));
   await OBR.scene.items.addItems(items);
-  setLastIds(items.map((i) => i.id));
+  lastIds = items.map((i) => i.id);
   OBR.notification.show(
     `Balde de Fog: ${sweep ? { alpha: "fundo transparente coberto", border: "coberto tudo da cor da borda do mapa", click: "coberto tudo da cor clicada" }[res.mode] || "varredura feita" : "área preenchida"} (${res.loops.length} contorno${res.loops.length > 1 ? "s" : ""}${outline === "wall" ? ", com paredes" : outline === "smoke" ? ", com obstruções do Smoke" : outline === "curve" ? ", com contorno para converter" : ""}) · ${Math.round((100 * res.pixels) / (img.width * img.height))}% do mapa · tolerância ${s.tolerance}.`,
     "SUCCESS",
@@ -208,7 +210,7 @@ function isBoundary(i, s) {
 async function onWallClick(context, event) {
   const role = await OBR.player.getRole();
   if (role !== "GM") return;
-  const s = loadSettings();
+  const s = await loadSettings(OBR, TOOL_ID);
   const dpi = await OBR.scene.grid.getDpi();
   const items = await OBR.scene.items.getItems((i) => isBoundary(i, s));
   const polylines = items.flatMap((i) => itemPolylines(i, dpi * 0.3));
@@ -239,7 +241,7 @@ async function onWallClick(context, event) {
     .metadata({ [META]: true })
     .build();
   await OBR.scene.items.addItems([fill]);
-  setLastIds([fill.id]);
+  lastIds = [fill.id];
   const holes = r.loops.length - 1;
   OBR.notification.show(`Balde de Fog: área preenchida pela obstrução${holes > 0 ? ` (${holes} ilha${holes > 1 ? "s" : ""} deixada${holes > 1 ? "s" : ""} de fora)` : ""}.`, "SUCCESS");
 }
@@ -251,7 +253,14 @@ OBR.onReady(async () => {
     shortcut: "Shift+F",
     defaultMode: MODE_WALL_ID,
   });
-  await migrateToolMetadata(OBR, TOOL_ID);
+  await cleanupLegacy(OBR, TOOL_ID, false);
+  // o painel pede "Apagar o último" por mensagem
+  OBR.broadcast.onMessage(UNDO_CHANNEL, async () => {
+    if (!lastIds.length) { OBR.notification.show("Balde de Fog: nada para desfazer."); return; }
+    await OBR.scene.items.deleteItems(lastIds).catch(() => {});
+    lastIds = [];
+    OBR.notification.show("Balde de Fog: último preenchimento apagado.");
+  });
   await OBR.tool.createMode({
     id: MODE_WALL_ID,
     icons: [{ icon: icon("icon-wall.svg"), label: "Balde por obstrução", filter: { activeTools: [TOOL_ID] } }],

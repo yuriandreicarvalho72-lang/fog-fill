@@ -1,5 +1,5 @@
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
-import { TOOL_ID, META, DEFAULTS, putMapFile, getMapFile, templateFromItem, loadSettings, saveSettings, getLastIds, setLastIds, migrateToolMetadata } from "./shared.js";
+import { TOOL_ID, META, DEFAULTS, putMapFile, getMapFile, templateFromItem, loadSettings, saveSettings, cleanupLegacy, UNDO_CHANNEL } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 const RANGES = ["tolerance", "smooth", "grow", "simplify", "minHole", "outlineSimplify"];
@@ -8,7 +8,17 @@ const fmt = { tolerance: (v) => v, smooth: (v) => `${v} px`, grow: (v) => `${v >
 let settings = { ...DEFAULTS };
 
 async function save(patch) {
-  settings = saveSettings(patch);
+  settings = { ...settings, ...patch };
+  try {
+    await saveSettings(OBR, TOOL_ID, patch);
+    // confere se o Owlbear guardou mesmo (era aqui que a tolerância "travava")
+    const back = await loadSettings(OBR, TOOL_ID);
+    const bad = Object.keys(patch).filter((k) => typeof patch[k] !== "object" && back[k] !== patch[k]);
+    if (bad.length) OBR.notification.show(`Balde de Fog: o Owlbear não guardou ${bad.join(", ")}. Recarregue a página (Ctrl+F5) e tente de novo.`, "ERROR");
+  } catch (e) {
+    console.error("[fog-fill]", e);
+    OBR.notification.show("Balde de Fog: não consegui salvar o ajuste (veja o console).", "ERROR");
+  }
 }
 
 function render() {
@@ -66,8 +76,8 @@ OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
   OBR.theme.onChange(applyTheme);
 
-  await migrateToolMetadata(OBR, TOOL_ID);
-  settings = loadSettings();
+  await cleanupLegacy(OBR, TOOL_ID, true);
+  settings = await loadSettings(OBR, TOOL_ID);
   render();
   $("color").value = settings.color || (await OBR.scene.fog.getColor()) || "#222222";
 
@@ -99,12 +109,7 @@ OBR.onReady(async () => {
     $("color").value = (await OBR.scene.fog.getColor()) || "#222222";
   });
 
-  $("undo").addEventListener("click", async () => {
-    const ids = getLastIds();
-    if (!ids.length) { OBR.notification.show("Balde de Fog: nada para desfazer."); return; }
-    await OBR.scene.items.deleteItems(ids);
-    setLastIds([]);
-  });
+  $("undo").addEventListener("click", () => OBR.broadcast.sendMessage(UNDO_CHANNEL, {}, { destination: "LOCAL" }));
   $("clear").addEventListener("click", async () => {
     const items = await OBR.scene.items.getItems((i) => i.metadata?.[META] === true);
     if (!items.length) return;
