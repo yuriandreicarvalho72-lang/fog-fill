@@ -4,6 +4,7 @@
 // - botão direito: "Atirar aqui" (nos tokens selecionados) e "Usar como atirador".
 import OBR, { buildShape, buildLabel, buildPath } from "@owlbear-rodeo/sdk";
 import { buildShot, buildLabel as labelAnim } from "./fx.js";
+import { buildShotJB2A } from "./jb2a.js";
 import { play, clearAll } from "./render.js";
 import { fire, reload, setActive, setTargets, getPlayerMeta } from "./fire.js";
 import {
@@ -14,12 +15,23 @@ import {
 let config = { ...DEFAULT_CONFIG };
 let dpi = 150;
 
+// ---------- vídeos JB2A (baixados no build para jb2a/; ok.json lista os que chegaram) ----------
+const JB2A_BASE = url("jb2a/");
+let jb2aFiles = null; // Set dos arquivos disponíveis (null = sem vídeos: usa só o efeito desenhado)
+async function loadJB2A() {
+  try {
+    const r = await fetch(`${JB2A_BASE}ok.json`, { cache: "no-cache" });
+    if (r.ok) jb2aFiles = new Set((await r.json()).files || []);
+  } catch { jb2aFiles = null; }
+}
+
 // ---------- animações que chegam ----------
 async function onShot(data) {
   if (!data?.spec) return;
-  // sangue e cápsulas são preferência de quem assiste
+  // sangue, cápsulas e vídeos são preferência de quem assiste
   const spec = { ...data.spec, gore: config.gore, casings: config.casings };
-  play(buildShot(spec)).catch((e) => console.error(`[${ID}]`, e));
+  const anim = (config.jb2a !== false && jb2aFiles && buildShotJB2A(spec, (f) => jb2aFiles.has(f))) || buildShot(spec);
+  play(anim, JB2A_BASE).catch((e) => console.error(`[${ID}]`, e));
 }
 
 // ---------- miras (só para quem está mirando) ----------
@@ -85,6 +97,7 @@ OBR.onReady(async () => {
   const md = await OBR.player.getMetadata();
   config = { ...DEFAULT_CONFIG, ...(md[CONFIG] || {}) };
   dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+  loadJB2A();
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; drawAims(); });
 
   OBR.broadcast.onMessage(CH_SHOT, (e) => onShot(e.data));

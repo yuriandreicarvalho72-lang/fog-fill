@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { buildShot, PROFILES } from "../src/fx.js";
 import { decodeCatalog } from "../src/shared.js";
+import { buildShotJB2A, allFiles, LIB, PLAN } from "../src/jb2a.js";
 const catalog = decodeCatalog(JSON.parse(readFileSync(new URL("../src/catalog.json", import.meta.url))));
 const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v));
 ok("catálogo tem as 429 armas da planilha", catalog.length, 429);
@@ -21,3 +22,21 @@ ok("erro não espirra sangue", erro.elements.some((e) => e.frame(e.t1 - 0.01)?.f
 ok("sem sangue (preferência) troca por faísca", s("pistol", "single", { gore: false }).elements.some((e) => e.frame(e.t0)?.fill === "#8a0f12"), false);
 ok("semiautomático não vira automático", catalog.find((w) => w.n === "Evo Mantis").m, ["single"]);
 ok("rifle de assalto com rajada e automático", catalog.find((w) => w.n === "Ares Alpha Prime").m, ["single", "burst", "auto"]);
+
+// ---------- vídeos JB2A ----------
+const J = (fx, mode, extra = {}) => buildShotJB2A({ fx, mode, from: { x: 0, y: 0 }, targets: [{ at: { x: 1500, y: 0 }, kind: "flesh" }, { at: { x: 1500, y: 600 }, kind: "metal" }], cell: 150, seed: 42, ...extra });
+ok("94 vídeos para baixar", allFiles().length, 94);
+ok("todo efeito do catálogo tem plano JB2A (ou fica desenhado)", Object.keys(PROFILES).filter((fx) => !(fx in PLAN)), []);
+ok("todo tipo com plano gera vídeos", Object.keys(PLAN).filter((fx) => PLAN[fx] && !(J(fx, fx === "flame" || fx === "acid" || fx === "cryo" ? "spray" : "single")?.videos.length)), []);
+ok("espuma continua desenhada", J("foam", "spray"), null);
+ok("falta um vídeo = usa o desenhado", J("pistol", "single", {}) && buildShotJB2A({ fx: "pistol", mode: "single", from: { x: 0, y: 0 }, targets: [{ at: { x: 900, y: 0 }, kind: "flesh" }], cell: 150, seed: 1 }, (f) => !f.includes("Bullet")), null);
+const tiro = J("pistol", "single").videos.find((v) => v.file.includes("Bullet"));
+ok("projétil sai da arma e mira o alvo (~9,5 quadrados → vídeo de 60 pés)", [tiro.file.includes("_60ft_"), Math.round(tiro.rotation), tiro.offset.x, Math.round((tiro.w - 400) / tiro.dpi)], [true, 0, 200, 10]);
+ok("rajada = 3 projéteis em vídeo", J("rifle", "burst").videos.filter((v) => v.file.includes("Bullet")).length, 3);
+ok("pouca munição: 2 balas = 2 projéteis", J("rifle", "burst", { rounds: 2 }).videos.filter((v) => v.file.includes("Bullet")).length, 2);
+ok("sem sangue troca o respingo", J("pistol", "single", { gore: false }).videos.some((v) => v.file.includes("Red")), false);
+ok("erro levanta poeira, sem sangue", J("pistol", "single", { hit: false }).videos.some((v) => v.file.includes("Red")), false);
+ok("cápsulas e mira laser continuam desenhadas", [...new Set(J("sniper", "single").elements.map((e) => e.tag))].sort(), ["casing", "sight"]);
+ok("fumaça JB2A dura o pedido", Math.round(J("smoke", "single", { smokeSec: 30 }).videos.find((v) => v.file.includes("Fog")).dur), 30);
+ok("tesla salta para o 2º alvo", J("tesla", "single").videos.some((v) => v.file.includes("Secondary")), true);
+ok("supressão mantém a área tracejada", J("mg", "supp").elements.some((e) => e.tag === "supp"), true);

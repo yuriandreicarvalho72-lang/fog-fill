@@ -2,6 +2,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import rawCatalog from "./catalog.json";
 import { PROFILES, MODE_LABEL, ROUNDS } from "./fx.js";
+import { JB2A_CREDIT } from "./jb2a.js";
 import { fire, reload, setActive, setTargets, getPlayerMeta } from "./fire.js";
 import {
   WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, DEFAULT_CONFIG, GRENADES,
@@ -158,13 +159,17 @@ function renderConfig() {
   const c = state.config;
   const box = $("config");
   box.innerHTML = `
+    <label class="check"><input type="checkbox" id="kJ" ${c.jb2a !== false ? "checked" : ""} /> Animações em vídeo (JB2A)</label>
+    <small>Só para você. Desligue se o computador ficar lento: volta para o efeito desenhado (intensidade, velocidade e cor abaixo valem para ele).</small>
     <label>Intensidade dos efeitos <output>${Math.round(c.intensity * 100)}%</output><input type="range" id="kI" min="0.5" max="1.5" step="0.1" value="${c.intensity}" /></label>
     <label>Velocidade do traçante <output>${c.speed}×</output><input type="range" id="kS" min="0.25" max="2" step="0.25" value="${c.speed}" /></label>
     <div class="row"><label class="check"><input type="checkbox" id="kOwn" ${c.ownColor ? "checked" : ""} /> Cor própria do traçante</label><input type="color" id="kC" value="${esc(c.color)}" /></div>
     <label class="check"><input type="checkbox" id="kG" ${c.gore ? "checked" : ""} /> Mostrar sangue (só para você)</label>
     <label class="check"><input type="checkbox" id="kCas" ${c.casings ? "checked" : ""} /> Cápsulas caindo (só para você)</label>
     <label class="inline">Fumaça dura <input type="number" id="kSm" min="5" max="600" step="5" value="${c.smokeSec}" /> s</label>
-    <div class="row"><button type="button" class="mini" id="kClear">Limpar fumaça e efeitos (para todos)</button></div>`;
+    <div class="row"><button type="button" class="mini" id="kClear">Limpar fumaça e efeitos (para todos)</button></div>
+    <p class="credit">${JB2A_CREDIT} · <a href="https://jb2a.com" target="_blank" rel="noopener">jb2a.com</a> · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">licença</a></p>`;
+  $("kJ").addEventListener("change", (e) => setConfig({ jb2a: e.target.checked }));
   $("kI").addEventListener("change", (e) => setConfig({ intensity: Number(e.target.value) }));
   $("kS").addEventListener("change", (e) => setConfig({ speed: Number(e.target.value) }));
   $("kOwn").addEventListener("change", (e) => setConfig({ ownColor: e.target.checked }));

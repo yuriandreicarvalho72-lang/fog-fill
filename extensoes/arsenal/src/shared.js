@@ -14,7 +14,7 @@ export const CH_CLEAR = `${ID}/limpar`;     // todos: apagar fumaça e efeitos q
 export const TOOL = `${ID}/tool`;
 export const MODE_AIM = `${ID}/mirar`;
 
-export const DEFAULT_CONFIG = { intensity: 1, speed: 1, ownColor: false, color: "#ffd27a", gore: true, casings: true, smokeSec: 30 };
+export const DEFAULT_CONFIG = { intensity: 1, speed: 1, ownColor: false, color: "#ffd27a", gore: true, casings: true, smokeSec: 30, jb2a: true };
 
 export const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 export const uid = () => Math.random().toString(36).slice(2, 9);

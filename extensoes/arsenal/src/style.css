@@ -86,3 +86,5 @@ button:disabled { opacity: .45; cursor: default; }
 details { margin-top: 8px; }
 summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .grow { flex: 1; }
+.credit { font-size: 11px; color: var(--muted); margin: 10px 0 0; }
+.credit a { color: var(--muted); }
