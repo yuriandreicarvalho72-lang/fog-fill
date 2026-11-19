@@ -88,3 +88,11 @@ summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .grow { flex: 1; }
 .credit { font-size: 11px; color: var(--muted); margin: 10px 0 0; }
 .credit a { color: var(--muted); }
+body.hud { padding: 8px 10px; font-size: 12.5px; }
+body.hud .row { margin-top: 5px; }
+body.hud select { margin: 0; padding: 3px 4px; }
+body.hud .targets { margin: 5px 0 2px; max-height: 92px; overflow-y: auto; }
+body.hud .trow { padding: 2px 4px; }
+body.hud .modes { margin: 5px 0 0; }
+body.hud button.primary { padding: 3px 10px; }
+.keys { font-size: 10.5px; margin: 6px 0 0; }

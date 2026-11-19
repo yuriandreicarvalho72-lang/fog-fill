@@ -9,7 +9,14 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 - Animações em vídeo do **JB2A** (projéteis, clarões, sangue, explosões, fumaça, raios...), como na extensão Embers.
   Cápsulas, mira laser, área de supressão, fios do taser e espuma continuam desenhados. Cada jogador pode desligar
   os vídeos no painel (Aparência) e ver só o efeito desenhado.
+- Painel de mira: abre no canto da tela enquanto a ferramenta Arsenal está ativa (atirador, arma, munição, modo, alvos com
+  distância e faixa de alcance). Na mira: clique = alvo · Shift+clique = atirador · Tab = próximo atirador · Enter = atirar ·
+  R = recarregar · Esc = limpar.
+- Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.
+  Se o jogador não puder editar o token, a munição é descontada pelo mestre (precisa de um mestre na sala).
 - Para outras extensões: o canal `arsenal/disparo` recebe { spec, shooter, shooterName, weapon, rounds, targets, hit } a cada tiro.
+- Disparo pedido por outra extensão (ex.: Gatilhos): mande para `arsenal/atirar` (destino ALL)
+  { shooter, weapon?, mode?, targets: [{ id } | { at }], hit?, impact? }. Só um mestre executa.
 - Atualizar o catálogo: `python3 tools/catalogo.py <planilha.xlsx> src/catalog.json`
 - Testes: `node test/fx.mjs` · fotos dos efeitos desenhados: `node test/sheet.mjs saida.png` ·
   fotos dos vídeos no lugar certo: `npm run jb2a && node test/jb2a-sheet.mjs saida.png` (precisam do Playwright)

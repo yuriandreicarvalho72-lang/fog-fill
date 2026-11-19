@@ -11,10 +11,14 @@ export const CONFIG = `${ID}/config`;       // metadado do jogador: aparência
 export const CH_SHOT = `${ID}/disparo`;     // todos: { spec, shooter, weapon, targets } (outras extensões podem ouvir)
 export const CH_LABEL = `${ID}/rotulo`;     // todos: { at, text }
 export const CH_CLEAR = `${ID}/limpar`;     // todos: apagar fumaça e efeitos que ficaram
+export const CH_AMMO = `${ID}/municao`;     // jogador -> mestre: { itemId, weaponId, op } (jogador sem permissão no token)
+export const CH_REMOTE = `${ID}/atirar`;    // outras extensões (Gatilhos) -> mestre: { shooter, weapon?, mode?, targets: [{id}|{at}], hit? }
+export const OWNER = `${ID}/dono`;          // metadado do token: id do jogador que usa este token no Arsenal
 export const TOOL = `${ID}/tool`;
 export const MODE_AIM = `${ID}/mirar`;
+export const HUD = `${ID}/hud`;
 
-export const DEFAULT_CONFIG = { intensity: 1, speed: 1, ownColor: false, color: "#ffd27a", gore: true, casings: true, smokeSec: 30, jb2a: true };
+export const DEFAULT_CONFIG = { intensity: 1, speed: 1, ownColor: false, color: "#ffd27a", gore: true, casings: true, smokeSec: 30, jb2a: true, mapLabel: false, hud: true };
 
 export const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 export const uid = () => Math.random().toString(36).slice(2, 9);
@@ -66,6 +70,26 @@ export function rangeBand(meters, range) {
   if (meters <= n) return { key: "medium", label: "médio" };
   if (l != null && meters <= l) return { key: "long", label: "longo (desvantagem)" };
   return { key: "out", label: "fora de alcance" };
+}
+
+/** Muda a munição de uma arma do repertório. op: { use: n } | { reload: true } | { add: n } */
+export function applyAmmo(list, weaponId, op) {
+  const l = JSON.parse(JSON.stringify(list || []));
+  const w = l.find((x) => x.id === weaponId) || l[0];
+  if (w && w.mag != null) {
+    if (op.reload) w.ammo = w.mag;
+    else if (op.use) w.ammo = Math.max(0, (w.ammo ?? 0) - op.use);
+    else if (op.add) w.ammo = Math.max(0, Math.min(w.mag, (w.ammo ?? 0) + op.add));
+  }
+  return l;
+}
+
+/** Tokens com armas que este jogador pode usar: o mestre usa todos; o jogador, os que são dele
+ *  (marcados como dele no Arsenal, ou criados por ele). */
+export function myShooters(items, me) {
+  const armed = items.filter((i) => i.type === "IMAGE" && (i.metadata?.[WEAPONS] || []).length);
+  const list = me.role === "GM" ? armed : armed.filter((i) => i.metadata?.[OWNER] === me.id || (!i.metadata?.[OWNER] && i.createdUserId === me.id));
+  return list.sort((a, b) => itemName(a).localeCompare(itemName(b), "pt-BR"));
 }
 
 export const isToken = (i) => i.type === "IMAGE" && (i.layer === "CHARACTER" || i.layer === "MOUNT");

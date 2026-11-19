@@ -3,10 +3,10 @@ import OBR from "@owlbear-rodeo/sdk";
 import rawCatalog from "./catalog.json";
 import { PROFILES, MODE_LABEL, ROUNDS } from "./fx.js";
 import { JB2A_CREDIT } from "./jb2a.js";
-import { fire, reload, setActive, setTargets, getPlayerMeta } from "./fire.js";
+import { fire, reload, setActive, setTargets, getPlayerMeta, ammoOp } from "./fire.js";
 import {
-  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, DEFAULT_CONFIG, GRENADES,
-  weaponFrom, decodeCatalog, fxLabel, rangeBand, metersPerUnit, itemName, isToken, uid, applyTheme,
+  WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, DEFAULT_CONFIG, GRENADES,
+  weaponFrom, decodeCatalog, fxLabel, rangeBand, metersPerUnit, itemName, isToken, uid, applyTheme, myShooters,
 } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
@@ -19,6 +19,7 @@ let state = { active: {}, targets: [], config: { ...DEFAULT_CONFIG } };
 let shooter = null;      // item do atirador
 let items = [];
 let scale = null;
+let party = [];          // outros jogadores na sala (para o mestre dizer de quem é cada token)
 
 async function saveWeapons(mut) {
   if (!shooter) return;
@@ -36,10 +37,22 @@ function renderShooter() {
     if (!it || it.type !== "IMAGE") return OBR.notification.show("Arsenal: selecione o token do atirador no mapa.", "WARNING");
     await setActive({ shooter: it.id, weapon: it.metadata?.[WEAPONS]?.[0]?.id });
   };
-  box.innerHTML = shooter
-    ? `<div class="row"><span class="who">🎯 Atirador: <b>${esc(itemName(shooter))}</b></span><button type="button" class="mini" id="pick">trocar pelo selecionado</button></div>`
-    : `<p class="hint">Selecione o token do seu personagem no mapa e clique abaixo (ou botão direito no token → <b>Arsenal: usar como atirador</b>).</p><button type="button" id="pick">Usar o token selecionado</button>`;
+  const mine = myShooters(items, me);
+  const owner = shooter?.metadata?.[OWNER] || "";
+  const players = party.filter((p) => p.role !== "GM");
+  box.innerHTML = (shooter
+    ? `<div class="row"><span class="who">🎯 Atirador: <b>${esc(itemName(shooter))}</b></span><button type="button" class="mini" id="pick">usar o selecionado</button></div>`
+    : `<p class="hint">${me.role === "GM" ? "Selecione um token no mapa e clique abaixo (ou botão direito no token → <b>Arsenal: usar como atirador</b>)." : "Seu token aparece aqui quando o mestre der armas a ele. Ou selecione o seu token no mapa e clique abaixo."}</p><button type="button" id="pick">Usar o token selecionado</button>`)
+    + (mine.length > 1 || (mine.length && !shooter) ? `<div class="chips shooters">${mine.map((m) => `<button type="button" class="chip${m.id === shooter?.id ? " on" : ""}" data-shooter="${m.id}">${esc(itemName(m))}</button>`).join("")}</div>` : "")
+    + (me.role === "GM" && shooter ? `<div class="row"><span class="hint">Jogador que usa este token:</span><select id="owner" class="grow"><option value="">— (mestre / quem criou)</option>${players.map((p) => `<option value="${esc(p.id)}" ${p.id === owner ? "selected" : ""}>${esc(p.name)}</option>`).join("")}${owner && !players.some((p) => p.id === owner) ? `<option value="${esc(owner)}" selected>(jogador fora da sala)</option>` : ""}</select></div>` : "");
   $("pick").addEventListener("click", sel);
+  for (const b of box.querySelectorAll("[data-shooter]")) b.addEventListener("click", () => {
+    const it = items.find((i) => i.id === b.dataset.shooter);
+    if (it) setActive({ shooter: it.id, weapon: it.metadata?.[WEAPONS]?.[0]?.id, mode: undefined });
+  });
+  $("owner")?.addEventListener("change", (e) => OBR.scene.items.updateItems([shooter.id], (d) => {
+    for (const it of d) { if (e.target.value) it.metadata[OWNER] = e.target.value; else delete it.metadata[OWNER]; }
+  }));
 }
 
 function ammoText(w) {
@@ -71,12 +84,9 @@ function renderWeapons() {
     const id = card.dataset.w;
     const w = list.find((x) => x.id === id);
     card.querySelector("[data-pickw]").addEventListener("click", () => setActive({ weapon: id, mode: w.mode || w.modes[0] }));
-    for (const b of card.querySelectorAll("[data-mode]")) b.addEventListener("click", async () => {
-      await setActive({ weapon: id, mode: b.dataset.mode });
-      saveWeapons((l) => l.map((x) => (x.id === id ? { ...x, mode: b.dataset.mode } : x)));
-    });
+    for (const b of card.querySelectorAll("[data-mode]")) b.addEventListener("click", () => setActive({ weapon: id, mode: b.dataset.mode }));
     card.querySelector("[data-reload]")?.addEventListener("click", () => reload(id));
-    for (const b of card.querySelectorAll("[data-ammo]")) b.addEventListener("click", () => saveWeapons((l) => l.map((x) => (x.id === id ? { ...x, ammo: Math.max(0, Math.min(x.mag, (x.ammo ?? 0) + Number(b.dataset.ammo))) } : x))));
+    for (const b of card.querySelectorAll("[data-ammo]")) b.addEventListener("click", () => ammoOp(shooter, id, { add: Number(b.dataset.ammo) }));
     card.querySelector("[data-del]")?.addEventListener("click", () => saveWeapons((l) => l.filter((x) => x.id !== id)));
   }
 }
@@ -159,6 +169,8 @@ function renderConfig() {
   const c = state.config;
   const box = $("config");
   box.innerHTML = `
+    <label class="check"><input type="checkbox" id="kHud" ${c.hud !== false ? "checked" : ""} /> Painel de mira ao usar a ferramenta</label>
+    <label class="check"><input type="checkbox" id="kLbl" ${c.mapLabel ? "checked" : ""} /> Distância em cima do alvo no mapa</label>
     <label class="check"><input type="checkbox" id="kJ" ${c.jb2a !== false ? "checked" : ""} /> Animações em vídeo (JB2A)</label>
     <small>Só para você. Desligue se o computador ficar lento: volta para o efeito desenhado (intensidade, velocidade e cor abaixo valem para ele).</small>
     <label>Intensidade dos efeitos <output>${Math.round(c.intensity * 100)}%</output><input type="range" id="kI" min="0.5" max="1.5" step="0.1" value="${c.intensity}" /></label>
@@ -170,6 +182,8 @@ function renderConfig() {
     <div class="row"><button type="button" class="mini" id="kClear">Limpar fumaça e efeitos (para todos)</button></div>
     <p class="credit">${JB2A_CREDIT} · <a href="https://jb2a.com" target="_blank" rel="noopener">jb2a.com</a> · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">licença</a></p>`;
   $("kJ").addEventListener("change", (e) => setConfig({ jb2a: e.target.checked }));
+  $("kHud").addEventListener("change", (e) => setConfig({ hud: e.target.checked }));
+  $("kLbl").addEventListener("change", (e) => setConfig({ mapLabel: e.target.checked }));
   $("kI").addEventListener("change", (e) => setConfig({ intensity: Number(e.target.value) }));
   $("kS").addEventListener("change", (e) => setConfig({ speed: Number(e.target.value) }));
   $("kOwn").addEventListener("change", (e) => setConfig({ ownColor: e.target.checked }));
@@ -199,14 +213,16 @@ OBR.onReady(async () => {
     scale = await OBR.scene.grid.getScale().catch(() => null);
     // primeira vez: se o jogador tem um único token, ele já é o atirador
     const { active } = await getPlayerMeta();
-    if (!active.shooter) {
-      const mine = items.filter((i) => isToken(i) && i.createdUserId === me.id);
+    if (!active.shooter || !items.some((i) => i.id === active.shooter)) {
+      const mine = myShooters(items, me);
       const sel = ((await OBR.player.getSelection()) || []).map((id) => items.find((i) => i.id === id)).find((i) => i && i.type === "IMAGE");
-      const pick = sel || (mine.length === 1 ? mine[0] : null);
+      const pick = sel || mine[0] || null;
       if (pick) await setActive({ shooter: pick.id, weapon: pick.metadata?.[WEAPONS]?.[0]?.id });
     }
     await refresh(true);
   };
+  party = await OBR.party.getPlayers().catch(() => []);
+  OBR.party.onChange((p) => { party = p; renderShooter(); });
   if (await OBR.scene.isReady()) await load();
   OBR.scene.onReadyChange((r) => r && load());
   $("q").addEventListener("input", renderSearch);

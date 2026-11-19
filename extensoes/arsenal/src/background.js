@@ -6,14 +6,17 @@ import OBR, { buildShape, buildLabel, buildPath } from "@owlbear-rodeo/sdk";
 import { buildShot, buildLabel as labelAnim } from "./fx.js";
 import { buildShotJB2A } from "./jb2a.js";
 import { play, clearAll } from "./render.js";
-import { fire, reload, setActive, setTargets, getPlayerMeta } from "./fire.js";
+import { fire, fireWith, reload, setActive, setTargets, getPlayerMeta, cycleShooter } from "./fire.js";
 import {
-  ID, META_AIM, WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_CLEAR, TOOL, MODE_AIM, DEFAULT_CONFIG,
-  url, isToken, itemName, rangeBand, metersPerUnit,
+  ID, META_AIM, WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_CLEAR, CH_AMMO, CH_REMOTE, TOOL, MODE_AIM, HUD,
+  DEFAULT_CONFIG, url, isToken, itemName, rangeBand, metersPerUnit, applyAmmo, myShooters,
 } from "./shared.js";
 
 let config = { ...DEFAULT_CONFIG };
 let dpi = 150;
+let me = { id: "", role: "PLAYER" };
+let myConn = "";
+let hideAimsUntil = 0; // durante o disparo a mira some (não cobre o efeito)
 
 // ---------- vídeos JB2A (baixados no build para jb2a/; ok.json lista os que chegaram) ----------
 const JB2A_BASE = url("jb2a/");
@@ -31,7 +34,37 @@ async function onShot(data) {
   // sangue, cápsulas e vídeos são preferência de quem assiste
   const spec = { ...data.spec, gore: config.gore, casings: config.casings };
   const anim = (config.jb2a !== false && jb2aFiles && buildShotJB2A(spec, (f) => jb2aFiles.has(f))) || buildShot(spec);
+  if (aimIds.length) {
+    hideAimsUntil = Date.now() + Math.min(4, anim.duration) * 1000;
+    drawAims();
+    setTimeout(drawAims, Math.min(4, anim.duration) * 1000 + 50);
+  }
   play(anim, JB2A_BASE).catch((e) => console.error(`[${ID}]`, e));
+}
+
+// ---------- só um mestre executa pedidos (munição de jogadores, disparos de outras extensões) ----------
+async function isLeader() {
+  if (me.role !== "GM") return false;
+  const gms = (await OBR.party.getPlayers().catch(() => [])).filter((p) => p.role === "GM").map((p) => p.connectionId);
+  return [myConn, ...gms].sort()[0] === myConn;
+}
+
+/** Disparo pedido por outra extensão (ex.: Gatilhos): { shooter, weapon?, mode?, targets: [{id}|{at}], hit?, impact? } */
+async function onRemoteFire(d) {
+  if (!d?.shooter || !(await isLeader())) return;
+  const r = await fireWith({ shooterId: d.shooter, weaponId: d.weapon, mode: d.mode, targets: d.targets || [], hit: d.hit !== false, impact: d.impact || "auto", config });
+  if (r.error) OBR.notification.show(`Arsenal (${d.from || "gatilho"}): ${r.error}`, "WARNING");
+}
+
+// ---------- painel de mira (canto inferior esquerdo, enquanto a ferramenta está ativa) ----------
+async function openHud() {
+  const h = await OBR.viewport.getHeight().catch(() => 800);
+  await OBR.popover.open({
+    id: HUD, url: url("hud.html"), width: 300, height: 252,
+    anchorReference: "POSITION", anchorPosition: { left: 72, top: h - 16 },
+    anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" }, transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+    disableClickAway: true, marginThreshold: 8,
+  }).catch(() => {});
 }
 
 // ---------- miras (só para quem está mirando) ----------
@@ -52,7 +85,8 @@ async function drawAims() {
       const scale = await OBR.scene.grid.getScale().catch(() => null);
       const mpu = metersPerUnit(scale?.parsed?.unit) * (scale?.parsed?.multiplier || 1);
       const add = [];
-      for (const t of targets) {
+      const hidden = Date.now() < hideAimsUntil;
+      for (const t of hidden ? [] : targets) {
         const at = t.id ? byId.get(t.id)?.position : t.at;
         if (!at) continue;
         const r = dpi * 0.42;
@@ -63,7 +97,7 @@ async function drawAims() {
         add.push(buildPath().position({ x: 0, y: 0 }).commands([0, 2, 4, 6].flatMap((k) => [[0, at.x + cross[k][0] * r * 1.2, at.y + cross[k][1] * r * 1.2], [1, at.x + cross[k + 1][0] * r * 1.2, at.y + cross[k + 1][1] * r * 1.2]]))
           .strokeColor("#ff3b30").strokeWidth(Math.max(2, dpi / 45)).strokeOpacity(0.95).fillOpacity(0)
           .layer("ATTACHMENT").locked(true).disableHit(true).metadata({ [META_AIM]: true }).build());
-        if (shooter) {
+        if (shooter && config.mapLabel) {
           const cells = await OBR.scene.grid.getDistance(shooter.position, at).catch(() => Math.hypot(at.x - shooter.position.x, at.y - shooter.position.y) / dpi);
           const meters = cells * mpu;
           const band = weapon ? rangeBand(meters, weapon.range) : null;
@@ -97,12 +131,21 @@ OBR.onReady(async () => {
   const md = await OBR.player.getMetadata();
   config = { ...DEFAULT_CONFIG, ...(md[CONFIG] || {}) };
   dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+  me = { id: await OBR.player.getId(), role: await OBR.player.getRole() };
+  myConn = await OBR.player.getConnectionId();
+  OBR.player.onChange((p) => { me.role = p.role; });
   loadJB2A();
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; drawAims(); });
 
   OBR.broadcast.onMessage(CH_SHOT, (e) => onShot(e.data));
   OBR.broadcast.onMessage(CH_LABEL, (e) => { if (e.data?.at) play(labelAnim(e.data.at, e.data.text, dpi)).catch(() => {}); });
   OBR.broadcast.onMessage(CH_CLEAR, () => clearAll());
+  OBR.broadcast.onMessage(CH_REMOTE, (e) => onRemoteFire(e.data));
+  OBR.broadcast.onMessage(CH_AMMO, async (e) => {
+    const d = e.data;
+    if (!d?.itemId || !(await isLeader())) return;
+    await OBR.scene.items.updateItems([d.itemId], (dr) => { for (const it of dr) it.metadata[WEAPONS] = applyAmmo(it.metadata[WEAPONS], d.weaponId, d.op || {}); }).catch(() => {});
+  });
 
   // limpa sobras de uma sessão anterior
   const left = await OBR.scene.local.getItems((i) => i.metadata?.[META_AIM]).catch(() => []);
@@ -111,7 +154,7 @@ OBR.onReady(async () => {
   let lastMeta = "";
   OBR.player.onChange((p) => {
     config = { ...DEFAULT_CONFIG, ...(p.metadata?.[CONFIG] || {}) };
-    const k = JSON.stringify([p.metadata?.[TARGETS], p.metadata?.[ACTIVE]]);
+    const k = JSON.stringify([p.metadata?.[TARGETS], p.metadata?.[ACTIVE], config.mapLabel]);
     if (k !== lastMeta) { lastMeta = k; drawAims(); }
   });
   OBR.scene.items.onChange(() => { if (aimIds.length) drawAims(); });
@@ -126,9 +169,17 @@ OBR.onReady(async () => {
     id: MODE_AIM,
     icons: [{ icon: url("aim.svg"), label: "Mirar (clique: marca/desmarca o alvo · Enter: atirar · R: recarregar · Esc: limpar)", filter: { activeTools: [TOOL] } }],
     cursors: [{ cursor: "crosshair" }],
+    onActivate: () => { if (config.hud !== false) openHud(); },
+    onDeactivate: () => { OBR.popover.close(HUD).catch(() => {}); },
     onToolClick: async (_ctx, ev) => {
       const it = ev.target;
       const { active } = await getPlayerMeta();
+      if (it && ev.shiftKey && it.type === "IMAGE") {
+        // Shift+clique: este token vira o atirador
+        await setActive({ shooter: it.id, weapon: it.metadata?.[WEAPONS]?.[0]?.id, mode: undefined });
+        OBR.notification.show(`Arsenal: atirador = ${itemName(it)}`, "INFO");
+        return false;
+      }
       if (it && !active.shooter && isToken(it)) {
         // ainda sem atirador: o primeiro token clicado vira o atirador
         await setActive({ shooter: it.id, weapon: it.metadata?.[WEAPONS]?.[0]?.id });
@@ -145,8 +196,8 @@ OBR.onReady(async () => {
       if (k === "Enter") await fire();
       else if (k === "Escape") await setTargets([]);
       else if (k === "r" || k === "R") await reload();
+      else if (k === "Tab") await cycleShooter(myShooters(await OBR.scene.items.getItems(), me), ev.shiftKey ? -1 : 1);
     },
-    onDeactivate: () => {},
   });
   await OBR.tool.createAction({
     id: `${ID}/acao-atirar`,

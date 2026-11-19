@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { buildShot, PROFILES } from "../src/fx.js";
-import { decodeCatalog } from "../src/shared.js";
+import { decodeCatalog, applyAmmo, myShooters } from "../src/shared.js";
 import { buildShotJB2A, allFiles, LIB, PLAN } from "../src/jb2a.js";
 const catalog = decodeCatalog(JSON.parse(readFileSync(new URL("../src/catalog.json", import.meta.url))));
 const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v));
@@ -40,3 +40,16 @@ ok("cápsulas e mira laser continuam desenhadas", [...new Set(J("sniper", "singl
 ok("fumaça JB2A dura o pedido", Math.round(J("smoke", "single", { smokeSec: 30 }).videos.find((v) => v.file.includes("Fog")).dur), 30);
 ok("tesla salta para o 2º alvo", J("tesla", "single").videos.some((v) => v.file.includes("Secondary")), true);
 ok("supressão mantém a área tracejada", J("mg", "supp").elements.some((e) => e.tag === "supp"), true);
+
+// ---------- munição e atiradores ----------
+const arma = [{ id: "a", mag: 25, ammo: 10 }, { id: "b", mag: null, ammo: null }];
+ok("gastar 3 balas", applyAmmo(arma, "a", { use: 3 })[0].ammo, 7);
+ok("recarregar enche o pente", applyAmmo(arma, "a", { reload: true })[0].ammo, 25);
+ok("+1 não passa do pente", applyAmmo([{ id: "a", mag: 25, ammo: 25 }], "a", { add: 1 })[0].ammo, 25);
+ok("arma sem pente não muda", applyAmmo(arma, "b", { use: 3 })[1].ammo, null);
+ok("não altera a lista original", arma[0].ammo, 10);
+const tok = (id, name, by, dono) => ({ id, type: "IMAGE", name, createdUserId: by, metadata: { "arsenal/armas": [{ id: "x" }], ...(dono ? { "arsenal/dono": dono } : {}) } });
+const cena = [tok("1", "Torreta", "gm"), tok("2", "Rex", "gm", "ana"), tok("3", "Lia", "bia"), tok("4", "Kai", "bia", "ana"), { id: "5", type: "IMAGE", name: "Sem arma", createdUserId: "ana", metadata: {} }];
+ok("mestre vê todos os tokens com arma", myShooters(cena, { id: "gm", role: "GM" }).map((i) => i.name), ["Kai", "Lia", "Rex", "Torreta"]);
+ok("jogadora vê os dela (marcados como dela)", myShooters(cena, { id: "ana", role: "PLAYER" }).map((i) => i.name), ["Kai", "Rex"]);
+ok("token marcado para outra pessoa sai da lista de quem criou", myShooters(cena, { id: "bia", role: "PLAYER" }).map((i) => i.name), ["Lia"]);
