@@ -1,8 +1,7 @@
-# Compila as três extensões e publica no GitHub Pages:
-#   /fog-fill/                 Balde de Fog
-#   /fog-fill/luz-colorida/    Luz Colorida
-#   /fog-fill/regua/           Régua
-# Roda sozinho a cada mudança em extensoes/ (ou pelo botão "Run workflow" na aba Actions).
+# Compila TODAS as extensões da pasta extensoes/ e publica no GitHub Pages:
+#   extensoes/balde-de-fog  ->  /fog-fill/            (raiz)
+#   extensoes/<nome>        ->  /fog-fill/<nome>/     (ex.: luz-colorida, regua, clima)
+# Extensão nova = só criar a pasta em extensoes/. Não precisa mexer mais neste arquivo.
 name: Publicar extensões
 
 on:
@@ -34,14 +33,17 @@ jobs:
       - name: Compilar
         run: |
           set -e
-          for p in balde-de-fog luz-colorida regua; do
-            (cd extensoes/$p && npm ci --no-audit --no-fund && npm run build)
+          mkdir -p _site
+          for dir in extensoes/*/; do
+            p=$(basename "$dir")
+            echo "::group::$p"
+            if [ -f "$dir/package-lock.json" ]; then (cd "$dir" && npm ci --no-audit --no-fund); else (cd "$dir" && npm install --no-audit --no-fund); fi
+            (cd "$dir" && npm run build)
+            if [ "$p" = "balde-de-fog" ]; then cp -r "$dir/dist/." _site/; else mkdir -p "_site/$p" && cp -r "$dir/dist/." "_site/$p/"; fi
+            echo "::endgroup::"
           done
-          mkdir -p _site/luz-colorida _site/regua
-          cp -r extensoes/balde-de-fog/dist/. _site/
-          cp -r extensoes/luz-colorida/dist/. _site/luz-colorida/
-          cp -r extensoes/regua/dist/. _site/regua/
           touch _site/.nojekyll
+          ls _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
