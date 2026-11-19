@@ -4,14 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Régua</title>
-    <script type="module" crossorigin src="/fog-fill/regua/assets/main-CWxecHMU.js"></script>
-    <link rel="modulepreload" crossorigin href="/fog-fill/regua/assets/geom-C4sfN2IE.js">
-    <link rel="stylesheet" crossorigin href="/fog-fill/regua/assets/main-DfJGnR4k.css">
+    <script type="module" crossorigin src="/fog-fill/regua/assets/main-BDp6UnR2.js"></script>
+    <link rel="modulepreload" crossorigin href="/fog-fill/regua/assets/geom-LtZs-oxe.js">
+    <link rel="stylesheet" crossorigin href="/fog-fill/regua/assets/main-DlXRpbwz.css">
   </head>
   <body>
     <main>
       <h1>Régua</h1>
       <p class="hint">Atalho da ferramenta: <kbd>Q</kbd>. Escolha o modo na barra que aparece ao lado.</p>
+
+      <section class="pin">
+        <label class="check big"><input id="pin" type="checkbox" /> Manter no mapa, como desenho, com as medidas</label>
+        <small>Ao terminar, a régua, o caminho ou a área fica no mapa com as dimensões escritas (total no fim, cada trecho no meio). Também liga/desliga pelo alfinete na barra da régua.</small>
+        <div id="pin-what" class="sub">
+          <label class="check"><input id="pinMeasure" type="checkbox" /> Régua de medir distância</label>
+          <label class="check"><input id="pinPath" type="checkbox" /> Caminho percorrido pelo token</label>
+          <label class="check"><input id="pinAreas" type="checkbox" /> Áreas</label>
+        </div>
+        <small>Para apagar: a lixeira da barra apaga as suas; o mestre tem a lixeira vermelha, que apaga todas. Também dá para selecionar e apagar como qualquer desenho.</small>
+      </section>
 
       <section>
         <h2>Mover personagem e medir</h2>
@@ -30,11 +41,15 @@
           </select>
         </label>
         <small id="confirm-hint"></small>
+        <label>Pausa entre pontos ao andar <output id="o-stepMs"></output>
+          <input id="stepMs" type="range" min="0" max="300" step="10" />
+        </label>
+        <small>O token anda ponto a ponto pelo caminho. Se ele ainda cortar caminho pela parede nas curvas, aumente a pausa; se quiser mais rápido, diminua.</small>
       </section>
 
       <section>
         <h2>Áreas (D&amp;D)</h2>
-        <p class="hint">1º clique: origem (num token, sai do centro dele). Mova para o tamanho e a direção. 2º clique: fixa no mapa. <kbd>Esc</kbd> cancela.</p>
+        <p class="hint">1º clique: origem (num token, sai do centro dele). Mova para o tamanho e a direção. 2º clique: termina (e fixa, se "Manter no mapa" estiver ligado). <kbd>Esc</kbd> cancela.</p>
         <label>Quadrados atingidos
           <select id="cellRule">
             <option value="center">o centro do quadrado está dentro</option>
@@ -43,7 +58,6 @@
           </select>
         </label>
         <label class="check"><input id="showCells" type="checkbox" /> Destacar os quadrados atingidos</label>
-        <label class="check"><input id="keepAreas" type="checkbox" /> O 2º clique deixa a área no mapa</label>
         <label>Opacidade <output id="o-areaOpacity"></output>
           <input id="areaOpacity" type="range" min="0.05" max="0.6" step="0.01" />
         </label>
