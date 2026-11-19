@@ -2,8 +2,8 @@
 // inclusive os que os jogadores fazem com os próprios tokens, sem depender de ferramenta especial.
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
-import { zoneShape, evaluate } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CLIMA, CLIMA_FLASH, LUZ, url, newTrigger, isToken } from "./shared.js";
+import { zoneShape, evaluate, haltPoint, routeFromPlan } from "./engine.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CLIMA, CLIMA_FLASH, LUZ, url, newTrigger, isToken } from "./shared.js";
 
 let role = "PLAYER";
 let triggers = [];
@@ -13,6 +13,39 @@ const prevPos = new Map();   // tokenId -> {x,y}
 const prevVis = new Map();   // itemId -> visible
 const memo = new Map();      // triggerId -> estado da avaliação (placas)
 let lastItems = [];
+const plans = new Map();     // tokenId -> { points, until } caminho que a Régua avisou
+const frozen = new Map();    // tokenId -> { pos, until } token parado por um gatilho (segura contra passos atrasados da Régua)
+const FREEZE_MS = 1500;
+const same = (a, b) => Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
+
+/**
+ * Coloca itens em "pos" sem esbarrar em paredes: a névoa dinâmica barra tokens visíveis que atravessam parede
+ * (como na Régua), mas deixa um token escondido passar. Então esconde, pula e mostra de novo (só quem estava visível).
+ */
+async function jump(ids, pos) {
+  const items = await OBR.scene.items.getItems(ids);
+  const go = items.filter((i) => !same(i.position, pos));
+  if (!go.length) return;
+  const shown = go.filter((i) => i.visible !== false).map((i) => i.id);
+  const all = go.map((i) => i.id);
+  if (shown.length) await OBR.scene.items.updateItems(shown, (d) => { for (const it of d) it.visible = false; });
+  await OBR.scene.items.updateItems(all, (d) => { for (const it of d) it.position = { ...pos }; });
+  if (shown.length) await OBR.scene.items.updateItems(shown, (d) => { for (const it of d) it.visible = true; });
+}
+
+/** Para o token em "pos": corta o resto do movimento da Régua e segura o token ali por um instante. */
+function haltToken(id, pos) {
+  prevPos.set(id, { ...pos });
+  frozen.set(id, { pos: { ...pos }, until: Date.now() + FREEZE_MS });
+  plans.delete(id);
+  OBR.broadcast.sendMessage(CH_HALT, { tokenId: id, at: pos, upto: -1 }, { destination: "ALL" }).catch(() => {});
+  return jump([id], pos);
+}
+
+/** Quem pode disparar este gatilho. */
+const allowedFor = (tr) => (t) => (tr.who === "list" ? (tr.tokens || []).includes(t.id) : true)
+  && !(tr.ignoreHidden !== false && t.visible === false)
+  && !(tr.zones || []).includes(t.id);
 
 const names = (it) => it?.text?.plainText || it?.name || "item";
 
@@ -66,15 +99,17 @@ async function doEffect(e, ctx, depth) {
       if (!ctx.by || !e.dest) return;
       const [dest] = await OBR.scene.items.getItems([e.dest]);
       if (!dest) return;
-      prevPos.set(ctx.by.id, { ...dest.position });
-      return OBR.scene.items.updateItems([ctx.by.id], (d) => { for (const it of d) it.position = { ...dest.position }; });
+      return haltToken(ctx.by.id, dest.position);
     }
     case "moveTo": {
       if (!e.dest || !ids.length) return;
       const [dest] = await OBR.scene.items.getItems([e.dest]);
       if (!dest) return;
-      for (const id of ids) prevPos.set(id, { ...dest.position });
-      return upd((it) => { it.position = { ...dest.position }; });
+      for (const id of ids) {
+        prevPos.set(id, { ...dest.position });
+        frozen.set(id, { pos: { ...dest.position }, until: Date.now() + FREEZE_MS });
+      }
+      return jump(ids, dest.position);
     }
     case "stop": {
       if (!ctx.by || !ctx.at || !ctx.from) return;
@@ -82,8 +117,7 @@ async function doEffect(e, ctx, depth) {
       const dx = ctx.at.x - ctx.from.x, dy = ctx.at.y - ctx.from.y, L = Math.hypot(dx, dy) || 1;
       let p = { x: ctx.at.x - (dx / L) * dpi * 0.5, y: ctx.at.y - (dy / L) * dpi * 0.5 };
       if (gridSquare) p = { x: ctx.from.x + Math.round((p.x - ctx.from.x) / dpi) * dpi, y: ctx.from.y + Math.round((p.y - ctx.from.y) / dpi) * dpi };
-      prevPos.set(ctx.by.id, p);
-      return OBR.scene.items.updateItems([ctx.by.id], (d) => { for (const it of d) it.position = p; });
+      return haltToken(ctx.by.id, p);
     }
     case "chain":
     case "rearm": {
@@ -107,9 +141,22 @@ function check(items) {
   const byId = new Map(items.map((i) => [i.id, i]));
   const tokens = items.filter(isToken);
   const moves = [];
+  const now = Date.now();
   for (const t of tokens) {
+    const fz = frozen.get(t.id);
+    if (fz && now < fz.until) {
+      // passo atrasado da Régua depois de parar: devolve o token para onde o gatilho mandou
+      if (!same(fz.pos, t.position)) jump([t.id], fz.pos).catch(() => {});
+      prevPos.set(t.id, { ...fz.pos });
+      continue;
+    }
+    if (fz) frozen.delete(t.id);
     const p = prevPos.get(t.id);
-    if (p && (p.x !== t.position.x || p.y !== t.position.y)) moves.push({ token: t, from: p, to: t.position });
+    if (p && (p.x !== t.position.x || p.y !== t.position.y)) {
+      const plan = plans.get(t.id);
+      const route = plan && now < plan.until ? routeFromPlan(plan.points, p, t.position) : null;
+      moves.push({ token: t, from: p, to: t.position, route });
+    }
     prevPos.set(t.id, { ...t.position });
   }
   const zoneIds = new Set(triggers.flatMap((t) => t.zones || []));
@@ -129,9 +176,7 @@ function check(items) {
       }
       continue;
     }
-    const allowed = (t) => (tr.who === "list" ? (tr.tokens || []).includes(t.id) : true)
-      && !(tr.ignoreHidden !== false && t.visible === false)
-      && !(tr.zones || []).includes(t.id);
+    const allowed = allowedFor(tr);
     const myMoves = moves.filter((m) => allowed(m.token));
     if (!myMoves.length && tr.cause !== "standAll") continue;
     if (tr.cause === "standAll" && !myMoves.length) continue;
@@ -140,7 +185,17 @@ function check(items) {
     if (r.fire) fired.push([tr, r]);
   }
   for (const it of items) if (zoneIds.has(it.id)) prevVis.set(it.id, it.visible !== false);
+  // "parar em cima da zona": vale a primeira zona do caminho; o que vinha depois dela não dispara
+  const halts = new Map(); // tokenId -> { dist, pos }
   for (const [tr, r] of fired) {
+    if (!tr.halt || tr.cause !== "enter" || !r.by || r.dist == null) continue;
+    const h = halts.get(r.by.id);
+    if (!h || r.dist < h.dist) halts.set(r.by.id, { dist: r.dist, pos: haltPoint(r, dpi, gridSquare) });
+  }
+  for (const [id, h] of halts) haltToken(id, h.pos).catch(() => {});
+  for (const [tr, r] of fired) {
+    const h = r.by && halts.get(r.by.id);
+    if (h && r.dist != null && r.dist > h.dist + 1e-6) continue; // o token não chegou até aqui
     if (tr.once) tr.armed = false; // evita disparo duplo antes do metadado voltar
     run(tr, { by: r.by, at: r.at, from: r.from });
   }
@@ -196,6 +251,28 @@ OBR.onReady(async () => {
   });
   OBR.scene.items.onChange((items) => { if (role === "GM") check(items); });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; gridSquare = g.type === "SQUARE"; });
+
+  // a Régua avisa o caminho antes de andar: se ele passa por um gatilho que para o token,
+  // já responde onde parar, e o token nem chega a passar da armadilha
+  OBR.broadcast.onMessage(CH_PATH, (e) => {
+    if (role !== "GM") return;
+    const { tokenId, points } = e.data || {};
+    if (!tokenId || !Array.isArray(points) || points.length < 2) return;
+    plans.set(tokenId, { points, until: Date.now() + points.length * 400 + 4000 });
+    const token = lastItems.find((i) => i.id === tokenId);
+    if (!token || !isToken(token)) return;
+    const byId = new Map(lastItems.map((i) => [i.id, i]));
+    let best = null;
+    for (const tr of triggers) {
+      if (!tr.armed || !tr.halt || tr.cause !== "enter" || !allowedFor(tr)(token)) continue;
+      const zones = new Map();
+      for (const id of tr.zones || []) { const it = byId.get(id); if (it) zones.set(id, zoneShape(it, dpi)); }
+      const r = evaluate(tr, [{ token, from: points[0], to: points[points.length - 1], route: points }], [], zones, {}, dpi);
+      if (r.fire && (!best || r.dist < best.dist)) best = r;
+    }
+    if (!best) return;
+    OBR.broadcast.sendMessage(CH_HALT, { tokenId, at: haltPoint(best, dpi, gridSquare), upto: best.seg - 1 }, { destination: "ALL" }).catch(() => {});
+  });
 
   // disparo manual pelo painel
   OBR.broadcast.onMessage(CH_FIRE, (e) => {

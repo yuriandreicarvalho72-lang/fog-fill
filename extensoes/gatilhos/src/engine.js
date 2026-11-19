@@ -75,6 +75,42 @@ export function firstContact(p, q, shape) {
 
 export const insideZone = (p, shape) => shape.kind === "poly" && inPoly(p, shape.pts);
 
+/**
+ * Onde o token fica quando o gatilho manda parar EM CIMA da zona:
+ * meio quadrado depois do ponto de entrada, encaixado no grid a partir de onde o trecho começou,
+ * desde que continue dentro da zona (ou do outro lado do fio).
+ */
+export function haltPoint(r, cell, snap = true) {
+  const { at, from, dir, shape } = r;
+  const half = { x: at.x + dir.x * cell * 0.5, y: at.y + dir.y * cell * 0.5 };
+  const cands = [];
+  if (snap) cands.push({ x: from.x + Math.round((half.x - from.x) / cell) * cell, y: from.y + Math.round((half.y - from.y) / cell) * cell });
+  cands.push(half, { x: at.x + dir.x * 2, y: at.y + dir.y * 2 });
+  const ok = (p) => (shape.kind === "poly" ? inPoly(p, shape.pts) : !!firstContact(from, p, shape));
+  return cands.find(ok) || at;
+}
+
+const near = (a, b) => Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
+function onSeg(p, a, b) {
+  const cr = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+  const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  if (Math.abs(cr) / L > 0.5) return false;
+  const dot = (p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y);
+  return dot >= -0.5 && dot <= L * L + 0.5;
+}
+
+/** Trecho do caminho planejado (Régua) que liga from a to; null se o movimento não segue o plano. */
+export function routeFromPlan(points, from, to) {
+  if (!points?.length) return null;
+  const i = points.findIndex((p) => near(p, from));
+  if (i < 0) return null;
+  for (let k = i + 1; k < points.length; k++) {
+    if (near(points[k], to)) return points.slice(i, k + 1);
+    if (onSeg(to, points[k - 1], points[k])) return [...points.slice(i, k), to];
+  }
+  return null;
+}
+
 export function center(shape) {
   const n = shape.pts.length || 1;
   return { x: shape.pts.reduce((a, p) => a + p.x, 0) / n, y: shape.pts.reduce((a, p) => a + p.y, 0) / n };
@@ -93,14 +129,31 @@ export function evaluate(trigger, moves, tokens, zones, state, cellSize) {
   if (!shapes.length) return { fire: false };
   const c = trigger.cause;
   if (c === "enter") {
+    // m.route: o caminho real (pontos da Régua); sem ele, a reta de onde estava até onde parou
     let best = null;
-    for (const m of moves) for (const s of shapes) {
-      const wasIn = insideZone(m.from, s);
-      if (wasIn) continue;
-      const hit = firstContact(m.from, m.to, s);
-      if (hit && (!best || hit.t < best.hit.t)) best = { m, hit };
+    for (const m of moves) {
+      const route = m.route?.length > 1 ? m.route : [m.from, m.to];
+      for (const s of shapes) {
+        if (insideZone(route[0], s)) continue;
+        let acc = 0;
+        for (let k = 1; k < route.length; k++) {
+          const a = route[k - 1], b = route[k], L = Math.hypot(b.x - a.x, b.y - a.y);
+          const hit = firstContact(a, b, s);
+          if (hit) {
+            const d = acc + hit.t * L;
+            if (!best || d < best.dist) best = { m, hit, a, b, s, dist: d, seg: k };
+            break;
+          }
+          acc += L;
+        }
+      }
     }
-    return best ? { fire: true, by: best.m.token, at: best.hit.at, from: best.m.from } : { fire: false };
+    if (!best) return { fire: false };
+    const L = Math.hypot(best.b.x - best.a.x, best.b.y - best.a.y) || 1;
+    return {
+      fire: true, by: best.m.token, at: best.hit.at, from: best.a, shape: best.s, dist: best.dist, seg: best.seg,
+      dir: { x: (best.b.x - best.a.x) / L, y: (best.b.y - best.a.y) / L },
+    };
   }
   if (c === "leave") {
     for (const m of moves) for (const s of shapes) {

@@ -7,6 +7,9 @@ export const CH_LOG = `${ID}/log`;        // background do mestre -> painel: o q
 export const CLIMA = "clima/camadas";
 export const CLIMA_FLASH = "clima/relampago";
 export const LUZ = "luz-colorida/cor";
+// conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
+export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
+export const CH_HALT = "regua/parar";     // motor -> todos: { tokenId, at, upto } (anda até points[upto], vai para "at" e para)
 
 export const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 export const uid = () => Math.random().toString(36).slice(2, 9);
@@ -51,7 +54,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
   return {
     id: uid(), name, armed: true, once: true, delay: 0,
     zones, cause: "enter", radius: 2,
-    who: "chars", tokens: [], ignoreHidden: true,
+    who: "chars", tokens: [], ignoreHidden: true, halt: false,
     effects: [newEffect("show")],
   };
 }

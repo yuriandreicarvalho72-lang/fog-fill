@@ -5,6 +5,9 @@ export const ID = "regua";
 export const TOOL_ID = `${ID}/tool`;
 export const MODAL_ID = `${ID}/overlay`;
 export const TRAIL_CHANNEL = `${ID}/trail`;
+// conversa com a extensão Gatilhos (o nome dos canais tem que bater com o de lá)
+export const PATH_CHANNEL = `${ID}/caminho`;  // { tokenId, points } antes de andar
+export const HALT_CHANNEL = `${ID}/parar`;    // { tokenId, at, upto } anda até points[upto], vai para "at" e para
 export const META_AREA = `${ID}/area`;    // em áreas fixadas: { owner, kind, size }
 export const MODES = {
   move: `${ID}/mode-move`,
@@ -28,6 +31,7 @@ export const DEFAULTS = {
   visionShared: true, // visão e cobertura: todos veem (senão só você)
   visionTo: "corners",// "corners" = 4 cantos do quadrado alvo (D&D) | "center" = só o centro
   visionAll: true,    // anéis coloridos em todos os tokens mostrando a cobertura de cada um
+  areaWalls: true,    // áreas respeitam paredes (linha de efeito) e mostram a cobertura dos tokens dentro
   difficult: false,   // as próximas áreas fixadas viram terreno difícil (Shift no 2º clique faz o mesmo)
   areaOpacity: 0.22,
   lineWidth: 1,       // largura da linha, em quadrados

@@ -70,6 +70,7 @@ function card(t) {
       <select data-k="who"><option value="chars" ${t.who !== "list" ? "selected" : ""}>qualquer token (personagens e montarias)</option><option value="list" ${t.who === "list" ? "selected" : ""}>só estes tokens…</option></select>
       ${t.who === "list" ? `<div class="sub">${chips(t.tokens, "tokens")}</div>` : ""}
       <label class="check"><input type="checkbox" data-k="ignoreHidden" ${t.ignoreHidden !== false ? "checked" : ""} /> Tokens escondidos não ativam</label>` : ""}
+      ${t.cause === "enter" ? `<label class="check" title="Em vez de ir até onde o jogador soltou, o token para no meio do caminho, em cima da zona. Vale para a Régua e para o arrasto."><input type="checkbox" data-k="halt" ${t.halt ? "checked" : ""} /> Parar o token em cima da zona (corta o resto do movimento)</label>` : ""}
       <div class="row">
         <select data-k="once"><option value="1" ${t.once ? "selected" : ""}>dispara uma vez (desarma)</option><option value="0" ${!t.once ? "selected" : ""}>dispara sempre</option></select>
         <label class="inline">atraso <input type="number" data-k="delay" min="0" step="0.5" value="${t.delay || 0}" /> s</label>

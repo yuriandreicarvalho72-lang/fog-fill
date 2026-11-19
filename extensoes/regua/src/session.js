@@ -1,7 +1,7 @@
 // Uma medição ou um movimento em andamento: pontos fixos + ponto do cursor.
 // Roda tanto no background (modo nativo) quanto na camada sobre o mapa (botão direito).
 import OBR, { buildCurve, buildLabel, buildPath } from "@owlbear-rodeo/sdk";
-import { Keeper, ID } from "./shared.js";
+import { Keeper, ID, PATH_CHANNEL, HALT_CHANNEL } from "./shared.js";
 import { persistRuler } from "./persist.js";
 import { pathCells, pathCost, formatDistance, snapRelative, snapCenter, dotsToCommands } from "./geom.js";
 import { loadDifficult } from "./terrain.js";
@@ -179,10 +179,20 @@ export class RulerSession {
     let moved = false;
     if (this.token && path.length > 1) {
       const step = this.stepMs ?? 90;
+      const tokenId = this.token.id;
+      // Gatilhos (se instalado): avisa o caminho; se ele passar por uma armadilha que prende o token,
+      // chega um "parar" com o ponto onde ficar, e o resto do caminho é cortado
+      let halt = null;
+      let off = () => {};
+      try {
+        off = OBR.broadcast.onMessage(HALT_CHANNEL, (e) => { if (e.data?.tokenId === tokenId && e.data.at) halt = e.data; });
+        OBR.broadcast.sendMessage(PATH_CHANNEL, { tokenId, points: path }, { destination: "ALL" }).catch(() => {});
+      } catch { /* sem broadcast: anda normal */ }
+      const put = (p) => OBR.scene.items.updateItems([tokenId], (draft) => { for (const it of draft) it.position = p; });
       try {
         for (let i = 1; i < path.length; i++) {
-          const p = path[i];
-          await OBR.scene.items.updateItems([this.token.id], (draft) => { for (const it of draft) it.position = p; });
+          if (halt && i > (halt.upto ?? -1)) { await put(halt.at); break; }
+          await put(path[i]);
           if (i < path.length - 1 && step > 0) await new Promise((r) => setTimeout(r, step));
         }
         moved = true;
@@ -190,6 +200,8 @@ export class RulerSession {
         console.error(`[${ID}]`, e);
         OBR.notification.show("Régua: você não tem permissão para mover esse token.", "ERROR");
       }
+      // um "parar" que chegue depois disso é resolvido pelo próprio Gatilhos (ele devolve o token)
+      off();
     }
     if (this.persist && path.length > 1) {
       // fixa como desenho, com as medidas; aí o rastro temporário não é necessário
@@ -235,7 +247,7 @@ export async function showTrail({ points, text, color, dpi, ms }) {
 /** O item clicado pode ser arrastado pela régua? */
 export function movableToken(item, role) {
   if (!item || item.type !== "IMAGE") return false;
-  if (!["CHARACTER", "MOUNT", "PROP"].includes(item.layer)) return false;
+  if (!['CHARACTER', 'MOUNT', 'PROP'].includes(item.layer)) return false;
   if (item.locked && role !== "GM") return false;
   return true;
 }

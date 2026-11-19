@@ -25,3 +25,15 @@ ok('aproximar (2 quadrados) dispara', r.fire, true);
 const wire = new Map([['w', zoneShape({ type: 'LINE', position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, startPosition: { x: 450, y: 0 }, endPosition: { x: 450, y: 900 } })]]);
 r = evaluate({ zones: ['w'], cause: 'enter' }, [{ token: tok('a', 600, 300), from: { x: 300, y: 300 }, to: { x: 600, y: 300 } }], [], wire, {}, d);
 ok('fio cruzado dispara', r.fire, true);
+// caminho da Régua em L passando pela armadilha (300..450, 0..150) e parada em cima dela
+import { haltPoint, routeFromPlan } from '../src/engine.js';
+const plan = [{ x: 75, y: 375 }, { x: 375, y: 375 }, { x: 375, y: -225 }, { x: 75, y: -225 }];
+r = evaluate({ zones: ['trap'], cause: 'enter' }, [{ token: tok('a', 75, -225), from: plan[0], to: plan[3], route: plan }], [], zones, {}, d);
+ok('rota em L dispara', r.fire, true); ok('trecho da entrada = 2', r.seg, 2);
+ok('reta sem rota não pegaria', evaluate({ zones: ['trap'], cause: 'enter' }, [{ token: tok('a', 75, -225), from: plan[0], to: plan[3] }], [], zones, {}, d).fire, false);
+let hp = haltPoint(r, d, true); ok('para em cima: centro da casa da armadilha', `${hp.x},${hp.y}`, '375,75');
+ok('rota a partir do plano (lote)', JSON.stringify(routeFromPlan(plan, plan[0], plan[3])), JSON.stringify(plan));
+ok('rota até ponto no meio do trecho', routeFromPlan(plan, plan[1], { x: 375, y: 75 }).length, 2);
+ok('movimento fora do plano', routeFromPlan(plan, { x: 1, y: 1 }, plan[3]), null);
+r = evaluate({ zones: ['w'], cause: 'enter' }, [{ token: tok('a', 675, 300), from: { x: 375, y: 300 }, to: { x: 675, y: 300 } }], [], wire, {}, d);
+hp = haltPoint(r, d, true); ok('fio: para logo depois da linha', `${hp.x},${hp.y}`, '525,300');
