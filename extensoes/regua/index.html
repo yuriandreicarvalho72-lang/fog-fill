@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Régua</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Régua</h1>
+      <p class="hint">Atalho da ferramenta: <kbd>Q</kbd>. Escolha o modo na barra que aparece ao lado.</p>
+
+      <section class="pin">
+        <label class="check big"><input id="pin" type="checkbox" /> Manter no mapa, como desenho, com as medidas</label>
+        <small>Ao terminar, a régua, o caminho ou a área fica no mapa com as dimensões escritas (total no fim, cada trecho no meio). Também liga/desliga pelo alfinete na barra da régua.</small>
+        <div id="pin-what" class="sub">
+          <label class="check"><input id="pinMeasure" type="checkbox" /> Régua de medir distância</label>
+          <label class="check"><input id="pinPath" type="checkbox" /> Caminho percorrido pelo token</label>
+          <label class="check"><input id="pinAreas" type="checkbox" /> Áreas</label>
+        </div>
+        <small>Para apagar: a lixeira da barra apaga as suas; o mestre tem a lixeira vermelha, que apaga todas. Também dá para selecionar e apagar como qualquer desenho.</small>
+      </section>
+
+      <section>
+        <h2>Mover personagem e medir</h2>
+        <div class="keys">
+          <span>Clique no token</span><span>começa o movimento (no modo medir, clique no chão)</span>
+          <span><kbd>Esquerdo</kbd></span><span>cria um ponto no caminho</span>
+          <span id="k-confirm"><kbd>Direito</kbd></span><span>confirma: o token vai até o fim do caminho</span>
+          <span><kbd>Esc</kbd></span><span>cancela, o token volta</span>
+          <span><kbd>Backspace</kbd></span><span>desfaz o último ponto</span>
+          <span><kbd>Alt</kbd></span><span>segure para não encaixar na grade</span>
+        </div>
+        <label>Confirmar com
+          <select id="confirm">
+            <option value="right">botão direito do mouse</option>
+            <option value="native">duplo clique ou Enter</option>
+          </select>
+        </label>
+        <small id="confirm-hint"></small>
+        <label>Pausa entre pontos ao andar <output id="o-stepMs"></output>
+          <input id="stepMs" type="range" min="0" max="300" step="10" />
+        </label>
+        <small>O token anda ponto a ponto pelo caminho. Se ele ainda cortar caminho pela parede nas curvas, aumente a pausa; se quiser mais rápido, diminua.</small>
+      </section>
+
+      <section>
+        <h2>Visão e cobertura</h2>
+        <p class="hint">1º clique: de onde se olha (num token, sai do centro dele). Passe o mouse no alvo: raios até os 4 cantos do quadrado, <span style="color:#5fd35f">livre</span>, <span style="color:#e0cc3a">½</span>, <span style="color:#e0903a">¾</span> ou <span style="color:#e05252">total</span>. 2º clique congela; <kbd>Esc</kbd> limpa.</p>
+        <label class="check"><input id="visionShared" type="checkbox" /> Todos veem a checagem</label>
+        <label class="check"><input id="visionAll" type="checkbox" /> Anéis coloridos em todos os tokens (cobertura de cada um)</label>
+        <label>Raios até
+          <select id="visionTo">
+            <option value="corners">os 4 cantos do alvo (regra do D&amp;D)</option>
+            <option value="center">só o centro do alvo</option>
+          </select>
+        </label>
+        <small>Paredes do Dynamic Fog e do Smoke &amp; Spectre bloqueiam. Coberturas marcadas no Peekaboo continuam valendo.</small>
+        <div id="gm-vision" hidden>
+          <label class="check"><input id="charactersCover" type="checkbox" /> Criaturas no caminho dão cobertura (mestre)</label>
+          <label>Solidez das criaturas <output id="o-characterSolidity"></output>
+            <input id="characterSolidity" type="range" min="0.1" max="1" step="0.05" />
+          </label>
+          <small>Para móveis, carros, muretas: desenhe uma linha ou forma, botão direito → <b>Virar meia cobertura</b> ou <b>cobertura ¾</b>.</small>
+        </div>
+      </section>
+
+      <section>
+        <h2>Áreas (D&amp;D)</h2>
+        <p class="hint">1º clique: origem (num token, sai do centro dele). Mova para o tamanho e a direção. 2º clique: termina (e fixa, se "Manter no mapa" estiver ligado). <kbd>Esc</kbd> cancela.</p>
+        <label>Quadrados atingidos
+          <select id="cellRule">
+            <option value="center">o centro do quadrado está dentro</option>
+            <option value="half">metade do quadrado coberta</option>
+            <option value="touch">qualquer parte tocada</option>
+          </select>
+        </label>
+        <label class="check"><input id="showCells" type="checkbox" /> Destacar os quadrados atingidos</label>
+        <label class="check"><input id="difficult" type="checkbox" /> As próximas áreas fixadas viram <b>terreno difícil</b></label>
+        <small>Terreno difícil fica no mapa (tracejado, cor de terra) e a régua de mover/medir conta esses quadrados em dobro (o rótulo ganha ⛰). Atalho: segure <kbd>Shift</kbd> no 2º clique. Numa área já fixada: botão direito → <b>Virar terreno difícil</b>.</small>
+        <label>Opacidade <output id="o-areaOpacity"></output>
+          <input id="areaOpacity" type="range" min="0.05" max="0.6" step="0.01" />
+        </label>
+        <label>Largura da linha <output id="o-lineWidth"></output>
+          <input id="lineWidth" type="range" min="1" max="6" step="1" />
+        </label>
+        <small>As áreas ficam na camada de desenho: dá para mover ou apagar como qualquer desenho, ou usar a lixeira da barra.</small>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>

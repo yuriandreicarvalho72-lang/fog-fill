@@ -1,0 +1,22 @@
+{
+  "name": "fog-fill",
+  "version": "1.2.0",
+  "description": "Balde de Fog: extensão do Owlbear Rodeo que preenche áreas do mapa com fog por cor.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:root": "BASE=/ vite build --outDir dist-raiz",
+    "test": "node test/run.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@owlbear-rodeo/sdk": "^3.1.0"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0",
+    "vite": "^5.4.21"
+  },
+  "private": true
+}
