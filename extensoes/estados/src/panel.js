@@ -8,6 +8,12 @@ let groups = [];
 let open = null;
 let counts = new Map(); // grupoId -> nº de itens
 let buttons = new Map(); // grupoId -> nº de botões
+let memberList = new Map(); // grupoId -> [{ id, name, layer, visible }]
+let buttonList = new Map(); // grupoId -> [{ id, name, layer, visible }]
+let selected = new Set();   // o que está selecionado no mapa agora (para destacar na lista)
+
+const LAYER_ICON = { MAP: "🗺️", CHARACTER: "🧍", MOUNT: "🐎", PROP: "📦", DRAWING: "✏️", FOG: "🌫️", NOTE: "📝", TEXT: "🔤", ATTACHMENT: "📎", POPOVER: "💬" };
+const itemName = (it) => it.text?.plainText?.trim() || it.name || it.type;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
@@ -22,12 +28,26 @@ const setState = (g, to) => OBR.broadcast.sendMessage(CH_SET, { group: g.id, to 
 const selection = async () => (await OBR.player.getSelection()) || [];
 
 function recount(items) {
-  counts = new Map(); buttons = new Map();
+  counts = new Map(); buttons = new Map(); memberList = new Map(); buttonList = new Map();
+  const push = (m, gid, it) => { if (!m.has(gid)) m.set(gid, []); m.get(gid).push({ id: it.id, name: itemName(it), layer: it.layer, visible: it.visible !== false }); };
   for (const it of items) {
-    for (const gid of Object.keys(it.metadata?.[DATA] || {})) counts.set(gid, (counts.get(gid) || 0) + 1);
+    for (const gid of Object.keys(it.metadata?.[DATA] || {})) { counts.set(gid, (counts.get(gid) || 0) + 1); push(memberList, gid, it); }
     const b = it.metadata?.[BUTTON];
-    if (b) buttons.set(b.group, (buttons.get(b.group) || 0) + 1);
+    if (b) { buttons.set(b.group, (buttons.get(b.group) || 0) + 1); push(buttonList, b.group, it); }
   }
+  for (const m of [memberList, buttonList]) for (const l of m.values()) l.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Lista clicável: clicar seleciona o item no mapa; ✕ tira do grupo (ou deixa de ser botão). */
+function itemRows(list, kind) {
+  if (!list?.length) return `<p class="hint">${kind === "btn" ? "Nenhum botão neste grupo." : "Nenhum item ainda: selecione no mapa e clique em + seleção."}</p>`;
+  return `<div class="mlist">${list.map((m) => `
+    <div class="mrow${selected.has(m.id) ? " sel" : ""}" data-pick="${m.id}" title="Clique para selecionar no mapa">
+      <span class="ico">${LAYER_ICON[m.layer] || "•"}</span>
+      <span class="mname">${esc(m.name)}</span>
+      ${m.visible ? "" : '<span class="tag">escondido</span>'}
+      <button type="button" class="x" data-un${kind}="${m.id}" title="${kind === "btn" ? "Deixa de ser botão" : "Tirar do grupo"}">✕</button>
+    </div>`).join("")}</div>`;
 }
 
 /** Põe/tira itens do grupo. */
@@ -83,7 +103,8 @@ function card(g) {
       </div>
       <label class="check"><input type="checkbox" data-k="wrap" ${g.wrap !== false ? "checked" : ""} /> Depois do último, ▶ volta para o primeiro</label>
       <h3>Itens do grupo</h3>
-      <div class="row"><button type="button" data-mem="add">+ seleção</button><button type="button" data-mem="del">− seleção</button><button type="button" data-mem="show">mostrar no mapa</button></div>
+      <div class="row"><button type="button" data-mem="add">+ seleção</button><button type="button" data-mem="del">− seleção</button><button type="button" data-mem="show">selecionar todos</button></div>
+      ${itemRows(memberList.get(g.id), "mem")}
       <h3>Botão no mapa</h3>
       <p class="hint">O item selecionado vira um botão: quando alguém clica nele (jogador ou você, em jogo), o grupo troca de estado. Ex.: uma alavanca.</p>
       <div class="row">
@@ -91,6 +112,7 @@ function card(g) {
         <button type="button" data-btn="make">Virar botão</button>
         <button type="button" class="mini" data-btn="undo" title="O item selecionado deixa de ser botão">desfazer</button>
       </div>
+      ${itemRows(buttonList.get(g.id), "btn")}
       <div class="row"><button type="button" class="danger" data-del-group>Apagar grupo</button></div>
     </div>` : ""}`;
 
@@ -162,6 +184,16 @@ function card(g) {
     const sel = await selection();
     if (sel.length) await OBR.scene.items.updateItems(sel, (d) => { for (const it of d) it.metadata[BUTTON] = undefined; });
   });
+  for (const row of div.querySelectorAll("[data-pick]")) {
+    row.addEventListener("click", (ev) => {
+      if (ev.target.closest("button")) return;
+      OBR.player.select([row.dataset.pick], true);
+    });
+  }
+  for (const b of div.querySelectorAll("[data-unmem]")) b.addEventListener("click", () => removeMembers(g.id, [b.dataset.unmem]));
+  for (const b of div.querySelectorAll("[data-unbtn]")) {
+    b.addEventListener("click", () => OBR.scene.items.updateItems([b.dataset.unbtn], (d) => { for (const it of d) it.metadata[BUTTON] = undefined; }));
+  }
   div.querySelector("[data-del-group]")?.addEventListener("click", async () => {
     const m = await members(g.id);
     await removeMembers(g.id, m.map((i) => i.id));
@@ -200,10 +232,19 @@ OBR.onReady(async () => {
     if (!document.activeElement || !["INPUT", "SELECT"].includes(document.activeElement.tagName)) render();
   });
   let lastCount = "";
+  const typing = () => document.activeElement && ["INPUT", "SELECT"].includes(document.activeElement.tagName);
   OBR.scene.items.onChange((items) => {
     recount(items);
-    const k = JSON.stringify([...counts, ...buttons]);
-    if (k !== lastCount) { lastCount = k; render(); }
+    // redesenha só se a lista de itens mudou (nome, entrou/saiu, escondido), e não enquanto você digita
+    const k = JSON.stringify([...memberList, ...buttonList]);
+    if (k !== lastCount && !typing()) { lastCount = k; render(); }
+  });
+  // destaca na lista o que está selecionado no mapa
+  OBR.player.onChange((p) => {
+    const next = new Set(p.selection || []);
+    if ([...next].join() === [...selected].join()) return;
+    selected = next;
+    for (const row of document.querySelectorAll("[data-pick]")) row.classList.toggle("sel", selected.has(row.dataset.pick));
   });
   $("new").addEventListener("click", async () => {
     const sel = await selection();
