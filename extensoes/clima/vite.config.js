@@ -13,7 +13,7 @@ function manifest() {
         version: "1.0.0",
         manifest_version: 1,
         author: "Yuri",
-        description: "Climas animados em mapas e zonas: chuva, tempestade com relâmpago, chuva ácida, neve, brasas, cinzas, fumaça, gás tóxico, areia, esporos, Matrix, pulso do chefe e mais.",
+        description: "Climas animados em mapas e zonas: chuva, tempestade, neve, brasas, fumaça, gás, Matrix, pulso do chefe e mais.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
         action: { title: "Clima", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 420, width: 320 },
