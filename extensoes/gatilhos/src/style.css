@@ -57,3 +57,9 @@ button.danger { color: #ff7a7a; }
 #log { font-size: 12px; font-variant-numeric: tabular-nums; }
 .chip.actor { background: var(--accent); color: #111; font-weight: 600; }
 .hint.warn { color: #ffb36b; }
+.mlist { margin: 6px 0; border: 1px solid var(--line); border-radius: 6px; }
+.mrow { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.mrow:last-child { border-bottom: 0; }
+.mrow .mname { flex: 1; }
+.mrow .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; }
+button:disabled { opacity: .45; cursor: default; }
