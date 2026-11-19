@@ -78,13 +78,19 @@ export function buildShot(spec) {
   const spd = Math.max(0.25, Math.min(3, spec.speed ?? 1));
   const color = spec.color || P.color;
   const els = [];
-  const add = (e) => { els.push(e); return e; };
+  // cada elemento leva uma etiqueta (muzzle, tracer, impact...) para a camada de vídeo (jb2a.js)
+  // poder trocar só algumas partes; a etiqueta da função mais de fora vale.
+  let tag = "";
+  const add = (e) => { e.tag = tag || "misc"; els.push(e); return e; };
+  const T = (name, fn) => (...a) => { if (tag) return fn(...a); tag = name; try { return fn(...a); } finally { tag = ""; } };
+  const shotLog = []; // cada tiro: { t, from, to, target, hit, pellets? }
+  const landLog = []; // granadas, foguetes, jatos: { t, from, dest, target }
   const from = spec.from;
   const targets = spec.targets?.length ? spec.targets : [{ at: V.add(from, { x: cell * 4, y: 0 }), kind: "ground" }];
   const gore = spec.gore !== false, casings = spec.casings !== false && P.casing;
 
   // ---------- primitivos ----------
-  const muzzle = (t, dir, size) => {
+  const muzzle = T("muzzle", (t, dir, size) => {
     if (size <= 0) return;
     const s = size * cell * I, at = V.add(from, V.mul(dir, cell * 0.45)), d = 0.07;
     const spikes = [];
@@ -100,9 +106,9 @@ export function buildShot(spec) {
       return { pts: spikes.map((p) => V.lerp(at, p, 0.4 + 0.6 * k)), closed: true, fill: "#fff3c4", fillOpacity: 0.95 * k, stroke: color, strokeOpacity: 0.8 * k, strokeWidth: cell * 0.02 };
     } });
     add({ kind: "circle", t0: t, t1: t + d * 2.2, frame: (u) => ({ c: at, r: s * (0.5 + 0.5 * u), fill: color, fillOpacity: 0.35 * (1 - u), strokeOpacity: 0 }) });
-  };
+  });
 
-  const tracer = (t, a, b, w, col = color, speedCells = P.speed) => {
+  const tracer = T("tracer", (t, a, b, w, col = color, speedCells = P.speed) => {
     const dist = V.len(V.sub(b, a));
     const travel = Math.max(0.04, dist / (speedCells * cell * spd));
     const tail = Math.min(dist, cell * (1.2 + speedCells / 40));
@@ -120,9 +126,9 @@ export function buildShot(spec) {
       } });
     }
     return t + travel;
-  };
+  });
 
-  const sparks = (t, at, dirIn, n, size, col = "#ffd36b") => {
+  const sparks = T("impact", (t, at, dirIn, n, size, col = "#ffd36b") => {
     for (let i = 0; i < n; i++) {
       const back = V.mul(dirIn, -1);
       const ang = (R() - 0.5) * Math.PI * 1.3;
@@ -135,9 +141,9 @@ export function buildShot(spec) {
       } });
     }
     add({ kind: "circle", t0: t, t1: t + 0.12, frame: (tt) => { const u = (tt - t) / 0.12; return { c: at, r: cell * size * 0.6 * (0.6 + u), fill: "#fff6d0", fillOpacity: 0.8 * (1 - u), strokeOpacity: 0 }; } });
-  };
+  });
 
-  const blood = (t, at, dirIn, size) => {
+  const blood = T("impact", (t, at, dirIn, size) => {
     if (!gore) { sparks(t, at, dirIn, 3, size * 0.6, "#ff6b6b"); return; }
     const n = Math.round(5 + 4 * I);
     for (let i = 0; i < n; i++) {
@@ -150,9 +156,9 @@ export function buildShot(spec) {
         return { c: V.add(at, V.mul(off, grow)), r: r * (0.4 + 0.6 * grow), fill: i % 3 ? "#8a0f12" : "#b3171b", fillOpacity: 0.85 * (1 - clamp01((u - 0.5) * 2)), strokeOpacity: 0 };
       } });
     }
-  };
+  });
 
-  const dust = (t, at, size, col = "#a8987e") => {
+  const dust = T("impact", (t, at, size, col = "#a8987e") => {
     for (let i = 0; i < 5; i++) {
       const off = V.mul(V.rot({ x: 1, y: 0 }, R() * Math.PI * 2), cell * size * R() * 0.6);
       const life = 0.5 + R() * 0.4;
@@ -161,14 +167,14 @@ export function buildShot(spec) {
         return { c: V.add(at, V.mul(off, 1 + u)), r: cell * size * (0.2 + 0.5 * easeOut(u)), fill: col, fillOpacity: 0.55 * (1 - u), strokeOpacity: 0 };
       } });
     }
-  };
+  });
 
-  const ricochet = (t, at, dirIn) => {
+  const ricochet = T("impact", (t, at, dirIn) => {
     const out = V.rot(V.mul(dirIn, -1), (R() > 0.5 ? 1 : -1) * (0.6 + R() * 0.9));
     tracer(t, at, V.add(at, V.mul(out, cell * (1.5 + R()))), P.w * 0.7, "#ffe3a0", 30);
-  };
+  });
 
-  const casing = (t, dir) => {
+  const casing = T("casing", (t, dir) => {
     if (!casings) return;
     const side = V.perp(dir);
     const v = V.add(V.mul(side, cell * (0.9 + R() * 0.6)), V.mul(dir, -cell * 0.3 * R()));
@@ -178,27 +184,27 @@ export function buildShot(spec) {
       const hop = Math.sin(u * Math.PI) * cell * 0.35;
       return { c: V.add(V.add(from, V.mul(v, easeOut(u))), { x: 0, y: -hop }), r: cell * 0.035, fill: "#d4a640", fillOpacity: 1 - clamp01(((tt - t) - 1.0) / 0.6), strokeOpacity: 0 };
     } });
-  };
+  });
 
-  const impact = (t, tg, dirIn, hit, size) => {
+  const impact = T("impact", (t, tg, dirIn, hit, size) => {
     if (!hit) { dust(t, tg.at, size * 0.8); if (R() < 0.6) ricochet(t, tg.at, dirIn); return; }
     if (P.soft) { dust(t, tg.at, size * 0.7, "#cfcfcf"); return; }
     if (tg.kind === "metal") sparks(t, tg.at, dirIn, Math.round(6 * I), size);
     else if (tg.kind === "flesh") blood(t, tg.at, dirIn, size);
     else dust(t, tg.at, size);
-  };
+  });
 
-  const flashCircle = (t, at, rad, life, col, op = 0.9) => add({ kind: "circle", t0: t, t1: t + life, frame: (tt) => {
+  const flashCircle = T("flash", (t, at, rad, life, col, op = 0.9) => add({ kind: "circle", t0: t, t1: t + life, frame: (tt) => {
     const u = (tt - t) / life;
     return { c: at, r: rad * (0.3 + 0.7 * easeOut(clamp01(u * 3))), fill: col, fillOpacity: op * (1 - u), strokeOpacity: 0 };
-  } });
+  } }));
 
-  const ring = (t, at, rad, life, col, w = 0.05) => add({ kind: "circle", t0: t, t1: t + life, frame: (tt) => {
+  const ring = T("flash", (t, at, rad, life, col, w = 0.05) => add({ kind: "circle", t0: t, t1: t + life, frame: (tt) => {
     const u = (tt - t) / life;
     return { c: at, r: rad * easeOut(u), fillOpacity: 0, stroke: col, strokeOpacity: 0.9 * (1 - u), strokeWidth: cell * w * I };
-  } });
+  } }));
 
-  const explosion = (t, at, size) => {
+  const explosion = T("boom", (t, at, size) => {
     const Rr = cell * size * I;
     flashCircle(t, at, Rr, 0.35, "#fff2b0", 0.95);
     ring(t, at, Rr * 1.5, 0.45, "#ffd27a", 0.06);
@@ -227,9 +233,9 @@ export function buildShot(spec) {
         return { a: p, b: V.add(p, V.mul(v, 0.1)), color: "#ffd36b", width: Math.max(1.5, cell * 0.025), opacity: 1 - u };
       } });
     }
-  };
+  });
 
-  const cloud = (t, at, radius, col, dur, sparkle = null) => {
+  const cloud = T("cloud", (t, at, radius, col, dur, sparkle = null) => {
     const Rr = cell * radius;
     const n = 14;
     for (let i = 0; i < n; i++) {
@@ -253,9 +259,9 @@ export function buildShot(spec) {
         } });
       }
     }
-  };
+  });
 
-  const lob = (t, a, b, size, col, dur) => {
+  const lob = T("lob", (t, a, b, size, col, dur) => {
     // trajetória em arco (vista de cima: sobe na tela e desce no alvo)
     const dist = V.len(V.sub(b, a)), H = dist * 0.28;
     const pos = (u) => V.add(V.lerp(a, b, u), { x: 0, y: -4 * H * u * (1 - u) });
@@ -268,9 +274,9 @@ export function buildShot(spec) {
       } });
     }
     return t + dur;
-  };
+  });
 
-  const beam = (t, a, b, w, col, life) => {
+  const beam = T("beam", (t, a, b, w, col, life) => {
     for (const [ww, op] of [[w * 3.5, 0.28], [w, 1]]) {
       add({ kind: "line", t0: t, t1: t + life, frame: (tt) => {
         const u = (tt - t) / life;
@@ -279,7 +285,7 @@ export function buildShot(spec) {
       } });
     }
     add({ kind: "line", t0: t, t1: t + life, frame: (tt) => ({ a, b, color: col, width: Math.max(1.5, w * 1.6 * cell * I), opacity: 0.8 * (1 - (tt - t) / life) }) });
-  };
+  });
 
   const zigzag = (a, b, jitter, segs, k) => {
     const r = rng(k);
@@ -289,16 +295,16 @@ export function buildShot(spec) {
     pts.push(b);
     return pts;
   };
-  const arc = (t, a, b, col, life, jitterCells = 0.5) => {
+  const arc = T("arc", (t, a, b, col, life, jitterCells = 0.5) => {
     for (const [ww, op] of [[0.11, 0.25], [0.035, 1]]) {
       add({ kind: "path", t0: t, t1: t + life, frame: (tt) => {
         const f = Math.floor((tt - t) * 30);
         return { pts: zigzag(a, b, cell * jitterCells, 9, (spec.seed || 1) * 31 + f), closed: false, fillOpacity: 0, stroke: ww > 0.05 ? col : "#ffffff", strokeOpacity: op, strokeWidth: Math.max(1.5, ww * cell * I) };
       } });
     }
-  };
+  });
 
-  const spray = (t, a, b, kind, life) => {
+  const spray = T("spray", (t, a, b, kind, life) => {
     const dir = V.norm(V.sub(b, a)), dist = Math.max(cell * 2, V.len(V.sub(b, a)));
     const pal = {
       flame: ["#fff3a0", "#ffb000", "#ff6a00", "#b8320a", "#3a2a24"],
@@ -324,7 +330,7 @@ export function buildShot(spec) {
       cloud(t + life * 0.6, b, 0.7, col, kind === "foam" ? 6 : 2);
     }
     return t + life;
-  };
+  });
 
   // ---------- coreografia por tipo ----------
   const mode = spec.mode || "single";
@@ -337,9 +343,11 @@ export function buildShot(spec) {
 
   if (P.laser) {
     // mira laser antes do tiro
+    tag = "sight";
     const t0 = 0, t1 = 0.65;
     add({ kind: "line", t0, t1, frame: (tt) => ({ a: V.add(from, V.mul(firstDir, cell * 0.4)), b: targets[0].at, color: "#ff2030", width: Math.max(1.5, cell * 0.012), opacity: 0.55 + 0.35 * Math.sin(tt * 40) }) });
     add({ kind: "circle", t0, t1, frame: (tt) => ({ c: targets[0].at, r: cell * 0.06, fill: "#ff2030", fillOpacity: 0.9, strokeOpacity: 0 }) });
+    tag = "";
     start = t1;
   }
 
@@ -355,10 +363,11 @@ export function buildShot(spec) {
   };
 
   if (P.spray) {
-    for (const tg of targets) spray(start, from, tg.at, P.spray, 0.95);
+    for (const tg of targets) { landLog.push({ t: start, from, dest: tg.at, target: tg }); spray(start, from, tg.at, P.spray, 0.95); }
   } else if (P.lob) {
     for (const tg of targets) {
       const dest = hit ? tg.at : aimPoint(tg, 0, 1);
+      landLog.push({ t: start, from, dest, target: tg, lobLand: start + 0.75 });
       if (!P.thrown) muzzle(start, V.norm(V.sub(dest, from)), P.flash * 0.6);
       const land = lob(start, V.add(from, V.mul(V.norm(V.sub(dest, from)), cell * 0.4)), dest, 0.09, P.lob === "flashbang" ? "#e8e8e8" : P.lob === "smoke" ? "#6f7a73" : "#3d4a2f", 0.75);
       if (P.lob === "frag") explosion(land, dest, 1.6);
@@ -371,7 +380,9 @@ export function buildShot(spec) {
     for (const tg of targets) {
       const dest = hit ? tg.at : aimPoint(tg, 0, 1);
       const dir = V.norm(V.sub(dest, from));
+      landLog.push({ t: start, from, dest, target: tg });
       muzzle(start, V.mul(dir, -1), P.flash); // jato de trás
+      tag = "rocket";
       const a = V.add(from, V.mul(dir, cell * 0.5));
       const dist = V.len(V.sub(dest, a)), dur = dist / (P.speed * cell * spd);
       add({ kind: "circle", t0: start, t1: start + dur, frame: (tt) => ({ c: V.lerp(a, dest, (tt - start) / dur), r: cell * 0.09, fill: "#ffe7a0", fillOpacity: 1, stroke: "#ff7a1a", strokeOpacity: 1, strokeWidth: cell * 0.04 }) });
@@ -379,6 +390,7 @@ export function buildShot(spec) {
         const u0 = k / 16, tb = start + dur * u0;
         add({ kind: "circle", t0: tb, t1: tb + 1.2, frame: (tt) => { const u = (tt - tb) / 1.2; return { c: V.lerp(a, dest, u0), r: cell * (0.08 + 0.25 * u), fill: "#9a9a9a", fillOpacity: 0.5 * (1 - u), strokeOpacity: 0 }; } });
       }
+      tag = "";
       explosion(start + dur, dest, 2.2);
     }
   } else {
@@ -389,14 +401,16 @@ export function buildShot(spec) {
       const p = aimPoint(tg, i, shots);
       const dir = V.norm(V.sub(p, from));
       const muzzleAt = V.add(from, V.mul(dir, cell * 0.45));
+      const rec = { t, i, from: muzzleAt, to: p, target: tg, hit };
+      shotLog.push(rec);
       muzzle(t, dir, P.flash * (i ? 0.85 : 1));
       if (P.beam) {
         beam(t, muzzleAt, p, P.w, color, P.rail ? 0.5 : 0.28);
-        if (P.rail) { ring(t, p, cell * 1.2, 0.5, "#e6f6ff", 0.05); add({ kind: "line", t0: t, t1: t + 1.4, frame: (tt) => ({ a: muzzleAt, b: p, color: "#bfe8ff", width: 2, opacity: 0.6 * (1 - (tt - t) / 1.4) }) }); }
+        if (P.rail) { ring(t, p, cell * 1.2, 0.5, "#e6f6ff", 0.05); T("beam", add)({ kind: "line", t0: t, t1: t + 1.4, frame: (tt) => ({ a: muzzleAt, b: p, color: "#bfe8ff", width: 2, opacity: 0.6 * (1 - (tt - t) / 1.4) }) }); }
         impact(t + 0.02, { ...tg, at: p }, dir, hit, P.impact);
       } else if (P.arc || P.taser) {
         const life = P.taser ? 0.9 : 0.45;
-        if (P.taser) for (const s of [-1, 1]) add({ kind: "line", t0: t, t1: t + life, frame: () => ({ a: muzzleAt, b: V.add(p, V.mul(V.perp(dir), s * cell * 0.08)), color: "#cfd8dc", width: 1.5, opacity: 0.9 }) });
+        if (P.taser) for (const s of [-1, 1]) T("wires", add)({ kind: "line", t0: t, t1: t + life, frame: () => ({ a: muzzleAt, b: V.add(p, V.mul(V.perp(dir), s * cell * 0.08)), color: "#cfd8dc", width: 1.5, opacity: 0.9 }) });
         arc(t + (P.taser ? 0.08 : 0), muzzleAt, p, color, life, P.taser ? 0.18 : 0.6);
         if (hit) sparks(t + 0.05, p, dir, 5, 0.3, color);
         if (P.arc && targets.length > 1 && i === 0) {
@@ -405,20 +419,23 @@ export function buildShot(spec) {
         }
       } else if (P.bolt) {
         const dist = V.len(V.sub(p, muzzleAt)), dur = dist / (P.speed * cell * spd);
+        tag = "bolt";
         add({ kind: "circle", t0: t, t1: t + dur, frame: (tt) => ({ c: V.lerp(muzzleAt, p, (tt - t) / dur), r: cell * P.w * I, fill: "#ffffff", fillOpacity: 1, stroke: color, strokeOpacity: 0.9, strokeWidth: cell * P.w * 0.9 * I }) });
         add({ kind: "line", t0: t, t1: t + dur, frame: (tt) => { const q = V.lerp(muzzleAt, p, (tt - t) / dur); return { a: V.sub(q, V.mul(dir, cell * 0.8)), b: q, color, width: cell * P.w * 1.2 * I, opacity: 0.45 }; } });
+        tag = "";
         flashCircle(t + dur, p, cell * P.impact * I, 0.35, color, 0.85);
         if (hit) impact(t + dur, { ...tg, at: p }, dir, true, P.impact * 0.7); else dust(t + dur, p, 0.4);
       } else if (P.pellets) {
         let end = t;
         for (let k = 0; k < P.pellets; k++) {
           const q = V.add(p, V.mul(V.rot({ x: 1, y: 0 }, R() * Math.PI * 2), cell * (0.15 + R() * 0.55)));
+          (rec.pellets ||= []).push(q);
           end = Math.max(end, tracer(t, muzzleAt, q, P.w));
           if (k < 4) impact(end, { ...tg, at: q }, dir, hit, P.impact);
         }
       } else {
         const end = tracer(t, muzzleAt, p, P.arrow ? P.w * 1.3 : P.w);
-        if (P.arrow) add({ kind: "line", t0: end, t1: end + 1.2, frame: (tt) => ({ a: V.sub(p, V.mul(dir, cell * 0.45)), b: p, color: "#8a6b45", width: Math.max(2, cell * 0.035), opacity: 1 - clamp01((tt - end - 0.8) / 0.4) }) });
+        if (P.arrow) T("arrow", add)({ kind: "line", t0: end, t1: end + 1.2, frame: (tt) => ({ a: V.sub(p, V.mul(dir, cell * 0.45)), b: p, color: "#8a6b45", width: Math.max(2, cell * 0.035), opacity: 1 - clamp01((tt - end - 0.8) / 0.4) }) });
         if (P.boom) explosion(end, p, P.boom); else impact(end, { ...tg, at: p }, dir, hit, P.impact);
       }
       if (i % (mode === "auto" || mode === "supp" ? 2 : 1) === 0) casing(t + 0.02, dir);
@@ -427,14 +444,16 @@ export function buildShot(spec) {
     if (mode === "supp") {
       // fogo de supressão: área tracejada que pisca sobre o alvo
       for (const tg of targets) {
+        tag = "supp";
         const pts = Array.from({ length: 24 }, (_, k) => V.add(tg.at, V.mul({ x: Math.cos((k / 24) * Math.PI * 2), y: Math.sin((k / 24) * Math.PI * 2) }, cell * 1.6)));
         add({ kind: "path", t0: start, t1: t + 1.8, frame: (tt) => ({ pts, closed: true, fill: "#ff3b30", fillOpacity: 0.08 + 0.08 * (Math.sin(tt * 18) > 0 ? 1 : 0), stroke: "#ff5a4a", strokeOpacity: 0.9, strokeWidth: cell * 0.04, dash: [cell * 0.18, cell * 0.12] }) });
+        tag = "";
       }
     }
   }
 
   const duration = els.reduce((m, e) => Math.max(m, e.t1), 0);
-  return { elements: els, duration };
+  return { elements: els, duration, shots: shotLog, lands: landLog, start };
 }
 
 /** Rótulo curto sobre o token (recarga, sem munição...). */

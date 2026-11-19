@@ -1,11 +1,12 @@
 {
   "name": "arsenal",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "test": "node test/fx.mjs"
+    "build": "node tools/baixar-jb2a.mjs && vite build",
+    "test": "node test/fx.mjs",
+    "jb2a": "node tools/baixar-jb2a.mjs"
   },
   "dependencies": {
     "@owlbear-rodeo/sdk": "^3.1.0"
