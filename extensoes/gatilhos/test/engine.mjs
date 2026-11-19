@@ -37,3 +37,15 @@ ok('rota até ponto no meio do trecho', routeFromPlan(plan, plan[1], { x: 375, y
 ok('movimento fora do plano', routeFromPlan(plan, { x: 1, y: 1 }, plan[3]), null);
 r = evaluate({ zones: ['w'], cause: 'enter' }, [{ token: tok('a', 675, 300), from: { x: 375, y: 300 }, to: { x: 675, y: 300 } }], [], wire, {}, d);
 hp = haltPoint(r, d, true); ok('fio: para logo depois da linha', `${hp.x},${hp.y}`, '525,300');
+// chegar perto passando ao lado (sem parar perto) e ponto onde entrou no raio
+import { circleEntry, formation } from '../src/engine.js';
+r = evaluate({ zones: ['trap'], cause: 'near', radius: 2.5 }, [{ token: tok('a', 975, 375), from: { x: -225, y: 375 }, to: { x: 975, y: 375 } }], [], zones, {}, d);
+ok('passar perto (sem parar) dispara', r.fire, true); ok('entrou no raio em x=150', Math.round(r.at.x), 150);
+ok('reta que não passa perto', circleEntry({ x: 0, y: 900 }, { x: 900, y: 900 }, { x: 375, y: 75 }, 300), null);
+// formação: dois tokens lado a lado vão juntos, sem sair do grid
+const f = formation([{ id: 'a', position: { x: 375, y: 75 } }, { id: 'b', position: { x: 525, y: 75 } }], { x: 1575, y: 975 });
+ok('formação: um no destino', JSON.stringify(f.get('a')), '{"x":1575,"y":975}'); ok('formação: o outro ao lado', JSON.stringify(f.get('b')), '{"x":1725,"y":975}');
+// placas: quem está em cima
+const st2 = {};
+r = evaluate({ zones: ['p1', 'p2'], cause: 'standAll' }, [{ token: tok('b', 675, 675) }], [tok('a', 75, 675), tok('b', 675, 675), tok('c', 75, 75)], zones, st2, d);
+ok('placas: quem ativou = os que estão em cima', JSON.stringify(r.on), '["a","b"]');

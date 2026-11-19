@@ -2,7 +2,7 @@
 // inclusive os que os jogadores fazem com os próprios tokens, sem depender de ferramenta especial.
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
-import { zoneShape, evaluate, haltPoint, routeFromPlan } from "./engine.js";
+import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation } from "./engine.js";
 import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, url, newTrigger, isToken } from "./shared.js";
 
 let role = "PLAYER";
@@ -23,14 +23,66 @@ const same = (a, b) => Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
  * (como na Régua), mas deixa um token escondido passar. Então esconde, pula e mostra de novo (só quem estava visível).
  */
 async function jump(ids, pos) {
+  // pos: um ponto para todos, ou Map(id -> ponto)
+  const at = (id) => (pos instanceof Map ? pos.get(id) : pos);
   const items = await OBR.scene.items.getItems(ids);
-  const go = items.filter((i) => !same(i.position, pos));
+  const go = items.filter((i) => at(i.id) && !same(i.position, at(i.id)));
   if (!go.length) return;
   const shown = go.filter((i) => i.visible !== false).map((i) => i.id);
   const all = go.map((i) => i.id);
   if (shown.length) await OBR.scene.items.updateItems(shown, (d) => { for (const it of d) it.visible = false; });
-  await OBR.scene.items.updateItems(all, (d) => { for (const it of d) it.position = { ...pos }; });
+  await OBR.scene.items.updateItems(all, (d) => { for (const it of d) it.position = { ...at(it.id) }; });
   if (shown.length) await OBR.scene.items.updateItems(shown, (d) => { for (const it of d) it.visible = true; });
+}
+
+/** Leva itens para um destino mantendo a formação, sem esbarrar em paredes, e segura eles lá por um instante. */
+async function sendTo(items, dest) {
+  const pos = formation(items, dest);
+  for (const [id, p] of pos) {
+    prevPos.set(id, { ...p });
+    frozen.set(id, { pos: { ...p }, until: Date.now() + FREEZE_MS });
+    plans.delete(id);
+    OBR.broadcast.sendMessage(CH_HALT, { tokenId: id, at: p, upto: -1 }, { destination: "ALL" }).catch(() => {});
+  }
+  return jump([...pos.keys()], pos);
+}
+
+const warn = (text) => OBR.notification.show(`Gatilhos: ${text}`, "WARNING");
+
+/**
+ * Quem "ativou" o gatilho. Com movimento é o token que se moveu (nas placas, todos que estão em cima delas).
+ * Sem movimento (só quando eu disparar, ⚡, a zona aparece/some): quem está em cima da zona;
+ * se a zona estiver vazia ou não houver zona, os tokens que o mestre tem selecionados.
+ * who: "actor" (essa regra) | "zone" (só quem está na zona) | "selected" (só a seleção do mestre)
+ */
+async function actors(trigger, ctx, who = "actor") {
+  // "quem ativou" é decidido uma vez por disparo: todos os efeitos falam das mesmas pessoas,
+  // mesmo que um teleporte anterior já tenha tirado elas da zona
+  if (who === "actor" && ctx.actorIds) {
+    const items = await OBR.scene.items.getItems(ctx.actorIds);
+    return items;
+  }
+  const items = await OBR.scene.items.getItems();
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const inZone = () => {
+    const shapes = (trigger.zones || []).map((id) => byId.get(id)).filter(Boolean).map((it) => zoneShape(it, dpi));
+    return shapes.length ? itemsInZones(items.filter(isToken).filter(allowedFor(trigger)), shapes) : [];
+  };
+  const selected = async () => ((await OBR.player.getSelection().catch(() => [])) || []).map((id) => byId.get(id)).filter(Boolean);
+  if (who === "zone") return inZone();
+  if (who === "selected") return selected();
+  if (ctx.on?.length) return ctx.on.map((id) => byId.get(id)).filter(Boolean);
+  if (ctx.by) return [byId.get(ctx.by.id)].filter(Boolean);
+  const z = inZone();
+  return z.length ? z : selected();
+}
+
+/** Itens de um efeito; "@quem" na lista vira quem ativou. */
+async function targetsOf(e, trigger, ctx) {
+  const ids = (e.targets || []).filter(Boolean);
+  if (!ids.includes("@quem")) return ids;
+  const who = (await actors(trigger, ctx)).map((i) => i.id);
+  return [...new Set([...ids.filter((x) => x !== "@quem"), ...who])];
 }
 
 /** Para o token em "pos": corta o resto do movimento da Régua e segura o token ali por um instante. */
@@ -68,16 +120,17 @@ async function run(trigger, ctx = {}, depth = 0) {
   if (trigger.once) saveTriggers((l) => l.map((t) => (t.id === trigger.id ? { ...t, armed: false } : t))).catch(() => {});
   log(`⚡ ${trigger.name}${ctx.by ? ` (por ${names(ctx.by)})` : ""}`);
   if (trigger.delay) await wait(trigger.delay);
+  if (!ctx.actorIds) ctx = { ...ctx, actorIds: (await actors(trigger, ctx).catch(() => [])).map((i) => i.id) };
   for (const e of trigger.effects || []) {
     const go = async () => {
-      try { await doEffect(e, ctx, depth); } catch (err) { console.error(`[${ID}]`, err); }
+      try { await doEffect(e, ctx, depth, trigger); } catch (err) { console.error(`[${ID}]`, err); }
     };
     if (e.delay) setTimeout(go, e.delay * 1000); else await go();
   }
 }
 
-async function doEffect(e, ctx, depth) {
-  const ids = (e.targets || []).filter(Boolean);
+async function doEffect(e, ctx, depth, trigger) {
+  const ids = await targetsOf(e, trigger, ctx);
   const upd = (fn) => (ids.length ? OBR.scene.items.updateItems(ids, (d) => { for (const it of d) fn(it); }) : null);
   switch (e.action) {
     case "show": return upd((it) => { it.visible = true; });
@@ -86,8 +139,15 @@ async function doEffect(e, ctx, depth) {
     case "lock": return upd((it) => { it.locked = true; });
     case "unlock": return upd((it) => { it.locked = false; });
     case "delete": return ids.length ? OBR.scene.items.deleteItems(ids) : null;
-    case "notify":
-      return OBR.broadcast.sendMessage(CH_NOTE, { text: e.text || "Algo aconteceu…", audience: e.audience || "all" }, { destination: "ALL" });
+    case "notify": {
+      let text = e.text || "Algo aconteceu…";
+      if (text.includes("{quem}")) {
+        const who = (await actors(trigger, ctx)).map(names);
+        const list = who.length > 1 ? `${who.slice(0, -1).join(", ")} e ${who[who.length - 1]}` : who[0] || "alguém";
+        text = text.replaceAll("{quem}", list);
+      }
+      return OBR.broadcast.sendMessage(CH_NOTE, { text, audience: e.audience || "all" }, { destination: "ALL" });
+    }
     case "lightning":
       return OBR.broadcast.sendMessage(CLIMA_FLASH, {}, { destination: "ALL" });
     case "weatherOn":
@@ -96,23 +156,26 @@ async function doEffect(e, ctx, depth) {
     case "lightColor":
       return upd((it) => { it.metadata[LUZ] = { ...(it.metadata[LUZ] || { intensity: 0.7 }), color: e.color, anim: e.anim || "none" }; });
     case "teleport": {
-      if (!ctx.by || !e.dest) return;
+      if (!e.dest) return warn(`"${trigger.name}": o teleporte está sem destino.`);
       const [dest] = await OBR.scene.items.getItems([e.dest]);
-      if (!dest) return;
-      return haltToken(ctx.by.id, dest.position);
+      if (!dest) return warn(`"${trigger.name}": o destino do teleporte foi apagado.`);
+      const who = (await actors(trigger, ctx, e.who || "actor")).filter((i) => i.id !== dest.id);
+      if (!who.length) {
+        return warn(`"${trigger.name}": ninguém para teleportar. Sem movimento, ele leva quem está em cima da zona; se ela estiver vazia, os tokens que você selecionar.`);
+      }
+      return sendTo(who, dest.position);
     }
     case "moveTo": {
       if (!e.dest || !ids.length) return;
       const [dest] = await OBR.scene.items.getItems([e.dest]);
       if (!dest) return;
-      for (const id of ids) {
-        prevPos.set(id, { ...dest.position });
-        frozen.set(id, { pos: { ...dest.position }, until: Date.now() + FREEZE_MS });
-      }
-      return jump(ids, dest.position);
+      return sendTo(await OBR.scene.items.getItems(ids), dest.position);
     }
     case "stop": {
-      if (!ctx.by || !ctx.at || !ctx.from) return;
+      if (!ctx.by || !ctx.from) return depth ? null : warn(`"${trigger.name}": "Barrar" só funciona quando alguém se move (entrar, sair ou chegar perto).`);
+      // sair: volta para onde estava, ainda dentro
+      if ((ctx.cause || trigger.cause) === "leave") return haltToken(ctx.by.id, ctx.from);
+      if (!ctx.at) return;
       // volta meio quadrado antes da entrada e encaixa mantendo o alinhamento de onde o token veio
       const dx = ctx.at.x - ctx.from.x, dy = ctx.at.y - ctx.from.y, L = Math.hypot(dx, dy) || 1;
       let p = { x: ctx.at.x - (dx / L) * dpi * 0.5, y: ctx.at.y - (dy / L) * dpi * 0.5 };
@@ -200,7 +263,7 @@ function check(items) {
     const h = r.by && halts.get(r.by.id);
     if (h && r.dist != null && r.dist > h.dist + 1e-6) continue; // o token não chegou até aqui
     if (tr.once) tr.armed = false; // evita disparo duplo antes do metadado voltar
-    run(tr, { by: r.by, at: r.at, from: r.from });
+    run(tr, { by: r.by, at: r.at, from: r.from, on: r.on, cause: tr.cause });
   }
 }
 

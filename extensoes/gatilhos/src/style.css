@@ -55,3 +55,5 @@ input[type=number] { width: 58px; background: var(--btn); color: var(--fg); bord
 label.inline { display: inline-flex; gap: 4px; align-items: center; margin: 6px 0 0; color: var(--muted); }
 button.danger { color: #ff7a7a; }
 #log { font-size: 12px; font-variant-numeric: tabular-nums; }
+.chip.actor { background: var(--accent); color: #111; font-weight: 600; }
+.hint.warn { color: #ffb36b; }

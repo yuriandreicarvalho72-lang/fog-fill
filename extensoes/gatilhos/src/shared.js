@@ -32,8 +32,8 @@ export const ACTIONS = [
   { id: "hide", label: "Esconder itens", need: ["targets"] },
   { id: "toggle", label: "Alternar visível/escondido", need: ["targets"] },
   { id: "notify", label: "Mensagem na tela", need: ["text", "audience"] },
-  { id: "stop", label: "Barrar: o token para na entrada", need: [] },
-  { id: "teleport", label: "Teleportar quem ativou para…", need: ["dest"] },
+  { id: "stop", label: "Barrar: o token para na entrada", need: ["moving"] },
+  { id: "teleport", label: "Teleportar para…", need: ["who", "dest"] },
   { id: "moveTo", label: "Mover itens para…", need: ["targets", "dest"] },
   { id: "lock", label: "Travar itens", need: ["targets"] },
   { id: "unlock", label: "Destravar itens", need: ["targets"] },
@@ -62,8 +62,17 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", delay: 0 };
 }
+
+// quem o teleporte leva
+export const WHO = [
+  ["actor", "quem ativou"],
+  ["zone", "todos em cima da zona"],
+  ["selected", "os tokens que eu tiver selecionado"],
+];
+export const ACTOR = "@quem"; // item especial nas listas de itens: quem ativou
+export const MOVING = ["enter", "leave", "near"]; // causas com movimento (dá para barrar)
 
 /** Pode disparar gatilho: tokens de personagem/montaria. */
 export const isToken = (i) => i.type === "IMAGE" && (i.layer === "CHARACTER" || i.layer === "MOUNT");

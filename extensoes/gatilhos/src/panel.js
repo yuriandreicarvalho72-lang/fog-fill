@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, newTrigger, newEffect, applyTheme } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 let list = [];
@@ -10,7 +10,7 @@ let estados = [];         // grupos da extensão Estados
 const logLines = [];
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const nameOf = (id) => itemNames.get(id) || "(item apagado)";
+const nameOf = (id) => (id === ACTOR ? "⚑ quem ativou" : itemNames.get(id) || "(item apagado)");
 
 async function refreshNames() {
   const items = await OBR.scene.items.getItems();
@@ -26,9 +26,10 @@ function save(now = false) {
 
 async function selection() { return (await OBR.player.getSelection()) || []; }
 
-function chips(ids, key) {
-  return `<div class="chips">${(ids || []).map((id) => `<span class="chip">${esc(nameOf(id))}</span>`).join("") || '<span class="hint">nenhum</span>'}
-    <button type="button" class="mini" data-sel="${key}" title="Usar os itens selecionados no mapa">usar seleção</button></div>`;
+function chips(ids, key, actor = false) {
+  return `<div class="chips">${(ids || []).map((id) => `<span class="chip${id === ACTOR ? " actor" : ""}">${esc(nameOf(id))}</span>`).join("") || '<span class="hint">nenhum</span>'}
+    <button type="button" class="mini" data-sel="${key}" title="Usar os itens selecionados no mapa">usar seleção</button>
+    ${actor ? `<button type="button" class="mini" data-actor="${key}" title="Inclui (ou tira) quem ativou o gatilho">${(ids || []).includes(ACTOR) ? "− quem ativou" : "+ quem ativou"}</button>` : ""}</div>`;
 }
 
 function effectRow(t, e) {
@@ -39,9 +40,12 @@ function effectRow(t, e) {
       <select data-ek="action">${ACTIONS.map((x) => `<option value="${x.id}" ${x.id === e.action ? "selected" : ""}>${x.label}</option>`).join("")}</select>
       <button type="button" class="x" data-del-effect title="Remover efeito">✕</button>
     </div>
-    ${need.has("targets") ? `<div class="sub">Itens: ${chips(e.targets, `e:${e.id}:targets`)}</div>` : ""}
+    ${need.has("targets") ? `<div class="sub">Itens: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
+    ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
+    ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
+    ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
     ${need.has("dest") ? `<div class="sub">Destino: ${chips(e.dest ? [e.dest] : [], `e:${e.id}:dest`)}</div>` : ""}
-    ${need.has("text") ? `<input type="text" data-ek="text" value="${esc(e.text)}" placeholder="${e.action === "broadcast" ? "dados (texto ou JSON)" : "Texto que aparece na tela"}" />` : ""}
+    ${need.has("text") ? `<input type="text" data-ek="text" value="${esc(e.text)}" placeholder="${e.action === "broadcast" ? "dados (texto ou JSON)" : "Texto na tela ({quem} = nome de quem ativou)"}" />` : ""}
     ${need.has("channel") ? `<input type="text" data-ek="channel" value="${esc(e.channel)}" placeholder="canal (ex.: minha-extensao/evento)" />` : ""}
     ${need.has("audience") ? `<select data-ek="audience"><option value="all" ${e.audience !== "gm" ? "selected" : ""}>para todos</option><option value="gm" ${e.audience === "gm" ? "selected" : ""}>só para o mestre</option></select>` : ""}
     ${need.has("color") ? `<div class="row"><input type="color" data-ek="color" value="${esc(e.color)}" /><select data-ek="anim">${ANIMS.map(([v, l]) => `<option value="${v}" ${v === e.anim ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
@@ -62,14 +66,14 @@ function card(t) {
     <div class="head">
       <input type="checkbox" data-k="armed" title="Armado" ${t.armed ? "checked" : ""} />
       <button type="button" class="name">${esc(t.name)}<small>${esc(cause)} · ${t.effects?.length || 0} efeito(s)${t.armed ? "" : " · desarmado"}</small></button>
-      <button type="button" class="mini fire" title="Disparar agora (teste)">⚡</button>
+      <button type="button" class="mini fire" title="Disparar agora. Sem movimento, &quot;quem ativou&quot; = quem está em cima da zona ou os tokens que você tiver selecionado.">⚡</button>
     </div>
     ${isOpen ? `<div class="body">
       <input type="text" data-k="name" value="${esc(t.name)}" />
       <h3>Quando</h3>
       <select data-k="cause">${CAUSES.map((c) => `<option value="${c.id}" ${c.id === t.cause ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       ${t.cause === "near" ? `<label class="inline">raio <input type="number" data-k="radius" min="0.5" step="0.5" value="${t.radius ?? 2}" /> quadrados</label>` : ""}
-      ${t.cause !== "manual" ? `<div class="sub">Zona(s): ${chips(t.zones, "zones")}</div>` : ""}
+      <div class="sub">Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}: ${chips(t.zones, "zones")}</div>
       ${["enter", "leave", "near", "standAll"].includes(t.cause) ? `
       <select data-k="who"><option value="chars" ${t.who !== "list" ? "selected" : ""}>qualquer token (personagens e montarias)</option><option value="list" ${t.who === "list" ? "selected" : ""}>só estes tokens…</option></select>
       ${t.who === "list" ? `<div class="sub">${chips(t.tokens, "tokens")}</div>` : ""}
@@ -105,10 +109,19 @@ function card(t) {
       else {
         const [, eid, field] = key.split(":");
         const e = t.effects.find((x) => x.id === eid);
-        if (field === "dest") e.dest = sel[0] || null; else e.targets = sel;
+        if (field === "dest") e.dest = sel[0] || null;
+        else e.targets = (e.targets || []).includes(ACTOR) ? [ACTOR, ...sel] : sel;
       }
       if (!sel.length) OBR.notification.show("Gatilhos: selecione itens no mapa primeiro (a seleção ficou vazia).", "WARNING");
       await refreshNames();
+      save(true); render();
+    });
+  }
+  for (const btn of div.querySelectorAll("[data-actor]")) {
+    btn.addEventListener("click", () => {
+      const [, eid] = btn.dataset.actor.split(":");
+      const e = t.effects.find((x) => x.id === eid);
+      e.targets = (e.targets || []).includes(ACTOR) ? e.targets.filter((x) => x !== ACTOR) : [ACTOR, ...(e.targets || [])];
       save(true); render();
     });
   }
@@ -118,7 +131,7 @@ function card(t) {
       el.addEventListener("change", () => {
         e[el.dataset.ek] = el.type === "number" ? Number(el.value) : el.value;
         save();
-        if (el.dataset.ek === "action" || el.dataset.ek === "group") render();
+        if (["action", "group", "who"].includes(el.dataset.ek)) render();
       });
     }
     row.querySelector("[data-del-effect]").addEventListener("click", () => { t.effects = t.effects.filter((x) => x !== e); save(true); render(); });

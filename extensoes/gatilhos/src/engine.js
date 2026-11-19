@@ -111,6 +111,38 @@ export function routeFromPlan(points, from, to) {
   return null;
 }
 
+/** Fração t (0..1) do trecho a→b em que ele entra no círculo (centro c, raio r); null se não entra. */
+export function circleEntry(a, b, c, r) {
+  const dx = b.x - a.x, dy = b.y - a.y, fx = a.x - c.x, fy = a.y - c.y;
+  const A = dx * dx + dy * dy, B = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - r * r;
+  if (C <= 0) return 0;
+  if (A < 1e-9) return null;
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return null;
+  const t = (-B - Math.sqrt(disc)) / (2 * A);
+  return t >= 0 && t <= 1 ? t : null;
+}
+
+/** Itens que estão em cima de alguma das zonas. */
+export function itemsInZones(items, shapes) {
+  return items.filter((i) => shapes.some((s) => insideZone(i.position, s)));
+}
+
+/**
+ * Posições para levar vários tokens a um destino mantendo a formação (um token só cai exatamente no destino).
+ * Devolve Map(id -> {x,y}).
+ */
+export function formation(tokens, dest) {
+  const out = new Map();
+  if (!tokens.length) return out;
+  const cx = tokens.reduce((a, t) => a + t.position.x, 0) / tokens.length;
+  const cy = tokens.reduce((a, t) => a + t.position.y, 0) / tokens.length;
+  // o token mais perto do meio do grupo cai no destino; os outros mantêm a distância dele (continuam no grid)
+  const anchor = tokens.reduce((b, t) => (Math.hypot(t.position.x - cx, t.position.y - cy) < Math.hypot(b.position.x - cx, b.position.y - cy) ? t : b));
+  for (const t of tokens) out.set(t.id, { x: dest.x + (t.position.x - anchor.position.x), y: dest.y + (t.position.y - anchor.position.y) });
+  return out;
+}
+
 export function center(shape) {
   const n = shape.pts.length || 1;
   return { x: shape.pts.reduce((a, p) => a + p.x, 0) / n, y: shape.pts.reduce((a, p) => a + p.y, 0) / n };
@@ -163,13 +195,34 @@ export function evaluate(trigger, moves, tokens, zones, state, cellSize) {
     return { fire: false };
   }
   if (c === "near") {
+    // chega a "raio" quadrados do centro da zona em algum ponto do caminho (passar perto também conta)
     const r = (trigger.radius ?? 2) * cellSize;
-    for (const m of moves) for (const s of shapes) {
-      const z = center(s);
-      const before = Math.hypot(m.from.x - z.x, m.from.y - z.y), after = Math.hypot(m.to.x - z.x, m.to.y - z.y);
-      if (before > r && after <= r) return { fire: true, by: m.token, at: m.to, from: m.from };
+    let best = null;
+    for (const m of moves) {
+      const route = m.route?.length > 1 ? m.route : [m.from, m.to];
+      for (const s of shapes) {
+        const z = center(s);
+        if (Math.hypot(route[0].x - z.x, route[0].y - z.y) <= r) continue;
+        let acc = 0;
+        for (let k = 1; k < route.length; k++) {
+          const a = route[k - 1], b = route[k], L = Math.hypot(b.x - a.x, b.y - a.y);
+          const t = circleEntry(a, b, z, r);
+          if (t !== null) {
+            const d = acc + t * L;
+            if (!best || d < best.dist) best = { m, a, b, t, dist: d, seg: k };
+            break;
+          }
+          acc += L;
+        }
+      }
     }
-    return { fire: false };
+    if (!best) return { fire: false };
+    const L = Math.hypot(best.b.x - best.a.x, best.b.y - best.a.y) || 1;
+    return {
+      fire: true, by: best.m.token, from: best.a, dist: best.dist, seg: best.seg,
+      at: { x: best.a.x + (best.b.x - best.a.x) * best.t, y: best.a.y + (best.b.y - best.a.y) * best.t },
+      dir: { x: (best.b.x - best.a.x) / L, y: (best.b.y - best.a.y) / L },
+    };
   }
   if (c === "standAll") {
     // cada zona com pelo menos um token em cima, ao mesmo tempo (placas de pressão)
@@ -177,7 +230,9 @@ export function evaluate(trigger, moves, tokens, zones, state, cellSize) {
     const fire = on && !state.allWasOn;
     state.allWasOn = on;
     const by = moves[0]?.token || null;
-    return { fire, by, at: by?.position || null };
+    // "quem ativou" nas placas = todos que estão em cima delas
+    const onIds = tokens.filter((t) => shapes.some((sh) => insideZone(t.position, sh))).map((t) => t.id);
+    return { fire, by, at: by?.position || null, on: onIds };
   }
   return { fire: false };
 }
