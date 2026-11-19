@@ -7,6 +7,8 @@ export const CH_LOG = `${ID}/log`;        // background do mestre -> painel: o q
 export const CLIMA = "clima/camadas";
 export const CLIMA_FLASH = "clima/relampago";
 export const LUZ = "luz-colorida/cor";
+export const ESTADOS = "estados/grupos";        // grupos da extensão Estados (metadado da cena)
+export const ESTADOS_SET = "estados/mudar";     // { group, to } pede a troca de estado
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
 export const CH_HALT = "regua/parar";     // motor -> todos: { tokenId, at, upto } (anda até points[upto], vai para "at" e para)
@@ -40,6 +42,7 @@ export const ACTIONS = [
   { id: "weatherOn", label: "Ligar clima (Clima)", need: ["targets"] },
   { id: "weatherOff", label: "Desligar clima (Clima)", need: ["targets"] },
   { id: "lightning", label: "Relâmpago (Clima)", need: [] },
+  { id: "stateSet", label: "Mudar estado (Estados)", need: ["group"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -59,7 +62,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", delay: 0 };
 }
 
 /** Pode disparar gatilho: tokens de personagem/montaria. */

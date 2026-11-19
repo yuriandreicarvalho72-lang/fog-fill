@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CLIMA, CLIMA_FLASH, LUZ, url, newTrigger, isToken } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, url, newTrigger, isToken } from "./shared.js";
 
 let role = "PLAYER";
 let triggers = [];
@@ -119,6 +119,9 @@ async function doEffect(e, ctx, depth) {
       if (gridSquare) p = { x: ctx.from.x + Math.round((p.x - ctx.from.x) / dpi) * dpi, y: ctx.from.y + Math.round((p.y - ctx.from.y) / dpi) * dpi };
       return haltToken(ctx.by.id, p);
     }
+    case "stateSet":
+      // a extensão Estados faz a troca (ela só executa uma vez, mesmo com dois mestres)
+      return e.group ? OBR.broadcast.sendMessage(ESTADOS_SET, { group: e.group, to: e.to || "next" }, { destination: "ALL" }) : null;
     case "chain":
     case "rearm": {
       const t = triggers.find((x) => x.id === e.trigger);

@@ -1,11 +1,12 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, newTrigger, newEffect, applyTheme } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 let list = [];
 let open = null;          // gatilho aberto
 let itemNames = new Map();
+let estados = [];         // grupos da extensão Estados
 const logLines = [];
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -45,6 +46,9 @@ function effectRow(t, e) {
     ${need.has("audience") ? `<select data-ek="audience"><option value="all" ${e.audience !== "gm" ? "selected" : ""}>para todos</option><option value="gm" ${e.audience === "gm" ? "selected" : ""}>só para o mestre</option></select>` : ""}
     ${need.has("color") ? `<div class="row"><input type="color" data-ek="color" value="${esc(e.color)}" /><select data-ek="anim">${ANIMS.map(([v, l]) => `<option value="${v}" ${v === e.anim ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("trigger") ? `<select data-ek="trigger"><option value="">escolha o gatilho…</option>${list.filter((x) => x.id !== t.id).map((x) => `<option value="${x.id}" ${x.id === e.trigger ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
+    ${need.has("group") ? (estados.length ? `<div class="row"><select data-ek="group"><option value="">grupo…</option>${estados.map((g) => `<option value="${g.id}" ${g.id === e.group ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select>
+      <select data-ek="to"><option value="next" ${e.to === "next" ? "selected" : ""}>próximo</option><option value="prev" ${e.to === "prev" ? "selected" : ""}>anterior</option>${(estados.find((g) => g.id === e.group)?.states || []).map((st) => `<option value="${st.id}" ${st.id === e.to ? "selected" : ""}>${esc(st.name)}</option>`).join("")}</select></div>`
+      : '<span class="hint">Crie um grupo na extensão Estados primeiro.</span>') : ""}
     <label class="inline">depois de <input type="number" data-ek="delay" min="0" step="0.5" value="${e.delay || 0}" /> s</label>
   </div>`;
 }
@@ -114,7 +118,7 @@ function card(t) {
       el.addEventListener("change", () => {
         e[el.dataset.ek] = el.type === "number" ? Number(el.value) : el.value;
         save();
-        if (el.dataset.ek === "action") render();
+        if (el.dataset.ek === "action" || el.dataset.ek === "group") render();
       });
     }
     row.querySelector("[data-del-effect]").addEventListener("click", () => { t.effects = t.effects.filter((x) => x !== e); save(true); render(); });
@@ -142,12 +146,15 @@ OBR.onReady(async () => {
     await refreshNames();
     const md = await OBR.scene.getMetadata();
     list = Array.isArray(md[LIST]) ? md[LIST] : [];
+    estados = Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [];
     render();
   };
   if (await OBR.scene.isReady()) await load();
   OBR.scene.onReadyChange((r) => r && load());
   OBR.scene.onMetadataChange((md) => {
     const next = Array.isArray(md[LIST]) ? md[LIST] : [];
+    const est = Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [];
+    if (JSON.stringify(est.map((g) => [g.id, g.name, g.states])) !== JSON.stringify(estados.map((g) => [g.id, g.name, g.states]))) { estados = est; if (JSON.stringify(next) === JSON.stringify(list)) render(); }
     // só redesenha se mudou por fora (ex.: o motor desarmou um gatilho)
     if (JSON.stringify(next) !== JSON.stringify(list)) { list = next; render(); }
   });
