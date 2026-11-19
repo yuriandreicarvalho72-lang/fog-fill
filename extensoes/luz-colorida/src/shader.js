@@ -27,7 +27,7 @@ export function buildSksl(nL, nS, mode = "standalone", debug = false, animated =
   else if (mode === "local") u.push("uniform vec2 position;", "uniform vec2 size;", "uniform vec2 wsize;");
   else u.push("uniform mat3 model;", "uniform mat3 modelView;", "uniform vec2 size;", "uniform vec2 wsize;");
   for (let i = 0; i < nL; i++) {
-    u.push(`uniform vec2 lp${i};`);   // posição da luz (mundo)
+    u.push(`uniform vec2 lp${i};`);   // posição da luz em relação à origem do efeito (no modo viewport: mundo)
     u.push(`uniform vec3 lc${i};`);   // cor (0..1)
     u.push(`uniform vec3 la${i};`);   // raio, suavidade da borda (0..1), intensidade
     u.push(`uniform vec3 ld${i};`);   // direção (rad), meio-ângulo interno, meio-ângulo externo (rad)
@@ -98,11 +98,15 @@ float anim(float3 x, float t, float ang) {
     body.push(`  float2 lc = float2((coord.x / r - mvX) / mvA, (coord.y / r - mvY) / mvD);`);
     body.push(`  float2 w = float2(lc.x * mA + mX, lc.y * mD + mY);`);
   }
+  // origem do efeito no mundo: a luz é guardada em relação a ela, então o efeito preso ao token (attachedTo)
+  // leva a luz junto enquanto o token é arrastado, sem esperar a atualização dos uniforms
+  body.push(mode === "viewport" ? `  float2 o = float2(0.0);` : mode === "local" ? `  float2 o = position;` : `  float2 o = float2(mX, mY);`);
   body.push(`  float3 acc = float3(0.0);`);
   body.push(`  float am = 0.0;`);
   for (let i = 0; i < nL; i++) {
     body.push(`  {
-    float2 d = w - lp${i};
+    float2 L = o + lp${i};
+    float2 d = w - L;
     float dist = length(d);
     if (dist < la${i}.x) {
       float t = dist / la${i}.x;
@@ -113,7 +117,7 @@ float anim(float3 x, float t, float ang) {
         a *= 1.0 - smoothstep(ld${i}.y, max(ld${i}.z, ld${i}.y + 0.001), th);
       }
       bool lit = a > 0.002;`);
-    for (let j = 0; j < nS; j++) body.push(`      if (lit && cross(lp${i}, w, sa${j}, sb${j})) lit = false;`);
+    for (let j = 0; j < nS; j++) body.push(`      if (lit && cross(L, w, sa${j}, sb${j})) lit = false;`);
     body.push(`      if (lit) { acc += lc${i} * a; am = max(am, a); }
       ${debug ? `if (abs(dist - la${i}.x * 0.08) < la${i}.x * 0.012) { acc = float3(1.0); am = 1.0; }` : ""}
     }
@@ -134,13 +138,14 @@ export function hexToRgb(hex) {
 /**
  * Monta os uniforms.
  * lights: [{x, y, radius, softness, intensity, color:"#rrggbb", dir(rad), inner(rad meia), outer(rad meia)}]
- * segs:   [{ax, ay, bx, by}]
+ * segs:   [{ax, ay, bx, by}] (mundo)
+ * origin: posição do efeito no mundo (a luz vai relativa a ela; no modo viewport, {0,0})
  */
-export function buildUniforms(lights, segs, animated = false) {
+export function buildUniforms(lights, segs, animated = false, origin = { x: 0, y: 0 }) {
   const u = [];
   lights.forEach((l, i) => {
     if (animated) u.push({ name: `lx${i}`, value: { x: l.anim || 0, y: l.speed ?? 1, z: i * 1.618 } });
-    u.push({ name: `lp${i}`, value: { x: l.x, y: l.y } });
+    u.push({ name: `lp${i}`, value: { x: l.x - origin.x, y: l.y - origin.y } });
     u.push({ name: `lc${i}`, value: hexToRgb(l.color) });
     u.push({ name: `la${i}`, value: { x: l.radius, y: l.softness, z: l.intensity } });
     u.push({ name: `ld${i}`, value: { x: l.dir, y: l.inner, z: l.outer } });

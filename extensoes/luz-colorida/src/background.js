@@ -6,8 +6,6 @@ const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.locat
 const rad = (deg) => (deg * Math.PI) / 180;
 
 let settings = { ...DEFAULT_SETTINGS };
-let effectId = null;
-let current = { sksl: "", layer: "", blend: "", mode: "" };
 let timer = null;
 let warnedMax = false;
 
@@ -50,26 +48,75 @@ function segDist(px, py, s) {
   return Math.hypot(px - (s.ax + t * dx), py - (s.ay + t * dy));
 }
 
-async function removeEffect() {
-  if (effectId) {
-    await OBR.scene.local.deleteItems([effectId]).catch(() => {});
-    effectId = null;
-    current = { sksl: "", layer: "", blend: "", mode: "" };
+// Efeitos desenhados por este navegador. Modos "local" e "standalone": um efeito POR LUZ, preso ao token
+// (attachedTo), então a cor acompanha o token na hora (arrastar, Régua, teleporte do Gatilhos, Estados).
+// Modo "viewport": um efeito só cobrindo a tela (como antes).
+const effects = new Map(); // chave (id do token, ou "tela") -> { id, sksl, look, sig }
+
+async function removeAll() {
+  const ids = [...effects.values()].map((e) => e.id);
+  effects.clear();
+  if (ids.length) await OBR.scene.local.deleteItems(ids).catch(() => {});
+}
+
+/** Trechos de parede dentro do alcance das luzes, os mais próximos primeiro. */
+function wallSegments(local, items, lights) {
+  if (!settings.shadows) return [];
+  const walls = [...local, ...items].filter((i) => i.type === "WALL" && i.blocking !== false);
+  const all = [];
+  for (const wl of walls) {
+    const pts = rdp((wl.points || []).map((p) => toWorld(wl, p)), 3);
+    for (let k = 0; k < pts.length - 1; k++) all.push({ ax: pts[k].x, ay: pts[k].y, bx: pts[k + 1].x, by: pts[k + 1].y });
   }
+  const scored = [];
+  for (const s of all) {
+    let best = Infinity;
+    for (const l of lights) {
+      const d = segDist(l.x, l.y, s);
+      if (d < l.radius) best = Math.min(best, d / l.radius);
+    }
+    if (best < Infinity) scored.push([best, s]);
+  }
+  scored.sort((a, b) => a[0] - b[0]);
+  return scored.slice(0, settings.maxSegments).map(([, s]) => s);
+}
+
+/** O que cada efeito precisa ter: { key, attach, sksl, uniforms, rect, effectType } */
+async function plan(local, items, lights, mode) {
+  if (mode === "viewport") {
+    const segs = wallSegments(local, items, lights);
+    const animated = lights.some((l) => l.anim > 0);
+    const uniforms = buildUniforms(lights, segs, animated);
+    const [cw, ch] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
+    uniforms.push({ name: "css", value: { x: cw, y: ch } });
+    return [{ key: "tela", attach: null, sksl: buildSksl(lights.length, segs.length, mode, !!settings.debug, animated), uniforms, rect: null, effectType: "VIEWPORT" }];
+  }
+  return lights.map((l) => {
+    const segs = wallSegments(local, items, [l]);
+    const animated = l.anim > 0;
+    // retângulo com folga para qualquer ponto de ancoragem (o shader acha o mundo a partir da posição do efeito)
+    const m = 20, W = 2 * (2 * l.radius + 2 * m), H = W;
+    const rect = { x: l.x - l.radius - m, y: l.y - l.radius - m, w: W, h: H };
+    const uniforms = buildUniforms([l], segs, animated, { x: rect.x, y: rect.y });
+    uniforms.push({ name: "wsize", value: { x: W, y: H } });
+    return { key: l.parent, attach: l.parent, sksl: buildSksl(1, segs.length, mode, !!settings.debug, animated), uniforms, rect, effectType: "STANDALONE" };
+  });
 }
 
 async function update() {
   const [local, items] = await Promise.all([OBR.scene.local.getItems(), OBR.scene.items.getItems()]);
   const byId = new Map(items.map((i) => [i.id, i]));
 
-  // 1) luzes do Dynamic Fog cujo token tem cor definida
+  // 1) luzes do Dynamic Fog cujo token tem cor definida (token escondido ou apagado: a cor some junto)
   const lights = [];
   for (const l of local) {
     if (l.type !== "LIGHT" || !l.attachedTo) continue;
     const parent = byId.get(l.attachedTo);
     const cfg = parent?.metadata?.[CFG];
     if (!cfg?.color || !parent?.metadata?.[DF_LIGHT] || parent.visible === false || l.visible === false) continue;
+    if (lights.some((x) => x.parent === parent.id)) continue; // uma luz colorida por token
     lights.push({
+      parent: parent.id,
       x: parent.position.x,
       y: parent.position.y,
       radius: l.attenuationRadius || 0,
@@ -91,78 +138,59 @@ async function update() {
     }
     lights.length = cap;
   }
-  if (!lights.length) return removeEffect();
-
-  // 2) paredes: as do Dynamic Fog (locais) e as nativas da cena, só as que bloqueiam
-  let segs = [];
-  if (settings.shadows) {
-    const walls = [...local, ...items].filter((i) => i.type === "WALL" && i.blocking !== false);
-    const all = [];
-    for (const wl of walls) {
-      const pts = rdp((wl.points || []).map((p) => toWorld(wl, p)), 3);
-      for (let k = 0; k < pts.length - 1; k++) all.push({ ax: pts[k].x, ay: pts[k].y, bx: pts[k + 1].x, by: pts[k + 1].y });
-    }
-    // fica só com os trechos dentro do alcance de alguma luz colorida, os mais próximos primeiro
-    const scored = [];
-    for (const s of all) {
-      let best = Infinity;
-      for (const l of lights) {
-        const d = segDist(l.x, l.y, s);
-        if (d < l.radius) best = Math.min(best, d / l.radius);
-      }
-      if (best < Infinity) scored.push([best, s]);
-    }
-    scored.sort((a, b) => a[0] - b[0]);
-    segs = scored.slice(0, settings.maxSegments).map(([, s]) => s);
-  }
+  if (!lights.length) return removeAll();
 
   const mode = ["viewport", "standalone"].includes(settings.posMode) ? settings.posMode : "local";
-  const animated = lights.some((l) => l.anim > 0);
-  const sksl = buildSksl(lights.length, segs.length, mode, !!settings.debug, animated);
-  const uniforms = buildUniforms(lights, segs, animated);
+  const want = await plan(local, items, lights, mode);
+  const look = `${settings.layer}|${settings.blend}|${mode}`;
 
-  // retângulo do efeito (modo A): cobre todas as luzes, com folga para qualquer ponto de ancoragem
-  let rect = null;
-  if (mode !== "viewport") {
-    const m = 20;
-    const minX = Math.min(...lights.map((l) => l.x - l.radius)) - m, minY = Math.min(...lights.map((l) => l.y - l.radius)) - m;
-    const maxX = Math.max(...lights.map((l) => l.x + l.radius)) + m, maxY = Math.max(...lights.map((l) => l.y + l.radius)) + m;
-    const W = 2 * (maxX - minX), H = 2 * (maxY - minY);
-    rect = { x: minX, y: minY, w: W, h: H };
-    uniforms.push({ name: "wsize", value: { x: W, y: H } });
-  } else {
-    const [cw, ch] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
-    uniforms.push({ name: "css", value: { x: cw, y: ch } });
-  }
+  // apaga o que não serve mais (luz sumiu, mudou de modo, camada ou mistura)
+  const gone = [];
+  for (const [k, e] of effects) if (!want.some((w) => w.key === k) || e.look !== look) { gone.push(e.id); effects.delete(k); }
+  if (gone.length) await OBR.scene.local.deleteItems(gone).catch(() => {});
 
-  if (effectId && (current.layer !== settings.layer || current.blend !== settings.blend || current.mode !== mode)) await removeEffect();
-  if (!effectId) {
+  // cria os novos
+  const add = [];
+  for (const w of want) {
+    if (effects.has(w.key)) continue;
     const b = buildEffect()
-      .effectType(mode === "viewport" ? "VIEWPORT" : "STANDALONE")
-      .sksl(sksl)
-      .uniforms(uniforms)
+      .effectType(w.effectType)
+      .sksl(w.sksl)
+      .uniforms(w.uniforms)
       .blendMode(settings.blend)
       .layer(settings.layer)
       .locked(true)
       .disableHit(true)
       .name("Luz colorida")
       .metadata({ [`${ID}/effect`]: true });
-    if (rect) b.position({ x: rect.x, y: rect.y }).width(rect.w).height(rect.h);
+    if (w.rect) b.position({ x: w.rect.x, y: w.rect.y }).width(w.rect.w).height(w.rect.h);
+    // preso ao token: anda junto; não gira nem cresce com ele (o retângulo é calculado no mundo)
+    if (w.attach) b.attachedTo(w.attach).disableAttachmentBehavior(["ROTATION", "SCALE"]);
     const eff = b.build();
-    await OBR.scene.local.addItems([eff]);
-    effectId = eff.id;
-    current = { sksl, layer: settings.layer, blend: settings.blend, mode };
-    return;
+    add.push(eff);
+    effects.set(w.key, { id: eff.id, sksl: w.sksl, look, sig: JSON.stringify([w.uniforms, w.rect]) });
   }
-  const changedCode = sksl !== current.sksl;
-  await OBR.scene.local.updateItems([effectId], (draft) => {
-    for (const e of draft) {
-      if (changedCode) e.sksl = sksl;
-      e.uniforms = uniforms;
-      if (rect) { e.position = { x: rect.x, y: rect.y }; e.width = rect.w; e.height = rect.h; }
-    }
-  });
-  current.sksl = sksl;
+  if (add.length) await OBR.scene.local.addItems(add);
+
+  // atualiza só o que mudou (nada de piscar nem de laço de atualização)
+  const upd = new Map();
+  for (const w of want) {
+    const e = effects.get(w.key);
+    const sig = JSON.stringify([w.uniforms, w.rect]);
+    if (add.some((a) => a.id === e.id) || (sig === e.sig && w.sksl === e.sksl)) continue;
+    upd.set(e.id, { w, codeChanged: w.sksl !== e.sksl });
+    e.sig = sig; e.sksl = w.sksl;
+  }
+  if (upd.size) {
+    await OBR.scene.local.updateItems([...upd.keys()], (draft) => {
+      for (const it of draft) {
+        const { w, codeChanged } = upd.get(it.id);
+        if (codeChanged) it.sksl = w.sksl;
+        it.uniforms = w.uniforms;
+        if (w.rect) { it.position = { x: w.rect.x, y: w.rect.y }; it.width = w.rect.w; it.height = w.rect.h; }
+      }
+    }).catch(() => { for (const id of upd.keys()) for (const [k, e] of effects) if (e.id === id) effects.delete(k); schedule(); });
+  }
 }
 
 async function loadSettings() {
@@ -186,13 +214,12 @@ OBR.onReady(async () => {
     // limpa efeitos que tenham sobrado de uma sessão anterior
     const old = await OBR.scene.local.getItems((i) => i.metadata?.[`${ID}/effect`] === true);
     if (old.length) await OBR.scene.local.deleteItems(old.map((i) => i.id));
-    effectId = null;
-    current = { sksl: "", layer: "", blend: "", mode: "" };
+    effects.clear();
     await loadSettings();
     schedule(0);
   };
   if (await OBR.scene.isReady()) await start();
-  OBR.scene.onReadyChange((ready) => { if (ready) start(); else { effectId = null; } });
+  OBR.scene.onReadyChange((ready) => { if (ready) start(); else effects.clear(); });
   OBR.scene.onMetadataChange((md) => { settings = { ...DEFAULT_SETTINGS, ...(md[SETTINGS] || {}) }; schedule(); });
   OBR.scene.items.onChange(() => schedule());
   // só reage quando luzes ou paredes locais mudam (o próprio efeito também dispara onChange)

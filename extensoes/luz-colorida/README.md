@@ -11,8 +11,14 @@ Extensão do Owlbear Rodeo que dá cor às luzes do **Dynamic Fog**. Não substi
    - **Paredes**: liga/desliga a sombra e o limite de trechos de parede.
    - **Ajuste da direção**: corrige luzes em cone que saírem viradas.
 
+## Acompanha o token
+Cada luz colorida é um efeito preso ao token (`attachedTo`): a cor anda junto na hora, ao arrastar, pela Régua,
+no teleporte do Gatilhos e na troca de estado do Estados. Token escondido ou apagado: a cor some junto.
+O efeito não gira nem cresce com o token (o raio vem da luz do Dynamic Fog).
+
 ## Limites
-- Até 8 luzes coloridas aparecem ao mesmo tempo.
+- Até 16 luzes coloridas ao mesmo tempo (dá para subir no painel, até 24).
+- Enquanto o token é arrastado, a sombra das paredes acompanha; a direção de luzes em cone só se ajusta ao soltar.
 - A sombra usa no máximo os trechos de parede mais próximos das luzes (48 por padrão).
 - Cada jogador desenha a cor no próprio computador, como o Dynamic Fog faz com as luzes.
 
@@ -25,4 +31,5 @@ Publicada junto do Balde de Fog, na subpasta `luz-colorida/` do repositório `fo
 npm install
 npm run build            # gera dist/ com base /fog-fill/luz-colorida/
 node test/shader.mjs saida.png   # compila o shader com CanvasKit e renderiza um teste
+node test/segue.mjs              # a luz acompanha o efeito preso ao token (sem novos uniforms)
 ```
