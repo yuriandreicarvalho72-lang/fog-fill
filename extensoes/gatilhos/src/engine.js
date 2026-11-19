@@ -143,6 +143,46 @@ export function formation(tokens, dest) {
   return out;
 }
 
+function segDist(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)) : 0;
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+/** Distância de um ponto até a zona (0 se estiver dentro). */
+export function distToShape(p, shape) {
+  if (shape.kind === "poly" && inPoly(p, shape.pts)) return 0;
+  const n = shape.pts.length;
+  if (n === 1) return Math.hypot(p.x - shape.pts[0].x, p.y - shape.pts[0].y);
+  let best = Infinity;
+  for (let i = 0; i < (shape.kind === "poly" ? n : n - 1); i++) best = Math.min(best, segDist(p, shape.pts[i], shape.pts[(i + 1) % n]));
+  return best;
+}
+
+/**
+ * Alcance para interagir: o token mais perto do objeto e se ele alcança.
+ * reach em quadrados (0 = sem limite); 1 = encostado no objeto (inclusive na diagonal).
+ */
+export function pickReacher(tokens, shape, reach, cell) {
+  let best = null;
+  for (const t of tokens) {
+    const d = distToShape(t.position, shape);
+    if (!best || d < best.dist) best = { token: t, dist: d };
+  }
+  if (!best) return { token: null, dist: Infinity, ok: !(reach > 0) };
+  // do centro do token até a borda do objeto: encostado = meio quadrado (até a diagonal, meio quadrado × √2);
+  // cada quadrado a mais de alcance soma um quadrado (diagonal conta como 1)
+  const limit = reach > 0 ? (reach - 0.5) * cell * Math.SQRT2 + 1 : Infinity;
+  return { ...best, ok: best.dist <= limit };
+}
+
+/** Caixa (centro, largura, altura) de uma zona. */
+export function shapeBox(shape) {
+  const xs = shape.pts.map((p) => p.x), ys = shape.pts.map((p) => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  return { center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }, width: maxX - minX, height: maxY - minY };
+}
+
 export function center(shape) {
   const n = shape.pts.length || 1;
   return { x: shape.pts.reduce((a, p) => a + p.x, 0) / n, y: shape.pts.reduce((a, p) => a + p.y, 0) / n };

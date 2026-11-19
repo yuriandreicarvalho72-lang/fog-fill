@@ -49,3 +49,15 @@ ok('formação: um no destino', JSON.stringify(f.get('a')), '{"x":1575,"y":975}'
 const st2 = {};
 r = evaluate({ zones: ['p1', 'p2'], cause: 'standAll' }, [{ token: tok('b', 675, 675) }], [tok('a', 75, 675), tok('b', 675, 675), tok('c', 75, 75)], zones, st2, d);
 ok('placas: quem ativou = os que estão em cima', JSON.stringify(r.on), '["a","b"]');
+// interagir: alcance até a alavanca (quadrado 300..450, 0..150)
+import { pickReacher, distToShape } from '../src/engine.js';
+const lev = zones.get('trap');
+ok('encostado (lado) alcança 1', pickReacher([tok('a', 225, 75)], lev, 1, d).ok, true);
+ok('encostado (diagonal) alcança 1', pickReacher([tok('a', 225, 225)], lev, 1, d).ok, true);
+ok('2 quadrados não alcança 1', pickReacher([tok('a', 75, 75)], lev, 1, d).ok, false);
+ok('2 quadrados alcança 2', pickReacher([tok('a', 75, 75)], lev, 2, d).ok, true);
+ok('3 quadrados não alcança 2', pickReacher([tok('a', -75, 75)], lev, 2, d).ok, false);
+ok('sem limite (0)', pickReacher([tok('a', -3000, 75)], lev, 0, d).ok, true);
+ok('escolhe o mais perto', pickReacher([tok('longe', 1500, 75), tok('perto', 225, 75)], lev, 1, d).token.id, 'perto');
+ok('sem tokens e com alcance', pickReacher([], lev, 1, d).ok, false);
+ok('dentro do objeto = 0', distToShape({ x: 375, y: 75 }, lev), 0);

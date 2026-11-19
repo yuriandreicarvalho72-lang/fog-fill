@@ -2,10 +2,14 @@
 // inclusive os que os jogadores fazem com os próprios tokens, sem depender de ferramenta especial.
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
-import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, url, newTrigger, isToken } from "./shared.js";
+import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
+let myId = "";               // usuário deste navegador
+let myConn = "";             // conexão deste navegador
+const anchor = new Map();    // objeto interagível -> posição que o mestre deixou (jogador arrastou: volta)
 let triggers = [];
 let dpi = 150;
 let gridSquare = true;
@@ -201,9 +205,63 @@ async function doEffect(e, ctx, depth, trigger) {
   }
 }
 
+/** Só um mestre executa pedidos de jogadores (se houver dois mestres na sala). */
+async function isLeader() {
+  const gms = (await OBR.party.getPlayers().catch(() => [])).filter((p) => p.role === "GM").map((p) => p.connectionId);
+  return [myConn, ...gms].sort()[0] === myConn;
+}
+
+/** Jogador (ou o mestre) usou um objeto interagível: confere quem pode e o alcance, e dispara. */
+async function handleInteract(itemId, userId, senderRole) {
+  const items = await OBR.scene.items.getItems();
+  const it = items.find((i) => i.id === itemId);
+  if (!it) return;
+  const shape = zoneShape(it, dpi);
+  for (const tr of triggers) {
+    if (!isInteract(tr) || !(tr.zones || []).includes(itemId)) continue;
+    if ((tr.canUse === "players" && senderRole === "GM") || (tr.canUse === "gm" && senderRole !== "GM")) continue;
+    // quem ativou: o token do jogador mais perto do objeto (o mestre: o personagem mais perto, sem limite de alcance)
+    const pool = items.filter((i) => isToken(i) && (senderRole === "GM" || i.createdUserId === userId));
+    const r = pickReacher(pool, shape, senderRole === "GM" ? 0 : tr.reach ?? 1, dpi);
+    if (!r.ok) continue;
+    if (tr.once) tr.armed = false;
+    run(tr, { by: r.token || undefined, at: it.position, cause: "interact", on: r.token ? undefined : [] });
+  }
+}
+
+/** Marca no item quem é interagível (para o menu "Interagir") e tira a marca de quem deixou de ser. */
+let flagging = false;
+function syncFlags(items) {
+  if (flagging) return;
+  const want = new Set(triggers.filter(isInteract).flatMap((t) => t.zones || []));
+  const fix = items.filter((i) => !!i.metadata?.[FLAG] !== want.has(i.id));
+  if (!fix.length) return;
+  flagging = true;
+  OBR.scene.items.updateItems(fix.map((i) => i.id), (d) => { for (const it of d) it.metadata[FLAG] = want.has(it.id) ? true : undefined; })
+    .catch(() => {}).finally(() => { flagging = false; });
+}
+
+/** Objeto interagível arrastado por um jogador volta para o lugar (mudanças do mestre e do Estados valem). */
+function guardInteractables(items) {
+  const want = new Set(triggers.filter(isInteract).flatMap((t) => t.zones || []));
+  const back = [];
+  for (const it of items) {
+    if (!want.has(it.id)) { anchor.delete(it.id); continue; }
+    const a = anchor.get(it.id);
+    if (!a || it.lastModifiedUserId === myId) { anchor.set(it.id, { ...it.position }); continue; }
+    if (!same(a, it.position)) back.push([it.id, a]);
+  }
+  if (back.length) {
+    const pos = new Map(back);
+    OBR.scene.items.updateItems([...pos.keys()], (d) => { for (const it of d) it.position = { ...pos.get(it.id) }; }).catch(() => {});
+  }
+}
+
 /** Avalia todos os gatilhos com a cena atual. */
 function check(items) {
   lastItems = items;
+  syncFlags(items);
+  guardInteractables(items);
   const byId = new Map(items.map((i) => [i.id, i]));
   const tokens = items.filter(isToken);
   const moves = [];
@@ -231,7 +289,7 @@ function check(items) {
 
   const fired = [];
   for (const tr of triggers) {
-    if (!tr.armed || tr.cause === "manual") continue;
+    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact") continue;
     if (tr.cause === "appear" || tr.cause === "disappear") {
       for (const zid of tr.zones || []) {
         const it = byId.get(zid);
@@ -282,7 +340,45 @@ async function startGM() {
 
 OBR.onReady(async () => {
   role = await OBR.player.getRole();
+  myId = await OBR.player.getId().catch(() => "");
+  myConn = await OBR.player.getConnectionId().catch(() => "");
   OBR.player.onChange((p) => { role = p.role; });
+
+  // objetos interagíveis: brilho e clique (em todos os navegadores); o mestre executa direto
+  const gmUse = (itemId, userId) => handleInteract(itemId, userId, "GM");
+  startInteract(gmUse);
+  OBR.broadcast.onMessage(CH_INTERACT, async (e) => {
+    if (role !== "GM") return;
+    const sender = (await OBR.party.getPlayers().catch(() => [])).find((x) => x.connectionId === e.connectionId);
+    if (!sender || sender.role === "GM") return; // outro mestre executa no navegador dele
+    if (!(await isLeader())) return;
+    handleInteract(e.data?.itemId, sender.id, "PLAYER");
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/interagir`,
+    icons: [{
+      icon: url("icon.svg"), label: "Interagir",
+      filter: { max: 1, every: [{ key: ["metadata", FLAG], value: undefined, operator: "!=" }] },
+    }],
+    onClick: (ctx) => { if (ctx.items[0]) tryInteract(ctx.items[0].id, gmUse); },
+  });
+  await OBR.contextMenu.create({
+    id: `${ID}/tornar-interagivel`,
+    icons: [{
+      icon: url("icon.svg"), label: "Tornar interagível (alavanca, porta…)",
+      filter: { roles: ["GM"], every: [{ key: ["metadata", FLAG], value: undefined, operator: "==" }] },
+    }],
+    onClick: async (ctx) => {
+      const zones = ctx.items.map((i) => i.id);
+      const nm = ctx.items.length === 1 ? names(ctx.items[0]) : "objeto";
+      const t = newTrigger(zones, `Interagir: ${nm}`);
+      t.cause = "interact"; t.once = false;
+      const fx = newEffect("notify"); fx.text = `{quem} mexe em ${nm}.`;
+      t.effects = [fx];
+      await saveTriggers((l) => [...l, t]);
+      OBR.notification.show(`"${nm}" agora é interagível. No painel Gatilhos, escolha o que acontece (ex.: Mudar estado → porta abre).`, "SUCCESS");
+    },
+  });
 
   // mensagens na tela (todos os jogadores)
   OBR.broadcast.onMessage(CH_NOTE, (e) => {
@@ -314,6 +410,7 @@ OBR.onReady(async () => {
     const next = Array.isArray(md[LIST]) ? md[LIST] : [];
     // mantém "desarmado" local até o metadado confirmar (evita disparo duplo)
     triggers = next;
+    if (role === "GM") syncFlags(lastItems); // objeto virou (ou deixou de ser) interagível
   });
   OBR.scene.items.onChange((items) => { if (role === "GM") check(items); });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; gridSquare = g.type === "SQUARE"; });

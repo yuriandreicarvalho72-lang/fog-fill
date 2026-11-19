@@ -4,6 +4,8 @@ export const LIST = `${ID}/lista`;        // metadado da cena: [gatilho, ...]
 export const CH_FIRE = `${ID}/disparar`;  // painel -> background do mestre: dispara à mão
 export const CH_NOTE = `${ID}/aviso`;     // background do mestre -> todos: mensagem na tela
 export const CH_LOG = `${ID}/log`;        // background do mestre -> painel: o que disparou
+export const CH_INTERACT = `${ID}/interagir`; // jogador -> mestre: { itemId, userId } (clicou num objeto interagível)
+export const FLAG = `${ID}/interagivel`;  // metadado do item: é interagível (para o menu de contexto)
 export const CLIMA = "clima/camadas";
 export const CLIMA_FLASH = "clima/relampago";
 export const LUZ = "luz-colorida/cor";
@@ -23,6 +25,7 @@ export const CAUSES = [
   { id: "standAll", label: "Tokens em TODAS as zonas ao mesmo tempo (placas)" },
   { id: "appear", label: "A zona aparece (fica visível)" },
   { id: "disappear", label: "A zona some (fica escondida)" },
+  { id: "interact", label: "Interagir: o jogador clica no objeto (alavanca, porta, botão…)" },
   { id: "manual", label: "Só quando eu disparar" },
 ];
 
@@ -58,6 +61,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
     id: uid(), name, armed: true, once: true, delay: 0,
     zones, cause: "enter", radius: 2,
     who: "chars", tokens: [], ignoreHidden: true, halt: false,
+    reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d",
     effects: [newEffect("show")],
   };
 }
@@ -73,6 +77,11 @@ export const WHO = [
 ];
 export const ACTOR = "@quem"; // item especial nas listas de itens: quem ativou
 export const MOVING = ["enter", "leave", "near"]; // causas com movimento (dá para barrar)
+// quem pode usar um objeto interagível
+export const CAN_USE = [["all", "jogadores e mestre"], ["players", "só jogadores"], ["gm", "só o mestre"]];
+
+/** Gatilho de interação ativo (armado). */
+export const isInteract = (t) => t.cause === "interact" && t.armed;
 
 /** Pode disparar gatilho: tokens de personagem/montaria. */
 export const isToken = (i) => i.type === "IMAGE" && (i.layer === "CHARACTER" || i.layer === "MOUNT");

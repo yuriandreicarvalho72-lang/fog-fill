@@ -1,6 +1,8 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { zoneShape, pickReacher } from "./engine.js";
+import { tryInteract, usableTriggers } from "./interact.js";
 
 const $ = (id) => document.getElementById(id);
 let list = [];
@@ -73,7 +75,18 @@ function card(t) {
       <h3>Quando</h3>
       <select data-k="cause">${CAUSES.map((c) => `<option value="${c.id}" ${c.id === t.cause ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       ${t.cause === "near" ? `<label class="inline">raio <input type="number" data-k="radius" min="0.5" step="0.5" value="${t.radius ?? 2}" /> quadrados</label>` : ""}
-      <div class="sub">Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}: ${chips(t.zones, "zones")}</div>
+      <div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>
+      ${t.cause === "interact" ? `
+      <p class="hint">O jogador usa clicando no objeto, pelo botão direito → Interagir, ou pela lista no painel dele. "Quem ativou" = o personagem dele mais perto. Arrastar o objeto não funciona: ele volta para o lugar.</p>
+      <div class="row">
+        <label class="inline">alcance <input type="number" data-k="reach" min="0" step="1" value="${t.reach ?? 1}" /> quadrado(s)</label>
+        <span class="hint">(0 = de qualquer lugar)</span>
+      </div>
+      <div class="row"><span class="hint">Quem pode usar:</span><select data-k="canUse">${CAN_USE.map(([v, l]) => `<option value="${v}" ${(t.canUse || "all") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="row">
+        <label class="check"><input type="checkbox" data-k="glow" ${t.glow !== false ? "checked" : ""} /> Destacar com brilho</label>
+        <input type="color" data-k="glowColor" value="${esc(t.glowColor || "#ffd34d")}" title="Cor do brilho" />
+      </div>` : ""}
       ${["enter", "leave", "near", "standAll"].includes(t.cause) ? `
       <select data-k="who"><option value="chars" ${t.who !== "list" ? "selected" : ""}>qualquer token (personagens e montarias)</option><option value="list" ${t.who === "list" ? "selected" : ""}>só estes tokens…</option></select>
       ${t.who === "list" ? `<div class="sub">${chips(t.tokens, "tokens")}</div>` : ""}
@@ -151,10 +164,7 @@ function render() {
 
 OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
-  if ((await OBR.player.getRole()) !== "GM") {
-    document.querySelector("main").innerHTML = '<h1>Gatilhos</h1><p class="hint">Só o mestre configura os gatilhos. Eles funcionam sozinhos: é só mover o seu token.</p>';
-    return;
-  }
+  if ((await OBR.player.getRole()) !== "GM") return playerView();
   const load = async () => {
     await refreshNames();
     const md = await OBR.scene.getMetadata();
@@ -185,3 +195,36 @@ OBR.onReady(async () => {
   });
   $("rearm").addEventListener("click", () => { for (const t of list) t.armed = true; save(true); render(); });
 });
+
+// ---------- painel do jogador: objetos que ele pode usar ----------
+async function playerView() {
+  const main = document.querySelector("main");
+  main.innerHTML = `<h1>Gatilhos</h1><p class="hint">Objetos com brilho na cena podem ser usados: clique neles, use o botão direito → Interagir, ou o botão abaixo. Você precisa de um personagem perto.</p><div id="usable"></div>`;
+  const draw = async () => {
+    const [md, items, dpi, userId] = await Promise.all([OBR.scene.getMetadata(), OBR.scene.items.getItems(), OBR.scene.grid.getDpi().catch(() => 150), OBR.player.getId()]);
+    const triggers = Array.isArray(md[LIST]) ? md[LIST] : [];
+    const mine = items.filter((i) => isToken(i) && i.createdUserId === userId);
+    const ids = [...new Set(triggers.filter(isInteract).flatMap((t) => t.zones || []))];
+    const rows = [];
+    for (const id of ids) {
+      const it = items.find((i) => i.id === id);
+      if (!it || it.visible === false) continue;
+      const trs = usableTriggers(triggers, id, "PLAYER");
+      if (!trs.length) continue;
+      const reach = Math.max(...trs.map((t) => (t.reach > 0 ? t.reach : Infinity)));
+      const ok = pickReacher(mine, zoneShape(it, dpi), reach === Infinity ? 0 : reach, dpi).ok;
+      rows.push({ id, name: it.text?.plainText?.trim() || it.name || "objeto", ok });
+    }
+    rows.sort((a, b) => (b.ok - a.ok) || a.name.localeCompare(b.name, "pt-BR"));
+    $("usable").innerHTML = rows.length ? `<div class="mlist">${rows.map((r) => `
+      <div class="mrow"><span class="mname">${esc(r.name)}</span><span class="tag">${r.ok ? "ao alcance" : "longe"}</span>
+      <button type="button" class="mini" data-use="${r.id}" ${r.ok ? "" : "disabled"}>Usar</button></div>`).join("")}</div>`
+      : '<p class="hint">Nada para usar por aqui.</p>';
+    for (const b of document.querySelectorAll("[data-use]")) b.addEventListener("click", () => tryInteract(b.dataset.use));
+  };
+  if (await OBR.scene.isReady()) draw();
+  OBR.scene.onReadyChange((r) => r && draw());
+  OBR.scene.onMetadataChange(() => draw());
+  let t = null;
+  OBR.scene.items.onChange(() => { clearTimeout(t); t = setTimeout(draw, 150); });
+}
