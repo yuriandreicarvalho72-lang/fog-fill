@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Otimizador</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Otimizador</h1>
+      <p class="hint">Deixa as nossas extensões mais leves <b>só no seu computador</b>. Os outros jogadores escolhem o deles.</p>
+      <section>
+        <h2>Perfil</h2>
+        <div id="levels"></div>
+        <details id="fine">
+          <summary>Ajuste fino</summary>
+          <div id="knobs"></div>
+        </details>
+      </section>
+      <section>
+        <h2>Limpar</h2>
+        <div class="btns"><button type="button" id="clean">🧹 Limpar sobras</button><button type="button" id="cleanAll" hidden>🧹 Para todos</button></div>
+        <small>Apaga e redesenha os efeitos, miras, cones e filtros das nossas extensões. Use se algo ficou preso na tela ou se ficou lento depois de muito tempo de sessão.</small>
+      </section>
+      <section>
+        <h2>Diagnóstico da cena</h2>
+        <div id="diag"></div>
+        <div class="btns"><button type="button" id="again">↻ Medir de novo</button></div>
+      </section>
+      <section>
+        <details>
+          <summary>Dicas do navegador</summary>
+          <ul class="tips">
+            <li>Ligue a <b>aceleração de hardware</b> do navegador (Chrome: Configurações → Sistema).</li>
+            <li>Notebook: deixe na tomada e no modo de energia "desempenho".</li>
+            <li>Feche outras abas pesadas (vídeos, outros VTTs).</li>
+            <li>Diminuir o zoom do navegador para 90% alivia telas grandes.</li>
+            <li>O Otimizador não muda o desenho do próprio Owlbear (mapas, névoa, tokens), só o das nossas extensões.</li>
+          </ul>
+        </details>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>
