@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -78,7 +78,8 @@ function attachRow(t, e) {
     ${op === "prender" ? `<div class="row"><span class="hint">Fica com:</span>${sel("attachWho", ATTACH_WHO, e.attachWho || "actor")}</div>
     <div class="row"><span class="hint">Onde:</span>${sel("attachPlace", ATTACH_PLACES, e.attachPlace || "canto")}</div>
     <label class="check"><input type="checkbox" data-ekb="attachShow" ${e.attachShow !== false ? "checked" : ""} /> Mostrar o item (se estava escondido)</label>
-    <label class="check"><input type="checkbox" data-ekb="attachLock" ${e.attachLock !== false ? "checked" : ""} /> Travar o item (o jogador não arrasta para fora)</label>` : ""}
+    <label class="check"><input type="checkbox" data-ekb="attachLock" ${e.attachLock !== false ? "checked" : ""} /> Travar o item (o jogador não arrasta para fora)</label>
+    <label class="check"><input type="checkbox" data-ekb="attachGive" ${e.attachGive !== false ? "checked" : ""} /> O jogador pode passar o item para outro personagem ao lado</label>` : ""}
     ${tg.length ? "" : '<span class="hint warn">⚠ Sem item: selecione o cartão, a chave… no mapa e clique em "usar seleção".</span>'}
     <span class="hint">${op === "prender" ? `O item fica preso (attachment) no token e anda com ele, e passa a valer para o <b>Restrito</b> de portas e terminais. Para pegar ao chegar perto: causa "Chegar perto" com o próprio item como zona (raio 1); para pegar clicando: causa "Interagir" no item. Atalho: botão direito no item → <b>Gatilhos: o personagem pega este item ao chegar perto</b>.${MOVING.includes(t.cause) || t.cause === "interact" ? "" : " Sem movimento, quem ativou = quem está em cima da zona ou o token selecionado."}` : "Solta os itens escolhidos que estiverem presos (ficam no chão, onde estão)."}</span>`;
 }
@@ -246,7 +247,9 @@ function card(t) {
       <input type="text" data-k="reqItem" value="${esc(t.reqItem || "")}" placeholder="nome do item (ex.: Cartão de acesso)" />
       ${String(t.reqItem || "").trim() ? `<input type="text" data-k="reqMsg" value="${esc(t.reqMsg || "")}" placeholder="${esc(REQ_DEFAULT)}" />
       <div class="row"><span class="hint">Sem o item, mostrar como:</span><select data-k="reqShow">${REQ_SHOW.map(([v, l]) => `<option value="${v}" ${(t.reqShow || "aviso") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-      <span class="hint">Prenda o item (ex.: a imagem do cartão) no token do personagem: selecione o item, botão direito → Attach (prender). Vale se o nome do item contiver esse texto. Só o jogador que tentou vê a mensagem; {item} e {quem} viram o nome do item e do personagem. O mestre usa sem o item.</span>` : ""}
+      <div class="row"><label class="inline">gasta <input type="number" data-k="reqUses" min="0" step="1" value="${t.reqUses || 0}" /> uso(s) do item</label><span class="hint">(0 = não gasta; no último uso o item some)</span></div>
+      <div class="sub">Cartão clonado: libera sem o item se este nó da Matriz estiver hackeado: ${chips(t.reqNodes, "reqNodes")}</div>
+      <span class="hint">Prenda o item (ex.: a imagem do cartão) no token do personagem: selecione o item, botão direito → Attach (prender), ou use o efeito Pegar item. Vale se o nome do item contiver esse texto. Só o jogador que tentou vê a mensagem; {item} e {quem} viram o nome do item e do personagem. O mestre usa sem o item. O nó é da extensão Vigilância (botão direito no item → Virar nó da Matriz).</span>` : ""}
       <div class="row">
         <label class="check"><input type="checkbox" data-k="glow" ${t.glow !== false ? "checked" : ""} /> Destacar com brilho</label>
         <input type="color" data-k="glowColor" value="${esc(t.glowColor || "#ffd34d")}" title="Cor do brilho" />
@@ -282,6 +285,7 @@ function card(t) {
       const sel = await selection();
       const key = btn.dataset.sel;
       if (key === "zones") t.zones = sel;
+      else if (key === "reqNodes") t.reqNodes = sel;
       else if (key === "tokens") t.tokens = sel;
       else {
         const [, eid, field] = key.split(":");
@@ -372,7 +376,7 @@ OBR.onReady(async () => {
 // ---------- painel do jogador: objetos que ele pode usar ----------
 async function playerView() {
   const main = document.querySelector("main");
-  main.innerHTML = `<h1>Gatilhos</h1><p class="hint">Objetos com brilho na cena podem ser usados: clique neles, use o botão direito → Interagir, ou o botão abaixo. Você precisa de um personagem perto.</p><div id="usable"></div>`;
+  main.innerHTML = `<h1>Gatilhos</h1><p class="hint">Objetos com brilho na cena podem ser usados: clique neles, use o botão direito → Interagir, ou o botão abaixo. Você precisa de um personagem perto.</p><div id="usable"></div><h2 style="margin-top:14px">Inventário</h2><div id="inv"></div>`;
   const draw = async () => {
     const [md, items, dpi, userId] = await Promise.all([OBR.scene.getMetadata(), OBR.scene.items.getItems(), OBR.scene.grid.getDpi().catch(() => 150), OBR.player.getId()]);
     const triggers = Array.isArray(md[LIST]) ? md[LIST] : [];
@@ -396,6 +400,23 @@ async function playerView() {
       <button type="button" class="mini" data-use="${r.id}" ${r.ok ? "" : "disabled"}>Usar</button></div>`).join("")}</div>`
       : '<p class="hint">Nada para usar por aqui.</p>';
     for (const b of document.querySelectorAll("[data-use]")) b.addEventListener("click", () => tryInteract(b.dataset.use));
+    // inventário: itens presos nos meus personagens; passar para um personagem ao lado
+    const lines = [];
+    for (const tk of mine) {
+      for (const it of heldBy(tk.id, items)) {
+        const near = items.filter((o) => isToken(o) && o.id !== tk.id && o.visible !== false && nearby(tk, o, dpi));
+        const label = itemLabel(it) || "item";
+        lines.push(`<div class="mrow"><span class="mname">${esc(label)}<small class="hint">com ${esc(tk.text?.plainText || tk.name || "personagem")}</small></span>`
+          + (!canGive(it) ? '<span class="tag">fixo</span>' : near.length
+            ? `<select data-giveto="${it.id}">${near.map((o) => `<option value="${o.id}">${esc(o.text?.plainText || o.name || "personagem")}</option>`).join("")}</select><button type="button" class="mini" data-give="${it.id}">Passar</button>`
+            : '<span class="tag">ninguém ao lado</span>') + "</div>");
+      }
+    }
+    $("inv").innerHTML = lines.length ? `<div class="mlist">${lines.join("")}</div>` : '<p class="hint">Nenhum item com seus personagens.</p>';
+    for (const b of document.querySelectorAll("[data-give]")) b.addEventListener("click", () => {
+      const to = document.querySelector(`[data-giveto="${b.dataset.give}"]`)?.value;
+      if (to) OBR.broadcast.sendMessage(CH_GIVE, { itemId: b.dataset.give, toId: to }, { destination: "ALL" });
+    });
   };
   if (await OBR.scene.isReady()) draw();
   OBR.scene.onReadyChange((r) => r && draw());

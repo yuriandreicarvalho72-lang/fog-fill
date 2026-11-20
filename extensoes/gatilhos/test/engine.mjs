@@ -92,3 +92,14 @@ const tk = { position: { x: 375, y: 375 }, image: { width: 300, height: 300 }, g
 const cd = { position: { x: 900, y: 75 }, image: { width: 100, height: 60 }, grid: { dpi: 200 }, scale: { x: 1, y: 1 } };
 t1('pegar: canto de baixo à direita do token', attachPos(cd, tk, 'canto', 150), { x: 375 + 75 - 22.5, y: 375 + 75 - 22.5 });
 t1('pegar: centro / onde está', [attachPos(cd, tk, 'centro', 150), attachPos(cd, tk, 'onde', 150)], [{ x: 375, y: 375 }, { x: 900, y: 75 }]);
+
+// 1.13: gasto, nó hackeado, inventário e passar item
+import { findRequired, nodeHacked, isInvItem, canGive, heldBy, holderOf, nearby } from '../src/shared.js';
+const inv = [{ id: 'rex', layer: 'CHARACTER', type: 'IMAGE', position: { x: 75, y: 75 } }, { id: 'kai', layer: 'CHARACTER', type: 'IMAGE', position: { x: 225, y: 75 } }, { id: 'lia', layer: 'CHARACTER', type: 'IMAGE', position: { x: 825, y: 75 } },
+  { id: 'c', type: 'IMAGE', layer: 'ATTACHMENT', name: 'Cartão Nível 2', attachedTo: 'rex', metadata: {} }, { id: 'x', type: 'IMAGE', layer: 'ATTACHMENT', name: 'Selo', attachedTo: 'rex', visible: false, metadata: {} },
+  { id: 'lock', type: 'IMAGE', layer: 'ATTACHMENT', name: 'Chip', attachedTo: 'rex', metadata: { 'gatilhos/item': { give: false } } }, { id: 'no', type: 'SHAPE', metadata: { 'vigilancia/no': { state: 'hackeado' } } }, { id: 'no2', type: 'SHAPE', metadata: { 'vigilancia/no': { state: 'ativo' } } }];
+t1('acha o item que casa', [findRequired('rex', inv, 'cartao')?.id, findRequired('kai', inv, 'cartao')], ['c', null]);
+t1('nó hackeado libera; ativo não; sem nós não', [nodeHacked(inv, ['no']), nodeHacked(inv, ['no2']), nodeHacked(inv, [])], [true, false, false]);
+t1('inventário: só itens visíveis presos; fixo não passa', [heldBy('rex', inv).map((i) => i.id), canGive(inv[5]), canGive(inv[3])], [['c', 'lock'], false, true]);
+t1('quem carrega o item', [holderOf(inv[3], inv)?.id, holderOf(inv[0], inv)], ['rex', null]);
+t1('ao lado passa, longe não', [nearby(inv[0], inv[1], 150), nearby(inv[0], inv[2], 150)], [true, false]);

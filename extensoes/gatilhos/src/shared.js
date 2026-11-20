@@ -6,6 +6,8 @@ export const CH_NOTE = `${ID}/aviso`;     // background do mestre -> todos: mens
 export const CH_LOG = `${ID}/log`;        // background do mestre -> painel: o que disparou
 export const CH_INTERACT = `${ID}/interagir`; // jogador -> mestre: { itemId, userId } (clicou num objeto interagível)
 export const CH_DENY = `${ID}/negado`;        // mestre -> todos: { to: userId, title, text, show: "aviso"|"nota" } (faltou o item do restrito)
+export const CH_GIVE = `${ID}/dar`;           // jogador -> mestre: { itemId, toId } (passar um item para outro personagem)
+export const META_ITEM = `${ID}/item`;        // metadado do item pego: { give: bool } (o jogador pode passar adiante)
 export const FLAG = `${ID}/interagivel`;  // metadado do item: é interagível (para o menu de contexto)
 export const CLIMA = "clima/camadas";
 export const CLIMA_FLASH = "clima/relampago";
@@ -79,12 +81,32 @@ export function attachmentsOf(tokenId, items) {
   }
   return out;
 }
-/** O token tem preso um item cujo nome contém "req" (sem diferença de maiúsculas e acentos)? req vazio = sem restrição. */
-export function hasRequired(tokenId, items, req) {
+/** O item preso ao token cujo nome contém "req" (sem diferença de maiúsculas e acentos); vazio = nenhum. */
+export function findRequired(tokenId, items, req) {
   const r = norm(req);
-  if (!r) return true;
-  return attachmentsOf(tokenId, items).some((i) => norm(itemLabel(i)).includes(r) || norm(i.name).includes(r));
+  if (!r) return null;
+  return attachmentsOf(tokenId, items).find((i) => norm(itemLabel(i)).includes(r) || norm(i.name).includes(r)) || null;
 }
+/** O token tem preso um item cujo nome contém "req"? req vazio = sem restrição. */
+export const hasRequired = (tokenId, items, req) => !norm(req) || !!findRequired(tokenId, items, req);
+/** Algum dos nós da Matriz (Vigilância) escolhidos está hackeado? (libera o restrito sem o item: cartão clonado) */
+export const nodeHacked = (items, ids) => (ids || []).some((id) => items.find((i) => i.id === id)?.metadata?.[VIG_NODE_META]?.state === "hackeado");
+// ---------- inventário: itens presos nos personagens, que o jogador pode passar adiante ----------
+export const isInvItem = (i) => i?.type === "IMAGE" && !!i.attachedTo && i.layer !== "CHARACTER" && i.layer !== "MOUNT" && i.visible !== false;
+export const canGive = (i) => i?.metadata?.[META_ITEM]?.give !== false;
+/** Itens (do inventário) presos a um token, inclusive os presos em itens presos. */
+export const heldBy = (tokenId, items) => attachmentsOf(tokenId, items).filter(isInvItem);
+/** O personagem (token) que carrega o item, subindo pela cadeia de "preso a". */
+export function holderOf(item, items) {
+  let cur = item;
+  for (let d = 0; d < 5 && cur?.attachedTo; d++) {
+    cur = items.find((i) => i.id === cur.attachedTo);
+    if (cur && (cur.layer === "CHARACTER" || cur.layer === "MOUNT")) return cur;
+  }
+  return null;
+}
+/** Dois personagens estão lado a lado (até 1 quadrado de folga entre os centros)? */
+export const nearby = (a, b, dpi) => Math.max(Math.abs(a.position.x - b.position.x), Math.abs(a.position.y - b.position.y)) <= dpi * 1.5 + 1;
 /** Texto da mensagem de acesso negado ({item} e {quem}). */
 export const denyText = (t, who) => (String(t.reqMsg || "").trim() || REQ_DEFAULT).replaceAll("{item}", String(t.reqItem || "").trim()).replaceAll("{quem}", who || "você");
 // ---------- pegar item: prender (attachment) no token de quem ativou ----------
@@ -168,14 +190,14 @@ export function newTrigger(zones = [], name = "Gatilho") {
     zones, cause: "enter", radius: 2,
     who: "chars", tokens: [], ignoreHidden: true, halt: false,
     reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d", nodeTo: "",
-    reqItem: "", reqMsg: "", reqShow: "aviso",
+    reqItem: "", reqMsg: "", reqShow: "aviso", reqUses: 0, reqNodes: [],
     effects: [newEffect("show")],
   };
 }
 export function newEffect(action = "show") {
   return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0,
     fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar",
-    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true };
+    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true };
 }
 
 // quem o teleporte leva

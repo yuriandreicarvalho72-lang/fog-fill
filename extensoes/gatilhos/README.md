@@ -20,6 +20,11 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
   ou onde está; pode mostrar o item escondido e travar. Ele anda com o token e passa a valer para o **Restrito**. "Soltar" larga o item.
   Atalho: botão direito no item → **Gatilhos: o personagem pega este item ao chegar perto** (causa "Chegar perto", raio 1, uma vez,
   com aviso "{quem} pegou …"); para pegar clicando, troque a causa para "Interagir".
+- **Gasto e cartão clonado** (1.13, no Restrito): "gasta N uso(s)" desconta um uso a cada passagem e, no último, o item some (aviso
+  "{quem}: … foi gasto"). "Cartão clonado": escolha um nó da Matriz (Vigilância); se ele estiver **hackeado**, o restrito libera sem o item.
+- **Inventário** (1.13, painel do jogador): lista os itens presos nos personagens dele e deixa **passar** um item para um personagem ao lado
+  (o mestre confere dono, distância e se o item pode ser passado; "Pegar item" tem a opção de marcar o item como fixo). Aviso para todos:
+  "Rex passou Chave para Kai". Itens presos à mão também aparecem (só imagens visíveis).
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.

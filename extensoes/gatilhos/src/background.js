@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, hasRequired, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -240,6 +240,7 @@ async function doEffect(e, ctx, depth, trigger) {
       await OBR.scene.items.updateItems([...pos.keys()], (d) => {
         for (const it of d) {
           it.attachedTo = holder.id; it.position = { ...pos.get(it.id) };
+          it.metadata[META_ITEM] = { give: e.attachGive !== false };
           if (e.attachShow !== false) it.visible = true;
           if (e.attachLock !== false) it.locked = true;
         }
@@ -308,7 +309,9 @@ async function handleInteract(itemId, userId, senderRole) {
     let r = pickReacher(pool, shape, reach, dpi);
     if (!r.ok) continue;
     // restrito: só um personagem (ao alcance) com o item preso nele usa; o mestre usa sem o item
-    if (String(tr.reqItem || "").trim() && senderRole !== "GM") {
+    let spend = null; // item do restrito que se gasta nesta passagem
+    const hacked = nodeHacked(items, tr.reqNodes); // cartão clonado: o nó da Matriz hackeado libera sem o item
+    if (String(tr.reqItem || "").trim() && senderRole !== "GM" && !hacked) {
       const withItem = pool.filter((t) => hasRequired(t.id, items, tr.reqItem));
       const r2 = withItem.length ? pickReacher(withItem, shape, reach, dpi) : { ok: false };
       if (!r2.ok) {
@@ -318,10 +321,43 @@ async function handleInteract(itemId, userId, senderRole) {
         continue;
       }
       r = r2;
+      if (Number(tr.reqUses) > 0) spend = findRequired(r.token.id, items, tr.reqItem);
     }
     if (tr.once) tr.armed = false;
+    if (spend) spendItem(spend, tr, r.token);
     run(tr, { by: r.token || undefined, at: it.position, cause: "interact", on: r.token ? undefined : [] });
   }
+}
+
+/** Gasta um uso do item do restrito; no último uso o item some. */
+async function spendItem(item, tr, token) {
+  const total = Number(tr.reqUses);
+  const left = (Number(item.metadata?.[`${ID}/usos`] ?? total)) - 1;
+  if (left <= 0) {
+    await OBR.scene.items.deleteItems([item.id]).catch(() => {});
+    OBR.broadcast.sendMessage(CH_NOTE, { text: `${names(token)}: ${names(item)} foi gasto.`, audience: "all" }, { destination: "ALL" }).catch(() => {});
+    log(`🪪 ${names(item)} gasto (${names(token)})`);
+  } else {
+    await OBR.scene.items.updateItems([item.id], (d) => { for (const it of d) it.metadata[`${ID}/usos`] = left; }).catch(() => {});
+    log(`🪪 ${names(item)}: restam ${left} uso(s)`);
+  }
+}
+
+/** Jogador passa um item para outro personagem ao lado (o mestre confere e executa). */
+async function handleGive(itemId, toId, userId) {
+  const items = await OBR.scene.items.getItems();
+  const item = items.find((i) => i.id === itemId);
+  const to = items.find((i) => i.id === toId);
+  const deny = (text) => OBR.broadcast.sendMessage(CH_DENY, { to: userId, title: "Passar item", text, show: "aviso" }, { destination: "ALL" }).catch(() => {});
+  if (!item || !to || !isInvItem(item) || !isToken(to)) return;
+  const from = holderOf(item, items);
+  if (!from || from.createdUserId !== userId) return deny("Esse item não está com um personagem seu.");
+  if (!canGive(item)) return deny(`${names(item)} não pode ser passado adiante.`);
+  if (from.id === to.id) return;
+  if (!nearby(from, to, dpi)) return deny(`${names(to)} está longe: chegue ao lado para passar ${names(item)}.`);
+  await OBR.scene.items.updateItems([item.id], (d) => { for (const it of d) { it.attachedTo = to.id; it.position = { ...attachPos(it, to, "canto", dpi) }; } });
+  OBR.broadcast.sendMessage(CH_NOTE, { text: `${names(from)} passou ${names(item)} para ${names(to)}.`, audience: "all" }, { destination: "ALL" }).catch(() => {});
+  log(`🪪 ${names(from)} → ${names(to)}: ${names(item)}`);
 }
 
 /** Marca no item quem é interagível (para o menu "Interagir") e tira a marca de quem deixou de ser. */
@@ -448,6 +484,12 @@ OBR.onReady(async () => {
     if (!sender || sender.role === "GM") return; // outro mestre executa no navegador dele
     if (!(await isLeader())) return;
     handleInteract(e.data?.itemId, sender.id, "PLAYER");
+  });
+  OBR.broadcast.onMessage(CH_GIVE, async (e) => {
+    if (role !== "GM") return;
+    const sender = (await OBR.party.getPlayers().catch(() => [])).find((x) => x.connectionId === e.connectionId);
+    if (!sender || sender.role === "GM" || !(await isLeader())) return;
+    handleGive(e.data?.itemId, e.data?.toId, sender.id);
   });
   await OBR.contextMenu.create({
     id: `${ID}/interagir`,
