@@ -11,6 +11,7 @@ import {
   ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
   url, itemName, uid, getPrefs, setState, makeCamera, makeNode, decide,
 } from "./ops.js";
+import { readPerf, onPerf, onClean } from "./perf.js";
 
 const LOCAL = `${ID}/local`; // marca dos nossos itens locais
 let role = "PLAYER", myId = "", myConn = "";
@@ -20,6 +21,8 @@ let wallSig = "";
 let localWalls = []; // paredes locais (a névoa dinâmica desenha as paredes como itens locais)
 let access = { players: [], autoApprove: false };
 let prefs = getPrefs();
+let perf = null; // perfil do Otimizador neste navegador (null = sem perfil): filtro de cor e frequência da varredura
+let lastSweep = 0;
 let dpi = 150;
 let ready = false;
 let estGroups = []; // prédios/andares do Estados (câmeras só veem o próprio andar)
@@ -60,7 +63,7 @@ function wanted(now) {
   const ra = prefs.ra && hasAccess(myId, role, items, access);
   const modes = activeModes(myId, role, items);
   // filtro de cor na tela (térmica laranja, baixa luz verde) para quem está com o modo ligado
-  if (modes.length && prefs.tint !== false) {
+  if (modes.length && prefs.tint !== false && perf?.vig?.tint !== false) {
     const m = modes.includes("termica") ? "termica" : "baixa";
     const [r, g, b] = TINT[m];
     out.set(lid("filtro", m), {
@@ -258,7 +261,8 @@ function loop() {
   const sweeping = items.some((i) => camOf(i)?.sweep > 0);
   if (ready) {
     if (leader && items.some((i) => camOf(i))) detect(now);
-    if (sweeping) draw();
+    // câmeras que giram: redesenha no ritmo do perfil do Otimizador (a detecção do mestre não muda)
+    if (sweeping && now - lastSweep >= (perf?.vig?.sweepMs ?? 160) - 20) { lastSweep = now; draw(); }
   }
   tm = setTimeout(loop, sweeping ? 160 : 400);
 }
@@ -338,6 +342,10 @@ OBR.onReady(async () => {
   OBR.broadcast.onMessage(CH_SET, onSet);
   OBR.broadcast.onMessage(CH_VISION, onVision);
   OBR.broadcast.onMessage(CH_PREFS, (e) => { prefs = { ...prefs, ...(e.data || {}) }; draw(); });
+
+  perf = readPerf();
+  onPerf((p) => { perf = p; draw(); });
+  onClean(() => { clearLocal().then(() => draw()); });
 
   // ----- cena -----
   if (await OBR.scene.isReady()) await loadScene();

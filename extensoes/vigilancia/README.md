@@ -36,6 +36,12 @@ Câmeras, guardas e torretas com cone de visão, e a camada de Realidade Aumenta
 - Andares (Estados 1.4+): a câmera só vê quem está no mesmo andar do prédio. Um token escondido só porque o andar dele
   não é o mostrado continua sendo visto pelas câmeras do andar dele.
 
+## Otimizador
+Se o jogador escolher um perfil na extensão Otimizador, a Vigilância obedece só no computador dele:
+o cone das câmeras que giram é redesenhado a cada 0,25 s (Equilibrado), 0,5 s (Leve) ou 1 s (Apresentação), e o
+Apresentação desliga o filtro de cor da visão térmica/baixa luz. Quem a câmera vê continua sendo conferido no ritmo normal
+pelo mestre. "Limpar sobras" apaga e redesenha cones, nós e filtros.
+
 ## Integração
 
 - **Gatilhos** (1.7+): causas "Uma câmera vê alguém" (quem ativou = quem foi visto) e "Nó da Matriz muda de estado"
