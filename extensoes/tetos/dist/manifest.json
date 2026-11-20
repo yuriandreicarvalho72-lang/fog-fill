@@ -1,0 +1,16 @@
+{
+  "name": "Tetos",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "author": "Yuri",
+  "description": "Tetos que somem só para quem entra na casa, sem usar a camada de fog: a fog e a visão do Smoke & Spectre continuam valendo por cima.",
+  "icon": "/tetos/icon.svg",
+  "background_url": "/tetos/background.html",
+  "action": {
+    "title": "Tetos",
+    "icon": "/tetos/icon.svg",
+    "popover": "/tetos/index.html",
+    "height": 380,
+    "width": 320
+  }
+}

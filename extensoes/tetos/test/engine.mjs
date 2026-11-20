@@ -1,0 +1,26 @@
+// Regras puras dos Tetos. Uso: node test/engine.mjs
+globalThis.window = { location: { href: "http://x/" } };
+const src = (await import("node:fs")).readFileSync(new URL("../src/shared.js", import.meta.url), "utf8").replace("import.meta.env.BASE_URL", '"/"');
+const m = await import("data:text/javascript;base64," + Buffer.from(src).toString("base64"));
+let bad = 0;
+const ok = (n, v, e) => { const g = JSON.stringify(v) === JSON.stringify(e); if (!g) bad++; console.log((g ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v)); };
+const box = { min: { x: 0, y: 0 }, max: { x: 300, y: 200 } };
+ok("dentro", m.inside({ x: 100, y: 100 }, box), true);
+ok("fora", m.inside({ x: 400, y: 100 }, box), false);
+ok("na borda", m.inside({ x: 300, y: 200 }, box), true);
+ok("folga", m.inside({ x: 310, y: 100 }, box, 20), true);
+const T = (modo, aberto = false) => ({ modo, aberto });
+ok("meu, jogador dentro", m.revealed(T("meu"), { insideOwn: true, insideAny: true, isGM: false }), true);
+ok("meu, outro jogador dentro (eu fora)", m.revealed(T("meu"), { insideOwn: false, insideAny: true, isGM: false }), false);
+ok("meu, mestre vê sumir com alguém dentro", m.revealed(T("meu"), { insideOwn: false, insideAny: true, isGM: true }), true);
+ok("todos, alguém dentro", m.revealed(T("todos"), { insideOwn: false, insideAny: true, isGM: false }), true);
+ok("manual ignora quem entra", m.revealed(T("manual"), { insideOwn: true, insideAny: true, isGM: false }), false);
+ok("aberto pelo mestre vale em qualquer modo", m.revealed(T("manual", true), { insideOwn: false, insideAny: false, isGM: false }), true);
+const gm = new Set(["gm"]);
+ok("token do jogador abre", m.opensRoofs({ createdUserId: "u1", metadata: {} }, gm), true);
+ok("NPC do mestre não abre", m.opensRoofs({ createdUserId: "gm", metadata: {} }, gm), false);
+ok("token do mestre marcado abre", m.opensRoofs({ createdUserId: "gm", metadata: { "tetos/abre": true } }, gm), true);
+ok("alternar", [m.nextAberto("alternar", false), m.nextAberto("alternar", true), m.nextAberto("abrir", true), m.nextAberto("fechar", true)], [true, false, true, false]);
+ok("assinatura muda com a posição", m.sigOf({ position: { x: 1, y: 1 } }) !== m.sigOf({ position: { x: 2, y: 1 } }), true);
+console.log(bad ? `${bad} ERRO(S)` : "tudo certo");
+process.exit(bad ? 1 : 0);

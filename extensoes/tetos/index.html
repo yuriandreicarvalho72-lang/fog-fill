@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetos</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Tetos</h1>
+      <p class="hint" id="intro">Botão direito numa <b>imagem</b> (teto, telhado, laje) → <b>Tetos: marcar como teto</b>. Ele some só para quem tem um personagem dentro dele; a fog e a visão continuam por cima.</p>
+      <section>
+        <h2>Tetos na cena</h2>
+        <div id="list" class="hint"></div>
+      </section>
+      <section id="gm" hidden>
+        <div class="btns"><button id="openAll" type="button">Abrir todos</button><button id="closeAll" type="button">Fechar todos</button></div>
+        <small>"Abrir" força o teto a sumir para todos, até você fechar.</small>
+      </section>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>
