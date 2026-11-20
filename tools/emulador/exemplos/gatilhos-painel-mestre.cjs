@@ -11,6 +11,7 @@ const { chromium } = require('playwright');
     window.meta = { 'gatilhos/lista': [
       { id: 't1', name: 'Alarme', armed: true, once: false, delay: 0, zones: ['porta'], cause: 'interact', reach: 1, canUse: 'all', glow: true, who: 'chars', tokens: [], reqItem: '', reqNodes: [], conds: [], effects: [{ id: 'e1', action: 'notify', text: 'oi', audience: 'all', targets: [], delay: 0 }] },
       { id: 't2', name: 'Nível 2', armed: true, once: false, delay: 0, zones: [], cause: 'alertLevel', alertTo: '2', alertDir: 'up', conds: [], effects: [{ id: 'e2', action: 'alarm', alarmOp: 'up', alarmTo: '', targets: [], delay: 0 }, { id: 'e3', action: 'cancel', trigger: '', targets: [], delay: 0 }] },
+      { id: 't3', name: 'Porta animada', armed: true, once: false, delay: 0, zones: ['porta'], cause: 'interact', reach: 1, canUse: 'all', glow: true, who: 'chars', tokens: [], reqItem: '', reqNodes: [], conds: [], effects: [{ id: 'e4', action: 'animDoor', targets: [], doorImgs: ['porta'], doorOp: 'alternar', vfxOpen: '', vfxClose: '', vfxWait: 0, delay: 0 }] },
     ] };
     Object.assign(window.responders, {
       OBR_THEME_GET_THEME: () => ({ theme: { mode: 'DARK', text: { primary: '#fff', secondary: '#aaa' }, primary: { main: '#bb99ff' } } }),
@@ -54,6 +55,11 @@ const { chromium } = require('playwright');
   ok('causa "nível de alerta": opções de direção e nível', [t2.includes('Quando o nível'), t2.includes('só ao subir'), t2.includes('Alerta: mudar o nível'), t2.includes('Cancelar sequência')], [true, true, true, true]);
   ok('efeito de alerta mostra "subir 1 nível" até 3', t2.includes('subir 1 nível') && t2.includes('3 (máximo)'), true);
   ok('cancelar sequência lista "todas as sequências pendentes"', t2.includes('todas as sequências pendentes'), true);
+  await fr.click('.card:nth-child(3) .name'); await p.waitForTimeout(300);
+  const t3 = await fr.innerText('.card:nth-child(3) .body');
+  ok('porta animada: campos de vídeo, tempo e imagem do Trocador', [t3.includes('Linha(s) da porta'), t3.includes('Imagem da porta (Trocador)'), await fr.locator('[data-ek="vfxOpen"]').count(), await fr.locator('[data-ek="vfxWait"]').count(), t3.includes('ainda não tem artes no Trocador')], [true, true, 1, 1, true]);
+  await fr.fill('[data-ek="vfxOpen"]', 'https://x.io/abre.webm'); await fr.fill('[data-ek="vfxWait"]', '2'); await fr.press('[data-ek="vfxWait"]', 'Tab'); await p.waitForTimeout(600);
+  ok('guarda o link e o tempo no efeito', await p.evaluate(() => { const e = window.meta['gatilhos/lista'][2].effects[0]; return [e.vfxOpen, e.vfxWait]; }), ['https://x.io/abre.webm', 2]);
   console.log('erros:', JSON.stringify(errs));
   await b.close();
 })();

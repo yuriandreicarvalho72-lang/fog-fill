@@ -4,7 +4,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
-import { involvedIds } from "./shared.js";
+import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
 import { ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
@@ -299,6 +299,34 @@ async function doEffect(e, ctx, depth, trigger) {
       if (stuck.length) OBR.broadcast.sendMessage(CH_NOTE, { text: stuck.length > 1 ? "As portas estão trancadas." : "A porta está trancada.", audience: "all" }, { destination: "ALL" }).catch(() => {});
       const go = doors.filter((d) => !stuck.includes(d)).map((d) => d.id);
       return go.length ? OBR.scene.items.updateItems(go, (d) => { for (const it of d) setDoor(it, op); }) : null;
+    }
+    case "animDoor": {
+      // porta animada: toca o vídeo (VFX do Arsenal), espera a animação, troca a imagem (Trocador) e abre/fecha a linha da porta da névoa
+      const lines = (ids.length ? await OBR.scene.items.getItems(ids) : []).filter(isFogDoor);
+      const imgIds = (e.doorImgs || []).filter(Boolean);
+      const imgs = imgIds.length ? await OBR.scene.items.getItems(imgIds) : [];
+      if (!lines.length && !imgs.length) return warn(`"${trigger.name}": a porta animada está sem a linha da porta nem a imagem dela.`);
+      const state = lines.length ? doorIsOpen(lines[0]) : imgs[0]?.metadata?.[META_DOOR]?.open === true;
+      const p = animDoorPlan(e, state);
+      if (p.noop) return null;
+      if (p.opening && lines.some((d) => doorIsLocked(d) && !doorIsOpen(d))) {
+        return OBR.broadcast.sendMessage(CH_NOTE, { text: lines.length > 1 ? "As portas estão trancadas." : "A porta está trancada.", audience: "all" }, { destination: "ALL" });
+      }
+      if (p.url) {
+        const where = imgs.length ? imgs.map((i) => i.id) : lines.map((i) => i.id);
+        OBR.broadcast.sendMessage(ARSENAL_FX, {
+          video: { url: p.url, tipo: e.fxTipo || "area", giro: Number(e.fxGiro) || 0 }, targets: where, dur: 0,
+          tamanho: Number(e.fxSize) > 0 ? Number(e.fxSize) : undefined, tag: (e.fxTag || "").trim() || trigger.name, origem: trigger.name,
+        }, { destination: "ALL" }).catch(() => {});
+      }
+      const finish = async () => {
+        if (imgs.length) OBR.broadcast.sendMessage(TROCADOR_SWAP, { targets: imgs.map((i) => i.id), to: p.to, from: trigger.name }, { destination: "ALL" }).catch(() => {});
+        if (lines.length) await OBR.scene.items.updateItems(lines.map((d) => d.id), (d) => { for (const it of d) setDoor(it, p.opening ? "abrir" : "fechar"); });
+        if (imgs.length) await OBR.scene.items.updateItems(imgs.map((i) => i.id), (d) => { for (const it of d) it.metadata[META_DOOR] = { open: p.opening }; });
+      };
+      log(`🚪 ${trigger.name}: ${p.opening ? "abrindo" : "fechando"}${p.wait ? ` (em ${p.wait} s)` : ""}`);
+      if (p.wait > 0) { later(trigger.id, p.wait, () => finish().catch((err) => console.error(`[${ID}]`, err))); return null; }
+      return finish();
     }
     case "attach": {
       // pegar item: o item (cartão, chave…) fica preso no token e anda com ele; soltar larga onde está
@@ -600,6 +628,26 @@ OBR.onReady(async () => {
       t.effects = [fx];
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show("Porta pronta: o jogador com um personagem ao lado usa pelo painel Gatilhos (botão Usar). Trancada no Smoke, ela não abre.", "SUCCESS");
+    },
+  });
+  // porta animada: linha da porta (Smoke & Spectre ou névoa) + imagem da porta → gatilho "Interagir" pronto
+  await OBR.contextMenu.create({
+    id: `${ID}/porta-animada`,
+    icons: [{
+      icon: url("icon.svg"), label: "Gatilhos: criar porta animada (VFX + imagem + porta)",
+      filter: { roles: ["GM"], every: [{ key: "layer", value: "CHARACTER", operator: "!=" }, { key: "layer", value: "MOUNT", operator: "!=" }] },
+    }],
+    onClick: async (ctx) => {
+      const lines = ctx.items.filter(isFogDoor);
+      const imgs = ctx.items.filter((i) => i.type === "IMAGE" && !isFogDoor(i) && !isToken(i));
+      if (!lines.length && !imgs.length) return OBR.notification.show("Gatilhos: selecione a linha da porta (Smoke & Spectre com Enable Door, ou a névoa) e/ou a imagem da porta, e use de novo.", "WARNING");
+      const nm = names(imgs[0] || lines[0]);
+      const t = newTrigger((imgs.length ? imgs : lines).map((i) => i.id), `Porta animada: ${nm}`);
+      t.cause = "interact"; t.once = false; t.reach = 1;
+      const fx = newEffect("animDoor"); fx.targets = lines.map((i) => i.id); fx.doorImgs = imgs.map((i) => i.id); fx.doorOp = "alternar";
+      t.effects = [fx];
+      await saveTriggers((l) => [...l, t]);
+      OBR.notification.show(`Porta animada criada. No painel Gatilhos, cole o link do vídeo (.webm) de abrir${imgs.length ? " e guarde as imagens fechada/aberta no Trocador (botão direito na imagem → Trocar imagem → + imagens)" : ""}.`, "SUCCESS");
     },
   });
   // item que o personagem pega ao chegar perto (cartão de acesso, chave): vira um gatilho pronto

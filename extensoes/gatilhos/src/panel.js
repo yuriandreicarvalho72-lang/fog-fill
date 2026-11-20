@@ -189,6 +189,31 @@ function alarmRow(e) {
     <span class="hint">O alerta é da cena (0 a ${ALERT_MAX}). Use o gatilho com a causa "O nível de alerta mudou" para o que acontece em cada nível. Dica: câmera → botão direito → <b>Gatilhos: esta câmera sobe o alerta</b>. No texto da mensagem, {nivel} vira o nível.</span>`;
 }
 
+/** Porta animada: linha da porta + imagem (Trocador) + vídeo de abrir/fechar. */
+function animDoorRow(e) {
+  const lines = (e.targets || []).filter((id) => id !== ACTOR);
+  const imgs = e.doorImgs || [];
+  const names = [...new Set(imgs.flatMap((id) => itemImages.get(id) || []))];
+  const so = (k, cur, def) => `<select data-ek="${k}"><option value="${def}" ${(cur || def) === def ? "selected" : ""}>${def === "next" ? "próxima imagem" : "imagem anterior"}</option>${names.map((n) => `<option value="${esc(n)}" ${n === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
+  const state = lines.find((id) => itemDoor.has(id));
+  const dur = Number(e.vfxWait) || 0;
+  return `<div class="sub">Linha(s) da porta (Smoke & Spectre ou névoa): ${chips(lines, `e:${e.id}:targets`)}</div>
+    <div class="sub">Imagem da porta (Trocador): ${chips(imgs, `e:${e.id}:doorImgs`)}</div>
+    <div class="row"><span class="hint">Porta:</span><select data-ek="doorOp">${DOOR_OPS.filter(([v]) => ["alternar", "abrir", "fechar"].includes(v)).map(([v, l]) => `<option value="${v}" ${(e.doorOp || "alternar") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    <input type="text" data-ek="vfxOpen" value="${esc(e.vfxOpen)}" placeholder="Vídeo de ABRIR (https://…/porta-abrindo.webm)" />
+    <input type="text" data-ek="vfxClose" value="${esc(e.vfxClose)}" placeholder="Vídeo de FECHAR (opcional; sem ele, fecha sem vídeo)" />
+    <div class="row"><span class="hint">A porta muda</span><input type="number" data-ek="vfxWait" min="0" step="0.5" value="${dur}" /><span class="hint">s depois de o vídeo começar (a duração da animação)</span></div>
+    <div class="row"><select data-ek="fxTipo">${FX_TIPOS.map(([v, l]) => `<option value="${v}" ${(e.fxTipo || "area") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select data-ek="fxGiro">${FX_GIROS.map(([v, l]) => `<option value="${v}" ${Number(e.fxGiro || 0) === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <label class="inline" title="0 = tamanho padrão do vídeo">tam. <input type="number" data-ek="fxSize" min="0" step="0.5" value="${e.fxSize || 0}" /> q</label></div>
+    ${imgs.length ? `<div class="row"><span class="hint">Ao abrir:</span>${so("imgOpen", e.imgOpen, "next")}</div><div class="row"><span class="hint">Ao fechar:</span>${so("imgClosed", e.imgClosed, "prev")}</div>
+      ${names.length ? "" : '<span class="hint warn">⚠ A imagem ainda não tem artes no Trocador: botão direito nela → Trocar imagem → + imagens (a fechada primeiro, depois a aberta).</span>'}` : ""}
+    ${!lines.length && !imgs.length ? '<span class="hint warn">⚠ Escolha a linha da porta e/ou a imagem dela (selecione no mapa e clique em "usar seleção").</span>' : ""}
+    ${lines.length && !lines.some((id) => itemDoor.has(id)) ? '<span class="hint warn">⚠ Nenhum item da linha é porta da névoa (no Smoke & Spectre: botão direito na linha → Enable Door).</span>' : ""}
+    ${state ? `<span class="hint">Agora: ${itemDoor.get(state).open ? "aberta" : "fechada"}${itemDoor.get(state).locked ? " (trancada)" : ""}</span>` : ""}
+    <span class="hint">Ao ativar: toca o vídeo em cima da imagem da porta (Arsenal), espera o tempo da animação, troca a imagem (Trocador) e abre ou fecha a linha da porta (alterna conforme o estado dela). Sem vídeo, troca na hora. Porta trancada no Smoke não abre. Para o jogador usar: causa "Interagir" na imagem da porta. Atalho: selecione a linha e a imagem → botão direito → <b>Gatilhos: criar porta animada</b>.</span>`;
+}
+
 /** Uma condição do "Só se". */
 function condRow(t, c) {
   const so = (k, opts, cur) => `<select data-ck="${k}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur ?? "") === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
@@ -230,6 +255,7 @@ function effectRow(t, e) {
     ${need.has("floor") ? floorRow(e) : ""}
     ${need.has("vision") ? visionRow(e) : ""}
     ${need.has("chargeOp") ? chargeRow(e) : ""}
+    ${need.has("animDoor") ? animDoorRow(e) : ""}
     ${need.has("alarm") ? alarmRow(e) : ""}
     ${need.has("doorOp") ? doorRow(e) : ""}
     ${need.has("attach") ? attachRow(t, e) : ""}
@@ -341,6 +367,7 @@ function card(t) {
         const [, eid, field] = key.split(":");
         const e = t.effects.find((x) => x.id === eid);
         if (field === "dest") e.dest = sel[0] || null;
+        else if (field === "doorImgs") e.doorImgs = sel;
         else if (field === "shooter") { e.shooter = sel[0] || ""; e.weapon = ""; e.mode = ""; if (e.action === "npcAbility") e.ability = ""; }
         else e.targets = (e.targets || []).includes(ACTOR) ? [ACTOR, ...sel] : sel;
       }

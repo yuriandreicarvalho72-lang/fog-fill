@@ -160,6 +160,23 @@ export const DOOR_IS = [["aberta", "está aberta"], ["fechada", "está fechada"]
 export function newCond(type = "alert") {
   return { id: uid(), type, op: type === "alert" ? ">=" : type === "count" ? ">=" : "==", n: type === "alert" ? 1 : 3, ids: [], zones: [], is: type === "node" ? "hackeado" : type === "door" ? "aberta" : "", group: "", name: "", hid: false };
 }
+// ---------- porta animada: vídeo (VFX) + troca a imagem (Trocador) + abre a porta da névoa ----------
+export const META_DOOR = `${ID}/porta`; // metadado da imagem da porta: { open } (quando não há linha de porta para saber o estado)
+/**
+ * O que a porta animada faz agora. state = a porta está aberta?
+ * Devolve { opening, noop (já está assim), url (vídeo ou ""), to (imagem do Trocador), wait (segundos até trocar a imagem e abrir a linha) }.
+ */
+export function animDoorPlan(e, state) {
+  const op = e.doorOp || "alternar";
+  const opening = op === "abrir" ? true : op === "fechar" ? false : !state;
+  const link = String((opening ? e.vfxOpen : e.vfxClose) || "").trim();
+  return {
+    opening, noop: opening === !!state,
+    url: /^https?:\/\/\S+$/i.test(link) ? link : "",
+    to: (opening ? e.imgOpen : e.imgClosed) || (opening ? "next" : "prev"),
+    wait: Math.max(0, Number(e.vfxWait) || 0),
+  };
+}
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -215,6 +232,7 @@ export const ACTIONS = [
   { id: "npcAbility", label: "Habilidade de NPC (Arsenal)", need: ["shooter", "targets", "ability"] },
   { id: "alarm", label: "Alerta: mudar o nível", need: ["alarm"] },
   { id: "cancel", label: "Cancelar sequência pendente (efeitos com atraso)", need: ["triggerAny"] },
+  { id: "animDoor", label: "Porta animada: vídeo (VFX) + troca a imagem + abre a porta da névoa", need: ["animDoor"] },
   { id: "chain", label: "Disparar outro gatilho (use \"depois de N s\" para atrasar)", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -239,7 +257,8 @@ export function newTrigger(zones = [], name = "Gatilho") {
 export function newEffect(action = "show") {
   return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0,
     fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar",
-    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true, alarmOp: "up", alarmTo: "" };
+    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true, alarmOp: "up", alarmTo: "",
+    vfxOpen: "", vfxClose: "", vfxWait: 0, imgOpen: "next", imgClosed: "prev", doorImgs: [] };
 }
 
 // quem o teleporte leva
@@ -266,7 +285,7 @@ export function involvedIds(t) {
   (t.zones || []).forEach(add);
   if (t.who === "list") (t.tokens || []).forEach(add);
   (t.reqNodes || []).forEach(add);
-  for (const e of t.effects || []) { (e.targets || []).forEach(add); add(e.dest); add(e.shooter); }
+  for (const e of t.effects || []) { (e.targets || []).forEach(add); (e.doorImgs || []).forEach(add); add(e.dest); add(e.shooter); }
   for (const c of t.conds || []) { (c.ids || []).forEach(add); (c.zones || []).forEach(add); }
   return [...out];
 }

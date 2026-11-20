@@ -148,3 +148,14 @@ t1('comparações', [cmp(2, '>=', 2), cmp(1, '>=', 2), cmp(2, '<=', 2), cmp(3, '
 import { involvedIds } from '../src/shared.js';
 t1('itens de um gatilho: zonas, alvos, destino, atirador, nós e condições (sem "quem ativou" e sem repetir)', involvedIds({ zones: ['z1'], who: 'chars', tokens: ['x'], reqNodes: ['n1'], effects: [{ targets: ['@quem', 'a', 'z1'], dest: 'd', shooter: 's' }, { targets: [] }], conds: [{ ids: ['porta'], zones: ['sala'] }] }), ['z1', 'n1', 'a', 'd', 's', 'porta', 'sala']);
 t1('tokens da lista só contam se o gatilho é "só estes tokens"', [involvedIds({ zones: [], who: 'list', tokens: ['x'], effects: [] }), involvedIds({ zones: [], who: 'chars', tokens: ['x'], effects: [] })], [['x'], []]);
+
+// porta animada (1.17)
+import { animDoorPlan } from '../src/shared.js';
+{
+  const e = { doorOp: 'alternar', vfxOpen: 'https://x.io/abre.webm', vfxClose: 'https://x.io/fecha.webm', vfxWait: 1.5, imgOpen: 'Aberta', imgClosed: '' };
+  t1('porta animada: fechada → abre com o vídeo de abrir e a imagem "Aberta"', animDoorPlan(e, false), { opening: true, noop: false, url: 'https://x.io/abre.webm', to: 'Aberta', wait: 1.5 });
+  t1('aberta → fecha com o vídeo de fechar e a imagem anterior', animDoorPlan(e, true), { opening: false, noop: false, url: 'https://x.io/fecha.webm', to: 'prev', wait: 1.5 });
+  t1('"abrir" com a porta já aberta não faz nada; "fechar" com ela fechada também', [animDoorPlan({ ...e, doorOp: 'abrir' }, true).noop, animDoorPlan({ ...e, doorOp: 'fechar' }, false).noop, animDoorPlan({ ...e, doorOp: 'abrir' }, false).noop], [true, true, false]);
+  t1('sem vídeo de fechar ou com link inválido: sem vídeo, troca na hora', [animDoorPlan({ ...e, vfxClose: '' }, true).url, animDoorPlan({ ...e, vfxOpen: 'javascript:x', vfxWait: 0 }, false).url, animDoorPlan({ vfxOpen: '' }, false).wait], ['', '', 0]);
+  t1('porta animada: a imagem entra na lista de itens do gatilho', involvedIds({ zones: ['img'], effects: [{ targets: ['linha'], doorImgs: ['img', 'img2'] }] }), ['img', 'linha', 'img2']);
+}

@@ -42,6 +42,12 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
   "Colored Rings") com a lista desses gatilhos: **●/○** arma e rearma, **⚡** ativa na hora (ignora as condições; o personagem selecionado
   conta como "quem ativou"), e **Armar todos / Desarmar todos**. Vale para zona, alvo de efeito, destino, atirador, nó, item de condição e token da
   lista. A lista segue a seleção e as edições do painel. Só o mestre vê. (Na 1.15 eram uma linha por gatilho no menu; a 1.16 troca por este submenu. A 1.16.1 corrige o filtro: com mais de um item em gatilhos o submenu não aparecia.)
+- **Porta animada** (1.17): efeito único que junta tudo: toca um **vídeo (VFX) por link .webm** em cima da imagem da porta (o mesmo motor de
+  efeitos do Arsenal), espera "a porta muda N s depois" (a duração da animação), **troca a imagem** da porta no Trocador (fechada → aberta) e
+  **abre ou fecha a linha** da porta do Smoke & Spectre (Enable Door) ou da névoa do Owlbear. **Alterna** conforme o estado: aberta usa o
+  vídeo de fechar (opcional) e a imagem anterior. Sem linha, o estado fica guardado na própria imagem. "Abrir" numa porta já aberta não
+  faz nada; porta trancada no Smoke avisa e não abre. Atalho: selecione a linha da porta e a imagem dela → botão direito →
+  **Gatilhos: criar porta animada** (gatilho "Interagir" pronto; o jogador usa pelo painel ou clicando).
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.
