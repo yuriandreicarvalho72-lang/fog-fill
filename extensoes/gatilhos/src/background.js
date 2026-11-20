@@ -138,8 +138,8 @@ function cancelPending(trigId, keep = "") {
   return n;
 }
 
-// botão direito num item: um "⚡ Nome do gatilho" para cada gatilho de que ele faz parte (zona, alvo, destino, atirador, nó, condição)
-const menuSig = new Map(); // triggerId -> assinatura do que está no menu
+// botão direito num item: submenu "Gatilhos" (lista de menu.html) com os gatilhos de que o item faz parte: armar/desarmar e ativar
+let menuSig = "";
 let menuBusy = false, menuAgain = false;
 async function syncMenu() {
   if (role !== "GM") return;
@@ -148,33 +148,21 @@ async function syncMenu() {
   try {
     do {
       menuAgain = false;
-      const want = new Map();
-      for (const t of triggers) {
-        const ids = involvedIds(t).slice(0, 80);
-        if (ids.length) want.set(t.id, { ids, label: `⚡ ${String(t.name || "Gatilho").slice(0, 36)}${t.armed ? "" : " (desarmado)"}` });
-      }
-      for (const id of [...menuSig.keys()]) if (!want.has(id)) { await OBR.contextMenu.remove(`${ID}/t/${id}`).catch(() => {}); menuSig.delete(id); }
-      for (const [id, w] of want) {
-        const sig = JSON.stringify([w.label, w.ids]);
-        if (menuSig.get(id) === sig) continue;
-        await OBR.contextMenu.create({
-          id: `${ID}/t/${id}`,
-          icons: [{ icon: url("icon.svg"), label: w.label, filter: { roles: ["GM"], some: w.ids.map((x) => ({ key: "id", value: x })) } }],
-          onClick: (ctx) => fireFromMenu(id, ctx),
-        }).catch(() => {});
-        menuSig.set(id, sig);
-      }
+      const per = new Map(); // item -> quantos gatilhos usam
+      for (const t of triggers) for (const id of involvedIds(t)) per.set(id, (per.get(id) || 0) + 1);
+      const ids = [...per.keys()].slice(0, 600);
+      const height = Math.max(70, Math.min(340, Math.max(0, ...per.values()) * 38 + 54));
+      const sig = JSON.stringify([ids, height]);
+      if (sig === menuSig) continue;
+      if (!ids.length) await OBR.contextMenu.remove(`${ID}/lista`).catch(() => {});
+      else await OBR.contextMenu.create({
+        id: `${ID}/lista`,
+        icons: [{ icon: url("icon.svg"), label: "Gatilhos deste item", filter: { roles: ["GM"], some: ids.map((x) => ({ key: "id", value: x })) } }],
+        embed: { url: url("menu.html"), height },
+      }).catch(() => {});
+      menuSig = sig;
     } while (menuAgain);
   } finally { menuBusy = false; }
-}
-
-/** Ativa o gatilho pelo botão direito (como o ⚡ do painel: ignora as condições). Os personagens selecionados contam como quem ativou. */
-function fireFromMenu(id, ctx) {
-  const t = triggers.find((x) => x.id === id);
-  if (!t) return;
-  const on = (ctx?.items || []).filter(isToken).map((i) => i.id);
-  OBR.notification.show(`Gatilho "${t.name}" ativado.`, "SUCCESS");
-  run(t, { force: true, ...(on.length ? { on } : {}) });
 }
 
 /** As condições do gatilho valem agora? */

@@ -75,3 +75,13 @@ body.nota main { padding: 14px 16px; }
 .alertbar .mini.on { background: var(--accent); color: #111; font-weight: 700; }
 .cond { border-left: 3px solid #ffb36b; padding: 4px 0 6px 8px; margin: 6px 0; }
 .cond .row select { flex: 1; margin: 0; }
+/* menu do botão direito (lista de gatilhos do item) */
+.gm-list { display: flex; flex-direction: column; gap: 2px; max-height: 100%; overflow-y: auto; }
+.gm-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.gm-row.off .gm-name { opacity: .55; }
+.gm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gm-name small { font-weight: 400; margin: 0; overflow: hidden; text-overflow: ellipsis; }
+.arm { width: 26px; padding: 1px 0; font-size: 15px; line-height: 1; color: var(--muted); }
+.arm.on { color: var(--accent); }
+.gm-foot { margin-top: 6px; }
+.grow { flex: 1; }
