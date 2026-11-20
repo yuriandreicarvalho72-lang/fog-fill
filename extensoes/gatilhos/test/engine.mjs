@@ -143,3 +143,8 @@ t1('comparações', [cmp(2, '>=', 2), cmp(1, '>=', 2), cmp(2, '<=', 2), cmp(3, '
   const tr = { conds: [C({ type: 'alert', op: '>=', n: 2 }), C({ type: 'alert', op: '>=', n: 3 })], condAny: false };
   t1('várias: todas / qualquer uma / nenhuma condição', [condsOk(tr, env), condsOk({ ...tr, condAny: true }, env), condsOk({ conds: [] }, env), condsOk(newTrigger(), env)], [false, true, true, true]);
 }
+
+// botão direito: de que gatilhos um item faz parte (1.15)
+import { involvedIds } from '../src/shared.js';
+t1('itens de um gatilho: zonas, alvos, destino, atirador, nós e condições (sem "quem ativou" e sem repetir)', involvedIds({ zones: ['z1'], who: 'chars', tokens: ['x'], reqNodes: ['n1'], effects: [{ targets: ['@quem', 'a', 'z1'], dest: 'd', shooter: 's' }, { targets: [] }], conds: [{ ids: ['porta'], zones: ['sala'] }] }), ['z1', 'n1', 'a', 'd', 's', 'porta', 'sala']);
+t1('tokens da lista só contam se o gatilho é "só estes tokens"', [involvedIds({ zones: [], who: 'list', tokens: ['x'], effects: [] }), involvedIds({ zones: [], who: 'chars', tokens: ['x'], effects: [] })], [['x'], []]);

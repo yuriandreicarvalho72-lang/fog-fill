@@ -259,6 +259,18 @@ export const CAN_USE = [["all", "jogadores e mestre"], ["players", "só jogadore
 /** Gatilho de interação ativo (armado). */
 export const isInteract = (t) => t.cause === "interact" && t.armed;
 
+/** Todos os itens que um gatilho usa (zonas, tokens da lista, alvos, destinos, atiradores, nós e condições): é por eles que o gatilho aparece no botão direito. */
+export function involvedIds(t) {
+  const out = new Set();
+  const add = (id) => { if (id && id !== ACTOR) out.add(id); };
+  (t.zones || []).forEach(add);
+  if (t.who === "list") (t.tokens || []).forEach(add);
+  (t.reqNodes || []).forEach(add);
+  for (const e of t.effects || []) { (e.targets || []).forEach(add); add(e.dest); add(e.shooter); }
+  for (const c of t.conds || []) { (c.ids || []).forEach(add); (c.zones || []).forEach(add); }
+  return [...out];
+}
+
 /** Pode disparar gatilho: tokens de personagem/montaria. */
 export const isToken = (i) => i.type === "IMAGE" && (i.layer === "CHARACTER" || i.layer === "MOUNT");
 

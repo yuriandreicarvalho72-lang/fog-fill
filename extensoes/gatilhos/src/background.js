@@ -4,6 +4,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
+import { involvedIds } from "./shared.js";
 import { ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
@@ -135,6 +136,45 @@ function cancelPending(trigId, keep = "") {
     m.clear();
   }
   return n;
+}
+
+// botão direito num item: um "⚡ Nome do gatilho" para cada gatilho de que ele faz parte (zona, alvo, destino, atirador, nó, condição)
+const menuSig = new Map(); // triggerId -> assinatura do que está no menu
+let menuBusy = false, menuAgain = false;
+async function syncMenu() {
+  if (role !== "GM") return;
+  if (menuBusy) { menuAgain = true; return; }
+  menuBusy = true;
+  try {
+    do {
+      menuAgain = false;
+      const want = new Map();
+      for (const t of triggers) {
+        const ids = involvedIds(t).slice(0, 80);
+        if (ids.length) want.set(t.id, { ids, label: `⚡ ${String(t.name || "Gatilho").slice(0, 36)}${t.armed ? "" : " (desarmado)"}` });
+      }
+      for (const id of [...menuSig.keys()]) if (!want.has(id)) { await OBR.contextMenu.remove(`${ID}/t/${id}`).catch(() => {}); menuSig.delete(id); }
+      for (const [id, w] of want) {
+        const sig = JSON.stringify([w.label, w.ids]);
+        if (menuSig.get(id) === sig) continue;
+        await OBR.contextMenu.create({
+          id: `${ID}/t/${id}`,
+          icons: [{ icon: url("icon.svg"), label: w.label, filter: { roles: ["GM"], some: w.ids.map((x) => ({ key: "id", value: x })) } }],
+          onClick: (ctx) => fireFromMenu(id, ctx),
+        }).catch(() => {});
+        menuSig.set(id, sig);
+      }
+    } while (menuAgain);
+  } finally { menuBusy = false; }
+}
+
+/** Ativa o gatilho pelo botão direito (como o ⚡ do painel: ignora as condições). Os personagens selecionados contam como quem ativou. */
+function fireFromMenu(id, ctx) {
+  const t = triggers.find((x) => x.id === id);
+  if (!t) return;
+  const on = (ctx?.items || []).filter(isToken).map((i) => i.id);
+  OBR.notification.show(`Gatilho "${t.name}" ativado.`, "SUCCESS");
+  run(t, { force: true, ...(on.length ? { on } : {}) });
 }
 
 /** As condições do gatilho valem agora? */
@@ -643,6 +683,7 @@ OBR.onReady(async () => {
   const boot = async () => {
     if (role !== "GM") return;
     await startGM();
+    syncMenu();
   };
   if (await OBR.scene.isReady()) await boot();
   OBR.scene.onReadyChange((r) => { if (r) boot(); });
@@ -651,7 +692,7 @@ OBR.onReady(async () => {
     const next = Array.isArray(md[LIST]) ? md[LIST] : [];
     // mantém "desarmado" local até o metadado confirmar (evita disparo duplo)
     triggers = next;
-    if (role === "GM") syncFlags(lastItems); // objeto virou (ou deixou de ser) interagível
+    if (role === "GM") { syncFlags(lastItems); syncMenu(); } // objeto virou (ou deixou de ser) interagível; menu do botão direito
     const lvl = alertLevel(md);
     if (role === "GM" && alertPrev !== null && lvl !== alertPrev) { const prev = alertPrev; alertPrev = lvl; onAlert(lvl, prev); } else if (role === "GM") alertPrev = lvl;
   });

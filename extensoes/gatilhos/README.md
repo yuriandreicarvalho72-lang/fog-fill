@@ -38,6 +38,9 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
 - **Sequências com atraso** (1.14): cada efeito tem "depois de N s" e "Disparar outro gatilho" encadeia cenas (porta abre → 5 s sirene → 10 s
   reforços). O efeito novo **Cancelar sequência pendente** tira da espera o que ainda não rodou (de um gatilho ou de todos), por exemplo quando os
   jogadores hackeiam o alarme a tempo.
+- **Menu do botão direito** (1.15): botão direito num item mostra um **⚡ Nome do gatilho** para cada gatilho de que ele faz parte (zona, alvo de
+  um efeito, destino, atirador, nó, item de condição ou token da lista); clicar ativa o gatilho (como o ⚡ do painel: ignora as condições; o
+  personagem selecionado conta como "quem ativou"). Gatilho desarmado aparece com "(desarmado)". O menu se atualiza ao renomear, editar ou apagar.
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.
