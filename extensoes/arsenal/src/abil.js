@@ -79,6 +79,29 @@ export const VISUAIS = [...Object.keys(ABIL_LIB), ...Object.keys(ALIAS)].sort();
 const libKey = (vis) => (ALIAS[vis] ? ALIAS[vis] : ABIL_LIB[vis] ? `hab_${vis}` : null);
 export const abilFiles = () => [...new Set(Object.values(ABIL_LIB).flatMap((a) => (a.v ? Object.values(a.v).map((x) => x.file) : [a.file])))].sort();
 
+const GRUPOS = [["target", "No alvo"], ["melee", "Corpo a corpo"], ["ranged", "Projétil e raio"], ["cone", "Cone"], ["line", "Linha"], ["area", "Área"], ["self", "Em si"], ["move", "Movimento"]];
+/** Visuais por grupo, para o seletor e a lista do painel: [[título, [visual...]]] */
+export const visualGroups = () => GRUPOS.map(([t, title]) => [title, VISUAIS.filter((v) => LIB[libKey(v)]?.type === t)]).filter(([, l]) => l.length);
+/** Arquivo de vídeo da prévia no painel (projéteis: a versão de 30 ft). */
+export function previewFile(vis) {
+  const a = LIB[libKey(vis)];
+  if (!a) return null;
+  return a.v ? (a.v[30] || Object.values(a.v)[0]).file : a.file;
+}
+/** Troca o visual de uma habilidade ("" = sem vídeo). Devolve o dossiê novo. */
+export function setVisual(dossie, nome, vis) {
+  if (vis && !libKey(vis)) throw new Error(`visual "${vis}" não existe.`);
+  return {
+    ...dossie,
+    habilidades: dossie.habilidades.map((h) => {
+      if (h.nome !== nome) return h;
+      const n = { ...h };
+      if (vis) n.visual = vis; else delete n.visual;
+      return n;
+    }),
+  };
+}
+
 // ---------------- dossiê ----------------
 const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const txt = (v) => (v == null ? "" : String(v).trim());
