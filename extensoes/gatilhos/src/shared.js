@@ -87,6 +87,19 @@ export function hasRequired(tokenId, items, req) {
 }
 /** Texto da mensagem de acesso negado ({item} e {quem}). */
 export const denyText = (t, who) => (String(t.reqMsg || "").trim() || REQ_DEFAULT).replaceAll("{item}", String(t.reqItem || "").trim()).replaceAll("{quem}", who || "você");
+// ---------- pegar item: prender (attachment) no token de quem ativou ----------
+export const ATTACH_OPS = [["prender", "prender (o personagem pega)"], ["soltar", "soltar (larga onde está)"]];
+export const ATTACH_PLACES = [["canto", "no canto do token"], ["centro", "no centro do token"], ["onde", "onde o item está"]];
+export const ATTACH_WHO = [["actor", "quem ativou (o mais perto)"], ["selected", "o token que eu tiver selecionado"]];
+/** Tamanho (meio lado, em pixels da cena) de um item de imagem; sem imagem, meio quadrado. */
+const halfOf = (i, dpi) => (i?.image?.width && i?.grid?.dpi ? (i.image.width / i.grid.dpi) * dpi * Math.abs(i.scale?.x || 1) / 2 : dpi / 2);
+/** Onde o item fica ao ser preso no token: canto de baixo à direita, centro ou onde já está. */
+export function attachPos(item, token, place, dpi) {
+  if (place === "onde") return { ...item.position };
+  if (place === "centro") return { ...token.position };
+  const k = Math.max(0, halfOf(token, dpi) - halfOf(item, dpi) * 0.6);
+  return { x: token.position.x + k, y: token.position.y + k };
+}
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -135,6 +148,7 @@ export const ACTIONS = [
   { id: "vision", label: "Ligar/desligar modo de visão (Vigilância)", need: ["targets", "vision"] },
   { id: "charge", label: "Carga (Arsenal): detonar ou desarmar", need: ["targets", "chargeOp"] },
   { id: "door", label: "Porta da névoa: abrir / fechar (Smoke & Spectre)", need: ["targets", "doorOp"] },
+  { id: "attach", label: "Pegar item: prender no token de quem ativou (cartão, chave…)", need: ["targets", "attach"] },
   { id: "fx", label: "Efeito visual (Arsenal): vídeo no mapa", need: ["shooter", "targets", "fx"] },
   { id: "fxEnd", label: "Encerrar efeito visual (Arsenal)", need: ["fxEnd"] },
   { id: "npcAbility", label: "Habilidade de NPC (Arsenal)", need: ["shooter", "targets", "ability"] },
@@ -160,7 +174,8 @@ export function newTrigger(zones = [], name = "Gatilho") {
 }
 export function newEffect(action = "show") {
   return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0,
-    fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar" };
+    fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar",
+    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true };
 }
 
 // quem o teleporte leva

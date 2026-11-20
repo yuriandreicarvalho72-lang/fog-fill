@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, hasRequired, denyText, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, hasRequired, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -225,6 +225,27 @@ async function doEffect(e, ctx, depth, trigger) {
       const go = doors.filter((d) => !stuck.includes(d)).map((d) => d.id);
       return go.length ? OBR.scene.items.updateItems(go, (d) => { for (const it of d) setDoor(it, op); }) : null;
     }
+    case "attach": {
+      // pegar item: o item (cartão, chave…) fica preso no token e anda com ele; soltar larga onde está
+      const its = (ids.length ? await OBR.scene.items.getItems(ids) : []).filter((i) => !isToken(i));
+      if (!its.length) return warn(`"${trigger.name}": pegar item está sem o item (escolha o cartão, a chave… em "Itens").`);
+      if ((e.attachOp || "prender") === "soltar") {
+        const held = its.filter((i) => i.attachedTo).map((i) => i.id);
+        return held.length ? OBR.scene.items.updateItems(held, (d) => { for (const it of d) delete it.attachedTo; }) : null;
+      }
+      const holder = (await actors(trigger, ctx, e.attachWho === "selected" ? "selected" : "actor")).find((i) => isToken(i) && !its.some((x) => x.id === i.id));
+      if (!holder) return warn(`"${trigger.name}": ninguém para pegar o item (sem movimento: quem está em cima da zona ou o token selecionado).`);
+      const pos = new Map(its.map((i) => [i.id, attachPos(i, holder, e.attachPlace || "canto", dpi)]));
+      for (const id of pos.keys()) anchor.delete(id);
+      await OBR.scene.items.updateItems([...pos.keys()], (d) => {
+        for (const it of d) {
+          it.attachedTo = holder.id; it.position = { ...pos.get(it.id) };
+          if (e.attachShow !== false) it.visible = true;
+          if (e.attachLock !== false) it.locked = true;
+        }
+      });
+      return log(`🪪 ${names(holder)} pegou ${its.map(names).join(", ")}`);
+    }
     case "fx": {
       // o Arsenal toca o vídeo para todos (só um mestre executa); sem "sai de", fica em cima de cada item
       if (!ids.length && !e.shooter) return warn(`"${trigger.name}": o efeito visual está sem alvo (escolha itens ou "+ quem ativou").`);
@@ -320,7 +341,7 @@ function guardInteractables(items) {
   const want = new Set(triggers.filter(isInteract).flatMap((t) => t.zones || []));
   const back = [];
   for (const it of items) {
-    if (!want.has(it.id)) { anchor.delete(it.id); continue; }
+    if (!want.has(it.id) || it.attachedTo) { anchor.delete(it.id); continue; } // preso num token: anda com ele
     const a = anchor.get(it.id);
     if (!a || it.lastModifiedUserId === myId) { anchor.set(it.id, { ...it.position }); continue; }
     if (!same(a, it.position)) back.push([it.id, a]);
@@ -452,6 +473,26 @@ OBR.onReady(async () => {
       t.effects = [fx];
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show("Porta pronta: o jogador com um personagem ao lado usa pelo painel Gatilhos (botão Usar). Trancada no Smoke, ela não abre.", "SUCCESS");
+    },
+  });
+  // item que o personagem pega ao chegar perto (cartão de acesso, chave): vira um gatilho pronto
+  await OBR.contextMenu.create({
+    id: `${ID}/pegar-item`,
+    icons: [{
+      icon: url("icon.svg"), label: "Gatilhos: o personagem pega este item ao chegar perto",
+      filter: { roles: ["GM"], max: 1, every: [{ key: "layer", value: "CHARACTER", operator: "!=" }, { key: "type", value: "IMAGE" }, { key: ["metadata", FLAG], value: undefined, operator: "==" }] },
+    }],
+    onClick: async (ctx) => {
+      const it = ctx.items[0];
+      if (!it) return;
+      const nm = names(it);
+      const t = newTrigger([it.id], `Pegar: ${nm}`);
+      t.cause = "near"; t.radius = 1; t.once = true; t.ignoreHidden = true;
+      const fx = newEffect("attach"); fx.targets = [it.id];
+      const msg = newEffect("notify"); msg.text = `{quem} pegou ${nm}.`;
+      t.effects = [fx, msg];
+      await saveTriggers((l) => [...l, t]);
+      OBR.notification.show(`Pronto: o primeiro personagem que chegar a 1 quadrado de "${nm}" pega o item (fica preso no token). Para pegar só clicando, mude a causa para Interagir.`, "SUCCESS");
     },
   });
   await OBR.contextMenu.create({

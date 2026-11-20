@@ -16,6 +16,10 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
   (attachment) um item cujo nome contenha o texto pedido (ex.: "Cartão de acesso"; vale também item preso a um item preso). Sem o item,
   só aquele jogador vê a mensagem, como **aviso na tela** ou como **nota para ler** (janela com Fechar); `{item}` e `{quem}` na mensagem.
   O mestre usa sem o item. No painel do jogador o objeto aparece com 🔒.
+- **Pegar item** (1.12): efeito que prende (attachment) o item (cartão, chave…) no token de quem ativou, no canto do token, no centro
+  ou onde está; pode mostrar o item escondido e travar. Ele anda com o token e passa a valer para o **Restrito**. "Soltar" larga o item.
+  Atalho: botão direito no item → **Gatilhos: o personagem pega este item ao chegar perto** (causa "Chegar perto", raio 1, uma vez,
+  com aviso "{quem} pegou …"); para pegar clicando, troque a causa para "Interagir".
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.

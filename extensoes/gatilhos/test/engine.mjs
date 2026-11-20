@@ -85,3 +85,10 @@ t1('preso ao personagem conta (sem acento/maiúscula)', [hasRequired('rex', cena
 t1('item preso a um item preso também conta', [attachmentsOf('lia', cena).map((i) => i.id), hasRequired('lia', cena, 'chave')], [['bolsa', 'chave'], true]);
 t1('sem restrição: qualquer um usa', hasRequired('lia', cena, '  '), true);
 t1('mensagem com {item} e {quem}', [denyText({ reqItem: 'Cartão de acesso' }, 'Rex'), denyText({ reqItem: 'Cartão', reqMsg: '{quem} passa o pulso no leitor: nada. Falta o {item}.' }, 'Rex')], ['Acesso negado: é preciso Cartão de acesso.', 'Rex passa o pulso no leitor: nada. Falta o Cartão.']);
+
+// pegar item: onde o item fica preso no token
+import { attachPos } from '../src/shared.js';
+const tk = { position: { x: 375, y: 375 }, image: { width: 300, height: 300 }, grid: { dpi: 300 }, scale: { x: 1, y: 1 } };
+const cd = { position: { x: 900, y: 75 }, image: { width: 100, height: 60 }, grid: { dpi: 200 }, scale: { x: 1, y: 1 } };
+t1('pegar: canto de baixo à direita do token', attachPos(cd, tk, 'canto', 150), { x: 375 + 75 - 22.5, y: 375 + 75 - 22.5 });
+t1('pegar: centro / onde está', [attachPos(cd, tk, 'centro', 150), attachPos(cd, tk, 'onde', 150)], [{ x: 375, y: 375 }, { x: 900, y: 75 }]);

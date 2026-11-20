@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -67,6 +67,20 @@ function doorRow(e) {
     ${tg.length ? `<div class="hint">${tg.filter((id) => itemDoor.has(id)).map((id) => `${esc(nameOf(id))}: ${itemDoor.get(id).open ? "aberta" : "fechada"}${itemDoor.get(id).locked ? " (trancada)" : ""}`).join(" · ")}</div>` : '<span class="hint warn">⚠ Sem porta: selecione a linha da porta (Smoke & Spectre) e clique em "usar seleção".</span>'}
     ${bad ? '<span class="hint warn">⚠ Nenhum desses itens é porta da névoa (no Smoke & Spectre: botão direito na linha → Enable Door).</span>' : ""}
     <span class="hint">Para os jogadores abrirem: causa "Interagir" na própria linha da porta (ou botão direito na linha → <b>Gatilhos: jogadores abrem e fecham esta porta</b>). Porta trancada no Smoke não abre.</span>`;
+}
+
+/** Pegar item: prender no token de quem ativou (ou soltar). */
+function attachRow(t, e) {
+  const op = e.attachOp || "prender";
+  const sel = (k, opts, cur) => `<select data-ek="${k}">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  const tg = (e.targets || []).filter((id) => id !== ACTOR);
+  return `<div class="row"><span class="hint">Item:</span>${sel("attachOp", ATTACH_OPS, op)}</div>
+    ${op === "prender" ? `<div class="row"><span class="hint">Fica com:</span>${sel("attachWho", ATTACH_WHO, e.attachWho || "actor")}</div>
+    <div class="row"><span class="hint">Onde:</span>${sel("attachPlace", ATTACH_PLACES, e.attachPlace || "canto")}</div>
+    <label class="check"><input type="checkbox" data-ekb="attachShow" ${e.attachShow !== false ? "checked" : ""} /> Mostrar o item (se estava escondido)</label>
+    <label class="check"><input type="checkbox" data-ekb="attachLock" ${e.attachLock !== false ? "checked" : ""} /> Travar o item (o jogador não arrasta para fora)</label>` : ""}
+    ${tg.length ? "" : '<span class="hint warn">⚠ Sem item: selecione o cartão, a chave… no mapa e clique em "usar seleção".</span>'}
+    <span class="hint">${op === "prender" ? `O item fica preso (attachment) no token e anda com ele, e passa a valer para o <b>Restrito</b> de portas e terminais. Para pegar ao chegar perto: causa "Chegar perto" com o próprio item como zona (raio 1); para pegar clicando: causa "Interagir" no item. Atalho: botão direito no item → <b>Gatilhos: o personagem pega este item ao chegar perto</b>.${MOVING.includes(t.cause) || t.cause === "interact" ? "" : " Sem movimento, quem ativou = quem está em cima da zona ou o token selecionado."}` : "Solta os itens escolhidos que estiverem presos (ficam no chão, onde estão)."}</span>`;
 }
 
 /** Efeito visual do Arsenal: vídeo da lista ou link, duração, nome (para encerrar), tamanho. */
@@ -169,7 +183,7 @@ function effectRow(t, e) {
       <button type="button" class="x" data-del-effect title="Remover efeito">✕</button>
     </div>
     ${need.has("shooter") ? `<div class="sub">${e.action === "fx" ? "Sai de (opcional)" : e.action === "npcAbility" ? "NPC" : "Atirador"}: ${chips(e.shooter ? [e.shooter] : [], `e:${e.id}:shooter`)}${e.action === "fx" && e.shooter ? ` <button type="button" class="mini" data-noshooter="${e.id}" title="O efeito fica em cima de cada item">✕ sem origem</button>` : ""}</div>` : ""}
-    ${need.has("targets") ? `<div class="sub">${["arsenal", "npcAbility"].includes(e.action) ? "Alvos" : e.action === "fx" ? "Onde aparece" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
+    ${need.has("targets") ? `<div class="sub">${["arsenal", "npcAbility"].includes(e.action) ? "Alvos" : e.action === "fx" ? "Onde aparece" : e.action === "attach" ? "Item(ns) que o personagem pega" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, e.action !== "attach")}</div>` : ""}
     ${need.has("weapon") ? arsenalRow(e) : ""}
     ${need.has("image") ? imageRow(e) : ""}
     ${need.has("power") ? vigRow(e, "power") : ""}
@@ -178,6 +192,7 @@ function effectRow(t, e) {
     ${need.has("vision") ? visionRow(e) : ""}
     ${need.has("chargeOp") ? chargeRow(e) : ""}
     ${need.has("doorOp") ? doorRow(e) : ""}
+    ${need.has("attach") ? attachRow(t, e) : ""}
     ${need.has("fx") ? fxRow(e) : ""}
     ${need.has("fxEnd") ? fxEndRow(e) : ""}
     ${need.has("ability") ? abilityRow(e) : ""}
@@ -298,7 +313,7 @@ function card(t) {
         e[el.dataset.ek] = el.type === "number" ? Number(el.value) : el.value;
         save();
         if (el.dataset.ek === "weapon") e.mode = "";
-        if (["action", "group", "who", "weapon", "fxSrc", "fxDur", "fxVis"].includes(el.dataset.ek)) render();
+        if (["action", "group", "who", "weapon", "fxSrc", "fxDur", "fxVis", "attachOp"].includes(el.dataset.ek)) render();
       });
     }
     for (const el of row.querySelectorAll("[data-ekb]")) el.addEventListener("change", () => { e[el.dataset.ekb] = el.checked; save(); });
