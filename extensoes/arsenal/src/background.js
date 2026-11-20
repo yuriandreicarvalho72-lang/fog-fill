@@ -7,6 +7,7 @@ import { buildShot, buildLabel as labelAnim } from "./fx.js";
 import { buildShotJB2A } from "./jb2a.js";
 import { play, clearAll } from "./render.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
+import { setupHabilities } from "./hab-bg.js";
 import { fire, fireWith, reload, setActive, setTargets, getPlayerMeta, cycleShooter, getRules, loadObstacles, coverOf } from "./fire.js";
 import { COVER, MARKS } from "./cover.js";
 import { DESTR, CHARGE, damageEvents, buildDebris, buildBlast, chargeOf, remaining, seesCountdown, canControl } from "./destroy.js";
@@ -415,6 +416,10 @@ OBR.onReady(async () => {
       if (me.role !== "GM" && ctx.items.some((i) => chargeOf(i)?.by !== me.id)) OBR.notification.show("Arsenal: pedido enviado ao mestre (role o teste de desarmar).", "INFO");
     },
   });
+  // habilidades dos NPCs (dossiê da ficha): ícone próprio na barra, só o mestre
+  const hab = await setupHabilities({ play, base: JB2A_BASE, has: hasVideo });
+  onClean(() => hab.clearPreview().then(() => hab.drawPreview()));
+
   await OBR.contextMenu.create({
     id: `${ID}/atirador`,
     icons: [{ icon: url("icon.svg"), label: "Arsenal: usar como atirador", filter: { max: 1, every: [{ key: "type", value: "IMAGE" }] } }],

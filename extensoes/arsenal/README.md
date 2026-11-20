@@ -31,6 +31,14 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   A explosão (JB2A) danifica o cenário no raio, avisa o mestre de quem foi pego e explode outras cargas por perto.
   Desarmar: quem plantou e o mestre desarmam direto; outro jogador pede (botão direito, se o mestre mostrar a carga) e o mestre
   aprova ou nega no painel.
+- **Habilidades dos NPCs** (ícone próprio na barra, só o mestre): o prompt de fichas gera um **dossiê** (bloco JSON) com cada ação do
+  stat block. Botão direito no token do NPC → **Habilidades (dossiê)** → cole o dossiê. O painel lista Ações, Ações bônus, Reações,
+  Lendárias, Covil e Passivas com os números da ficha (ataque, CD, dano, condição). 🎯 = mirar (clique no alvo ou no ponto; aparece a
+  prévia do cone/linha/área) e **Usar** (ou Enter); ▶ = usa na hora (aura, em si, passiva). Todos veem a animação JB2A e o contorno da
+  área; o mestre recebe quem ficou dentro. **Não rola dados**: o mestre rola na mão. Contadores: recarga (marque "recarregou" quando o
+  d6 da ficha sair), 1/descanso, ações lendárias por rodada (com custo), aviso de ação de covil repetida; botões Nova rodada e Descanso.
+  Ataque Múltiplo encadeia os ataques de `faz`. Dados: `metadata["arsenal/dossie"]` e `metadata["arsenal/hab-uso"]` no token;
+  canal `arsenal/habilidade` (todos tocam a animação). Os visuais aceitos estão em `src/abil.js` (`VISUAIS`), iguais aos do prompt.
 - **Otimizador**: se o jogador escolher um perfil na extensão Otimizador, o Arsenal obedece neste navegador (Leve e Apresentação
   desligam os vídeos JB2A e as cápsulas e baixam a intensidade do efeito desenhado). "Limpar sobras" apaga efeitos e miras que ficaram.
 - Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.
@@ -43,7 +51,7 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   Gatilhos 1.9: causas "Um objeto foi destruído" e "Uma carga explodiu"; efeito "Carga (Arsenal): detonar ou desarmar".
   Dados: `metadata["arsenal/destrutivel"]` e `metadata["arsenal/carga"]` nos itens.
 - Atualizar o catálogo: `python3 tools/catalogo.py <planilha.xlsx> src/catalog.json`
-- Testes: `node test/fx.mjs` · `node test/cover.mjs` · `node test/destroy.mjs` · fotos dos efeitos desenhados: `node test/sheet.mjs saida.png` ·
+- Testes: `node test/fx.mjs` · `node test/cover.mjs` · `node test/destroy.mjs` · `node test/abil.mjs` · fotos dos efeitos desenhados: `node test/sheet.mjs saida.png` ·
   fotos dos vídeos no lugar certo: `npm run jb2a && node test/jb2a-sheet.mjs saida.png` (precisam do Playwright)
 
 ## Créditos e licença das animações
@@ -51,7 +59,7 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 Animações: **JB2A** — https://jb2a.com — pacote gratuito, licença
 [Creative Commons Atribuição-NãoComercial-CompartilhaIgual 4.0 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
-Os vídeos não estão neste repositório: o build (`npm run build`) baixa os 94 arquivos usados, sem alteração, do
+Os vídeos não estão neste repositório: o build (`npm run build`) baixa os 155 arquivos usados (armas e habilidades), sem alteração, do
 repositório oficial (https://github.com/Jules-Bens-Aa/JB2A_DnD5e, commit fixo em `src/jb2a.js`) para `public/jb2a/`,
 e eles são publicados junto com a extensão. Uso não comercial; o crédito aparece no painel da extensão.
 Se o download falhar, o build continua e o Arsenal usa os efeitos desenhados.

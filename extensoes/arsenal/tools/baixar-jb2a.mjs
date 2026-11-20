@@ -1,4 +1,4 @@
-// Baixa os vídeos do JB2A usados pelo Arsenal para public/jb2a/ (o Vite copia para o site publicado).
+// Baixa os vídeos do JB2A usados pelo Arsenal (armas e habilidades) para public/jb2a/ (o Vite copia para o site publicado).
 // Fonte: repositório oficial gratuito do JB2A, num commit fixo. Licença dos vídeos: CC BY-NC-SA 4.0.
 // Nunca derruba o build: se algum arquivo não baixar, ele fica de fora de ok.json e o Arsenal usa o
 // efeito desenhado no lugar dele.
@@ -6,6 +6,7 @@ import { mkdir, writeFile, stat } from "fs/promises";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { allFiles, JB2A_REPO, JB2A_COMMIT, JB2A_CREDIT } from "../src/jb2a.js";
+import "../src/abil.js"; // registra os vídeos das habilidades na mesma lista
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "jb2a");
 const RAW = `https://raw.githubusercontent.com/${JB2A_REPO}/${JB2A_COMMIT}/Library/`;

@@ -1,0 +1,142 @@
+// Habilidades em segundo plano: ferramenta própria (ícone na barra), mira, prévia e animação para todos.
+import OBR, { buildShape, buildPath, buildLabel } from "@owlbear-rodeo/sdk";
+import { CH_HAB, DOSSIE, buildAbility, shapeOf } from "./abil.js";
+import { halfSize } from "./cover.js";
+import { url, isToken, itemName } from "./shared.js";
+import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell } from "./hab-ops.js";
+
+/** play(anim, base), base = pasta dos vídeos, has() = função "o vídeo está disponível" (ou null). */
+export async function setupHabilities({ play, base, has }) {
+  let role = await OBR.player.getRole();
+  OBR.player.onChange((p) => { role = p.role; });
+
+  // ---------- todos: tocar a habilidade ----------
+  OBR.broadcast.onMessage(CH_HAB, (e) => {
+    const ev = e.data;
+    if (!ev?.ab) return;
+    const h = has();
+    const anim = buildAbility(ev, h || (() => false), (n) => ev.subs?.[n]);
+    play(anim, base).catch(() => {});
+  });
+
+  // ---------- painel ----------
+  const openPanel = async () => {
+    const vh = await OBR.viewport.getHeight().catch(() => 800);
+    await OBR.popover.open({
+      id: HAB_PANEL, url: url("hab.html"), width: 340, height: Math.max(360, Math.min(640, vh - 96)),
+      anchorReference: "POSITION", anchorPosition: { left: 72, top: 64 },
+      anchorOrigin: { horizontal: "LEFT", vertical: "TOP" }, transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
+      disableClickAway: true, marginThreshold: 8,
+    }).catch(() => {});
+  };
+
+  // ---------- prévia da mira (só para o mestre que mira) ----------
+  let prevIds = [];
+  let busy = false, again = false;
+  async function drawPreview() {
+    if (busy) { again = true; return; }
+    busy = true;
+    try {
+      do {
+        again = false;
+        const aim = await getAim();
+        const add = [];
+        const [tok] = aim.token ? await OBR.scene.items.getItems([aim.token]).catch(() => []) : [];
+        const ab = dossieOf(tok)?.habilidades?.find((h) => h.nome === aim.nome);
+        if (tok && ab && aim.armed) {
+          const cell = await OBR.scene.grid.getDpi().catch(() => 150);
+          const mpc = await metersPerCell();
+          const selfHalf = halfSize(tok, cell) || cell / 2;
+          const tag = (b) => b.layer("ATTACHMENT").locked(true).disableHit(true).metadata({ [HAB_PREVIEW]: true }).build();
+          const far = aim.point && ab.alcance > 0 && Math.hypot(aim.point.x - tok.position.x, aim.point.y - tok.position.y) / cell * mpc > ab.alcance + 0.01;
+          const color = far ? "#9aa0a6" : "#ff5a4a";
+          const shape = shapeOf(ab, tok.position, { point: aim.point }, cell, mpc, selfHalf);
+          if (shape && (ab.forma !== "area" || aim.point || !ab.alcance)) {
+            if (shape.kind === "circle") add.push(tag(buildShape().shapeType("CIRCLE").position(shape.c).width(shape.r * 2).height(shape.r * 2).fillColor(color).fillOpacity(0.12).strokeColor(color).strokeOpacity(0.9).strokeWidth(Math.max(3, cell / 30)).strokeDash([cell / 8, cell / 12])));
+            else add.push(tag(buildPath().position({ x: 0, y: 0 }).commands([...shape.pts.map((p, i) => [i ? 1 : 0, p.x, p.y]), [5]]).fillColor(color).fillOpacity(0.12).strokeColor(color).strokeOpacity(0.9).strokeWidth(Math.max(3, cell / 30)).strokeDash([cell / 8, cell / 12])));
+          }
+          if (ab.forma === "movimento" && aim.point) add.push(tag(buildPath().position({ x: 0, y: 0 }).commands([[0, tok.position.x, tok.position.y], [1, aim.point.x, aim.point.y]]).strokeColor(color).strokeWidth(Math.max(3, cell / 25)).strokeOpacity(0.9).strokeDash([cell / 8, cell / 12]).fillOpacity(0)));
+          const ids = aim.targets || [];
+          const its = ids.length ? await OBR.scene.items.getItems(ids).catch(() => []) : [];
+          for (const it of its) {
+            const r = (halfSize(it, cell) || cell / 2) * 1.15;
+            add.push(tag(buildShape().shapeType("CIRCLE").position(it.position).width(r * 2).height(r * 2).fillOpacity(0).strokeColor("#ff3b30").strokeOpacity(0.95).strokeWidth(Math.max(3, cell / 30)).strokeDash([cell / 10, cell / 14])));
+          }
+          if (far) add.push(tag(buildLabel().position({ x: aim.point.x, y: aim.point.y + cell * 0.6 }).plainText(`fora do alcance (${String(ab.alcance).replace(".", ",")} m)`).backgroundColor("#7a1010").backgroundOpacity(0.85).fillColor("#ffffff").fontWeight(600).cornerRadius(6).pointerHeight(0)));
+        }
+        const old = prevIds;
+        prevIds = add.map((i) => i.id);
+        if (add.length) await OBR.scene.local.addItems(add).catch(() => {});
+        if (old.length) await OBR.scene.local.deleteItems(old).catch(() => {});
+      } while (again);
+    } finally { busy = false; }
+  }
+  const left = await OBR.scene.local.getItems((i) => i.metadata?.[HAB_PREVIEW]).catch(() => []);
+  if (left.length) await OBR.scene.local.deleteItems(left.map((i) => i.id)).catch(() => {});
+  let lastAim = "";
+  OBR.player.onChange((p) => { const k = JSON.stringify(p.metadata?.[HAB_AIM] || null); if (k !== lastAim) { lastAim = k; drawPreview(); } });
+
+  const fireNow = async () => {
+    const aim = await getAim();
+    if (!aim.token || !aim.nome) return OBR.notification.show("Habilidades: escolha uma habilidade no painel.", "WARNING");
+    const r = await useAbility(aim.token, aim.nome, aim);
+    if (r.error) return OBR.notification.show(`Habilidades: ${r.error}`, "WARNING");
+    await setAim({ token: aim.token }, true);
+  };
+
+  // ---------- ferramenta (ícone próprio, só o mestre) ----------
+  await OBR.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs)", filter: { roles: ["GM"] } }], defaultMode: HAB_MODE });
+  await OBR.tool.createMode({
+    id: HAB_MODE,
+    icons: [{ icon: url("hab.svg"), label: "Mirar a habilidade (clique: alvo ou ponto · Enter: usar · Esc: cancelar)", filter: { activeTools: [HAB_TOOL] } }],
+    cursors: [{ cursor: "crosshair" }],
+    onActivate: () => openPanel(),
+    onDeactivate: async () => { OBR.popover.close(HAB_PANEL).catch(() => {}); const a = await getAim(); if (a.armed) await setAim({ token: a.token }, true); },
+    onToolClick: async (_ctx, ev) => {
+      const aim = await getAim();
+      const it = ev.target;
+      // sem habilidade armada: clicar num NPC com dossiê escolhe ele
+      if (!aim.armed) {
+        if (it && isToken(it) && dossieOf(it)) { await setAim({ token: it.id }, true); return false; }
+        OBR.notification.show("Habilidades: escolha uma habilidade no painel (▶) e depois clique no mapa.", "INFO");
+        return false;
+      }
+      const [tok] = await OBR.scene.items.getItems([aim.token]).catch(() => []);
+      const ab = dossieOf(tok)?.habilidades?.find((h) => h.nome === aim.nome);
+      if (!ab) return false;
+      if (ab.forma === "alvo") {
+        if (!it || it.id === aim.token || it.layer === "MAP") return false;
+        const max = ab.faz?.length || ab.alvos || 1;
+        const cur = aim.targets || [];
+        const next = cur.includes(it.id) ? cur.filter((x) => x !== it.id) : [...cur, it.id].slice(-max);
+        await setAim({ targets: next });
+      } else {
+        await setAim({ point: ev.pointerPosition });
+      }
+      return false;
+    },
+    onKeyDown: async (_ctx, ev) => {
+      if (ev.key === "Enter") await fireNow();
+      else if (ev.key === "Escape") { const a = await getAim(); await setAim({ token: a.token }, true); }
+    },
+  });
+  await OBR.tool.createAction({
+    id: `${HAB_TOOL}/usar`,
+    icons: [{ icon: url("fire.svg"), label: "Usar a habilidade (Enter)", filter: { activeTools: [HAB_TOOL] } }],
+    onClick: () => fireNow(),
+  });
+  // botão direito num NPC: abre as habilidades dele
+  await OBR.contextMenu.create({
+    id: `${HAB_TOOL}/menu`,
+    icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê)", filter: { roles: ["GM"], max: 1, every: [{ key: "type", value: "IMAGE" }] } }],
+    onClick: async (ctx) => {
+      await setAim({ token: ctx.items[0].id }, true);
+      await OBR.tool.activateTool(HAB_TOOL).catch(() => {});
+      openPanel();
+      if (!ctx.items[0].metadata?.[DOSSIE]) OBR.notification.show(`Habilidades: cole o dossiê de ${itemName(ctx.items[0])} no painel.`, "INFO");
+    },
+  });
+  // o painel pede para usar (aura, si, passiva) pelo canal local
+  OBR.broadcast.onMessage(`${HAB_TOOL}/usar`, () => fireNow());
+  return { fireNow, drawPreview, clearPreview: async () => { const ids = prevIds; prevIds = []; if (ids.length) await OBR.scene.local.deleteItems(ids).catch(() => {}); } };
+}

@@ -109,3 +109,19 @@ body.hud button.primary { padding: 3px 10px; }
 .mrow[data-dpick] { cursor: pointer; }
 .mrow.sel { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .mrow .mname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+body.habp { padding: 10px 12px 14px; }
+body.habp h2 { font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--fg); margin: 6px 0 4px; }
+body.habp h3 { display: flex; align-items: center; gap: 6px; }
+body.habp textarea { width: 100%; background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: 12px/1.35 ui-monospace, monospace; resize: vertical; }
+.ab { border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; margin: 4px 0; }
+.ab .row { margin-top: 0; gap: 6px; }
+.ab .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ab small { margin: 2px 0 0 30px; }
+.ab small.why { color: #ff9f8a; }
+.ab.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ab.off .name { opacity: .6; }
+.ab .go { width: 26px; flex: none; }
+.armed { margin: 6px 0 2px 30px; color: var(--accent); font-size: 12px; }
+.armed .btns { margin-top: 4px; }
+.last { border-left: 3px solid var(--accent); padding: 3px 0 3px 8px; margin: 8px 0; }
+.last small { margin: 2px 0 0; }

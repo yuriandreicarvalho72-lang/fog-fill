@@ -1,0 +1,55 @@
+import { readFileSync } from "fs";
+import { normalize, extractJson, VISUAIS, canUse, markUse, recharge, newRound, rest, legCost, numbers, shapeText, shapeOf, caughtIn, buildAbility, abilFiles } from "../src/abil.js";
+import { allFiles } from "../src/jb2a.js";
+const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v));
+const raw = readFileSync(new URL("./saciado.json", import.meta.url), "utf8");
+
+// a lista de visuais do prompt (PARTE 2) é exatamente a da extensão
+const PROMPT = "garra mordida soco arma_corte arma_impacto arma_perfuracao pinca bala flecha projetil_fogo raio_gelo raio_energia raio_eletrico raio_luz raio_sombra misseis esfera arremesso cone_fogo cone_gelo cone_acido cone_veneno cone_eletrico cone_vento linha_eletrica linha_fogo linha_energia explosao_fogo explosao onda_choque estilhaco tempestade_raios chuva_gelo nevoa escuridao teia vinhas lodo laminas coluna_luz fenda_chao aura_espiritos aura_tentaculos aura_sombra aura_fogo aura_eletrica rugido giro cura escudo bencao marca_alvo golpe_divino teleporte fumaca transformacao regeneracao morcegos investida salto rastro".split(" ");
+ok("visuais do prompt = visuais da extensão", [PROMPT.filter((v) => !VISUAIS.includes(v)), VISUAIS.filter((v) => !PROMPT.includes(v))], [[], []]);
+ok("vídeos das habilidades entram no download", abilFiles().every((f) => allFiles().includes(f)), true);
+
+// colar o bloco inteiro (com ```json) funciona
+const { dossie: d, avisos } = normalize("Aqui está:\n```json\n" + raw + "\n```\nfim");
+ok("Saciado: 15 habilidades, 3 lendárias, sem avisos", [d.habilidades.length, d.lendarias, avisos], [15, 3, []]);
+const H = (n) => d.habilidades.find((h) => h.nome === n);
+ok("números para o mestre rolar", numbers(H("Vômito de Biomassa")), "resistência DES 16 (metade no sucesso) · 6d8 ácido · Impedido (Escapar CD 16); -1 de Mitigação até o fim do combate");
+ok("forma em palavras", [shapeText(H("Vômito de Biomassa")), shapeText(H("Garras do Gânglio")), shapeText(H("Rugido de Sangue"))], ["cone de 6 m", "1 alvo, 3 m", "9 m em volta"]);
+ok("aviso de visual inexistente", normalize({ habilidades: [{ nome: "X", visual: "dragao_rosa" }] }).avisos[0], "X: visual \"dragao_rosa\" não existe na lista (ficou sem vídeo).");
+ok("JSON quebrado dá erro claro", (() => { try { extractJson("nada aqui"); } catch (e) { return e.message.slice(0, 17); } })(), "não achei um JSON");
+
+// contadores (o mestre rola a recarga no d6 da ficha e marca no painel)
+let u = {};
+const fr = H("Frenesi da Carnificina"), bq = H("Banquete Canibal"), rug = H("Rugido de Sangue"), gp = H("Golpe Pesado");
+u = markUse(fr, u, d).uso;
+ok("recarga usada fica bloqueada", canUse(fr, u, d), { ok: false, why: "usada (recarga 5-6)" });
+ok("marcar que recarregou", canUse(fr, recharge(fr, u), d).ok, true);
+u = markUse(bq, u, d).uso;
+ok("1/descanso volta só no descanso", [canUse(bq, newRound(u), d).ok, canUse(bq, rest(u), d).ok], [false, true]);
+ok("custo das lendárias", [legCost(rug), legCost(gp)], [2, 1]);
+u = markUse(rug, u, d).uso; u = markUse(gp, u, d).uso;
+ok("3 lendárias gastas: não sobra para mais nenhuma", [u.leg, canUse(gp, u, d).why], [3, "faltam ações lendárias (0/3)"]);
+ok("nova rodada devolve as lendárias", canUse(rug, newRound(u), d).ok, true);
+const lodo = H("Válvula de Lodo Tóxico");
+const r1 = markUse(lodo, u, d); const r2 = markUse(lodo, r1.uso, d);
+ok("covil repetido em seguida avisa", [r1.aviso, r2.aviso.slice(0, 22)], ["", "Válvula de Lodo Tóxico"]);
+
+// geometria: cone de 6 m (4 quadrados de 1,5 m) para a direita
+const cell = 100, from = { x: 0, y: 0 };
+const cone = shapeOf(H("Vômito de Biomassa"), from, { point: { x: 500, y: 0 } }, cell, 1.5, 50);
+const toks = [{ id: "na_frente", at: { x: 250, y: 0 }, half: 50 }, { id: "na_borda", at: { x: 400, y: 160 }, half: 50 }, { id: "atras", at: { x: -200, y: 0 }, half: 50 }, { id: "fora", at: { x: 250, y: 300 }, half: 50 }];
+ok("quem fica no cone", caughtIn(cone, toks), ["na_frente", "na_borda"]);
+const aura = shapeOf(H("Rugido de Sangue"), from, {}, cell, 1.5, 50);
+ok("aura de 9 m pega tudo a 6 quadrados (menos ele)", caughtIn(aura, [...toks, { id: "eu", at: from, half: 50 }], ["eu"]).length, 4);
+const linha = shapeOf(H("Ganchos e Correntes"), from, { point: { x: 0, y: 900 } }, cell, 1.5, 50);
+ok("linha de 12 m para baixo, 1 quadrado de largura", caughtIn(linha, [{ id: "a", at: { x: 0, y: 600 }, half: 50 }, { id: "b", at: { x: 150, y: 600 }, half: 50 }]), ["a"]);
+
+// animação: toda habilidade do Saciado gera vídeo
+const byName = (n) => H(n);
+const tg = [{ id: "rex", at: { x: 200, y: 0 }, half: 50 }];
+const res = d.habilidades.map((h) => [h.nome, buildAbility({ ab: h, from, aim: { targets: tg, point: { x: 400, y: 0 } }, cell, mpc: 1.5, selfHalf: 50 }, () => true, byName).videos.length]);
+ok("toda habilidade tem vídeo", res.filter(([, n]) => !n).map(([n]) => n), []);
+const multi = buildAbility({ ab: H("Ataque Múltiplo"), from, aim: { targets: tg }, cell }, () => true, byName);
+ok("ataque múltiplo: 2 garras + 2 sangues, em sequência", [multi.videos.length, multi.videos[2].t0 > multi.videos[0].t0], [4, true]);
+const cv = buildAbility({ ab: H("Vômito de Biomassa"), from, aim: { point: { x: 500, y: 0 } }, cell, selfHalf: 50 }, () => true);
+ok("cone: o vídeo sai do atacante na direção certa e com o tamanho da área", [Math.round(cv.videos[0].dpi), cv.videos[0].rotation, cv.videos[0].offset.x, cv.elements.length], [150, 0, 0, 1]);

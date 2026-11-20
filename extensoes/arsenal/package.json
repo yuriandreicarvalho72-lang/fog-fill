@@ -1,11 +1,11 @@
 {
   "name": "arsenal",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node tools/baixar-jb2a.mjs && vite build",
-    "test": "node test/fx.mjs && node test/cover.mjs && node test/destroy.mjs",
+    "test": "node test/fx.mjs && node test/cover.mjs && node test/destroy.mjs && node test/abil.mjs",
     "jb2a": "node tools/baixar-jb2a.mjs"
   },
   "dependencies": {
