@@ -9,6 +9,8 @@ export const CH_DENY = `${ID}/negado`;        // mestre -> todos: { to: userId, 
 export const CH_GIVE = `${ID}/dar`;           // jogador -> mestre: { itemId, toId } (passar um item para outro personagem)
 export const META_ITEM = `${ID}/item`;        // metadado do item pego: { give: bool } (o jogador pode passar adiante)
 export const FLAG = `${ID}/interagivel`;  // metadado do item: é interagível (para o menu de contexto)
+export const ALERT = `${ID}/alerta`;          // metadado da cena: { level, at } nível de alerta (0 a ALERT_MAX)
+export const ALERT_MAX = 3;
 export const CLIMA = "clima/camadas";
 export const CLIMA_FLASH = "clima/relampago";
 export const LUZ = "luz-colorida/cor";
@@ -122,6 +124,42 @@ export function attachPos(item, token, place, dpi) {
   const k = Math.max(0, halfOf(token, dpi) - halfOf(item, dpi) * 0.6);
   return { x: token.position.x + k, y: token.position.y + k };
 }
+// ---------- alerta com nível (0 a 3) ----------
+export const ALERT_OPS = [["up", "subir 1 nível"], ["down", "descer 1 nível"], ["set", "ir para o nível…"], ["reset", "zerar (nível 0)"]];
+export const ALERT_DIRS = [["any", "subir ou descer"], ["up", "só ao subir"], ["down", "só ao descer"]];
+export const clampAlert = (n) => Math.max(0, Math.min(ALERT_MAX, Math.round(Number(n) || 0)));
+/** Nível de alerta guardado na cena. */
+export const alertLevel = (md) => clampAlert(md?.[ALERT]?.level);
+/** Próximo nível. subir: até "to" (teto, padrão 3); descer: até "to" (piso, padrão 0); ir para: "to"; zerar: 0. */
+export function alertNext(cur, op, to) {
+  const t = to === "" || to == null ? null : clampAlert(to);
+  if (op === "up") return Math.max(cur, Math.min(cur + 1, t ?? ALERT_MAX));
+  if (op === "down") return Math.min(cur, Math.max(cur - 1, t ?? 0));
+  if (op === "set") return t ?? cur;
+  if (op === "reset") return 0;
+  return cur;
+}
+/** O gatilho "nível de alerta" vale para esta mudança (de prev para level)? */
+export function alertMatches(t, level, prev) {
+  if (level === prev) return false;
+  if (t.alertTo !== "" && t.alertTo != null && clampAlert(t.alertTo) !== level) return false;
+  const dir = t.alertDir || "any";
+  return dir === "any" || (dir === "up" ? level > prev : level < prev);
+}
+// ---------- condições: o gatilho só dispara se... ----------
+export const CMP_OPS = [[">=", "pelo menos"], ["<=", "no máximo"], ["==", "exatamente"], ["!=", "diferente de"]];
+export const COND_TYPES = [
+  { id: "alert", label: "Nível de alerta" },
+  { id: "node", label: "Nó da Matriz (Vigilância)" },
+  { id: "door", label: "Porta da névoa" },
+  { id: "state", label: "Estado de um grupo (Estados)" },
+  { id: "count", label: "Quantos tokens há na área" },
+  { id: "has", label: "Quem ativou carrega um item" },
+];
+export const DOOR_IS = [["aberta", "está aberta"], ["fechada", "está fechada"], ["trancada", "está trancada"], ["destrancada", "não está trancada"]];
+export function newCond(type = "alert") {
+  return { id: uid(), type, op: type === "alert" ? ">=" : type === "count" ? ">=" : "==", n: type === "alert" ? 1 : 3, ids: [], zones: [], is: type === "node" ? "hackeado" : type === "door" ? "aberta" : "", group: "", name: "", hid: false };
+}
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -142,6 +180,7 @@ export const CAUSES = [
   { id: "nodeState", label: "Nó da Matriz muda de estado (Vigilância)" },
   { id: "destroyed", label: "Um objeto foi destruído (Arsenal)" },
   { id: "chargeBlew", label: "Uma carga explodiu (Arsenal)" },
+  { id: "alertLevel", label: "O nível de alerta mudou" },
   { id: "manual", label: "Só quando eu disparar" },
 ];
 
@@ -174,7 +213,9 @@ export const ACTIONS = [
   { id: "fx", label: "Efeito visual (Arsenal): vídeo no mapa", need: ["shooter", "targets", "fx"] },
   { id: "fxEnd", label: "Encerrar efeito visual (Arsenal)", need: ["fxEnd"] },
   { id: "npcAbility", label: "Habilidade de NPC (Arsenal)", need: ["shooter", "targets", "ability"] },
-  { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
+  { id: "alarm", label: "Alerta: mudar o nível", need: ["alarm"] },
+  { id: "cancel", label: "Cancelar sequência pendente (efeitos com atraso)", need: ["triggerAny"] },
+  { id: "chain", label: "Disparar outro gatilho (use \"depois de N s\" para atrasar)", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
 ];
@@ -191,13 +232,14 @@ export function newTrigger(zones = [], name = "Gatilho") {
     who: "chars", tokens: [], ignoreHidden: true, halt: false,
     reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d", nodeTo: "",
     reqItem: "", reqMsg: "", reqShow: "aviso", reqUses: 0, reqNodes: [],
+    conds: [], condAny: false, condMsg: "", alertTo: "", alertDir: "any",
     effects: [newEffect("show")],
   };
 }
 export function newEffect(action = "show") {
   return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0,
     fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar",
-    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true };
+    attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true, alarmOp: "up", alarmTo: "" };
 }
 
 // quem o teleporte leva
@@ -210,6 +252,7 @@ export const ARSENAL_MODES = { single: "tiro único", burst: "rajada", auto: "au
 export const ACTOR = "@quem"; // item especial nas listas de itens: quem ativou
 export const MOVING = ["enter", "leave", "near"]; // causas com movimento (dá para barrar)
 export const VIG_CAUSES = ["cameraSees", "nodeState"]; // causas que chegam da Vigilância
+export const ALERT_CAUSES = ["alertLevel"]; // causa que chega do próprio alerta (mudança do nível)
 // quem pode usar um objeto interagível
 export const CAN_USE = [["all", "jogadores e mestre"], ["players", "só jogadores"], ["gm", "só o mestre"]];
 

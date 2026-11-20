@@ -25,6 +25,19 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
 - **Inventário** (1.13, painel do jogador): lista os itens presos nos personagens dele e deixa **passar** um item para um personagem ao lado
   (o mestre confere dono, distância e se o item pode ser passado; "Pegar item" tem a opção de marcar o item como fixo). Aviso para todos:
   "Rex passou Chave para Kai". Itens presos à mão também aparecem (só imagens visíveis).
+- **Condições "Só se"** (1.14, em qualquer gatilho): o gatilho só dispara se as condições valerem (todas, ou basta uma). Tipos: **nível de
+  alerta** (pelo menos / no máximo / exatamente), **nó da Matriz** (algum está hackeado, nenhum está ativo…), **porta da névoa** (aberta,
+  fechada, trancada), **estado de um grupo** do Estados, **quantos tokens há na área** (opção de contar escondidos) e **quem ativou carrega
+  um item**. Se não valer, o gatilho não dispara e **continua armado** (não gasta o "uma vez" nem o cartão do Restrito). Em "Interagir" há uma
+  mensagem para o jogador quando nada acontece (padrão "Nada acontece."). Porta que muda de comportamento = dois gatilhos no mesmo objeto, com
+  condições opostas. O ⚡ do painel ignora as condições (teste). Condição sem os itens/grupo escolhidos é ignorada (o painel avisa).
+- **Alerta com nível** (1.14): nível de alerta da cena de 0 a 3, com botões 🚨 no topo do painel. Efeito **Alerta: mudar o nível** (subir até um
+  teto, descer até um piso, ir para um nível, zerar) e causa **O nível de alerta mudou** (qualquer nível, ou só um; só ao subir ou ao descer),
+  que liga os efeitos de cada nível (luz vermelha, portas, estados). `{nivel}` nas mensagens vira o nível. Atalho: botão direito numa câmera →
+  **Gatilhos: esta câmera sobe o alerta** (a câmera viu alguém → +1, aviso ao mestre). Os gatilhos de nível só rodam no mestre líder.
+- **Sequências com atraso** (1.14): cada efeito tem "depois de N s" e "Disparar outro gatilho" encadeia cenas (porta abre → 5 s sirene → 10 s
+  reforços). O efeito novo **Cancelar sequência pendente** tira da espera o que ainda não rodou (de um gatilho ou de todos), por exemplo quando os
+  jogadores hackeiam o alarme a tempo.
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.

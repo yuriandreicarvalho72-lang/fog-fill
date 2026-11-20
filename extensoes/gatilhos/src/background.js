@@ -3,7 +3,8 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { condsOk } from "./conditions.js";
+import { ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -17,6 +18,7 @@ const prevPos = new Map();   // tokenId -> {x,y}
 const prevVis = new Map();   // itemId -> visible
 const memo = new Map();      // triggerId -> estado da avaliação (placas)
 let lastItems = [];
+let alertPrev = null;        // nível de alerta da última vez (para saber quando mudou)
 const plans = new Map();     // tokenId -> { points, until } caminho que a Régua avisou
 const frozen = new Map();    // tokenId -> { pos, until } token parado por um gatilho (segura contra passos atrasados da Régua)
 const FREEZE_MS = 1500;
@@ -116,20 +118,50 @@ function log(text) {
   OBR.broadcast.sendMessage(CH_LOG, { text, at: Date.now() }, { destination: "LOCAL" }).catch(() => {});
 }
 
-const wait = (s) => new Promise((r) => setTimeout(r, Math.max(0, s) * 1000));
+// espera e efeitos com atraso ficam registrados por gatilho, para dar para cancelar a sequência (efeito "Cancelar sequência")
+const pending = new Map(); // triggerId -> Map(timeoutId -> resolve | null)
+function later(trigId, secs, fn, resolve = null) {
+  const m = pending.get(trigId) || pending.set(trigId, new Map()).get(trigId);
+  const tid = setTimeout(() => { m.delete(tid); fn(); }, Math.max(0, secs) * 1000);
+  m.set(tid, resolve);
+}
+const sleep = (trigId, secs) => new Promise((res) => later(trigId, secs, () => res(true), res)); // false = cancelado
+/** Cancela o que está esperando: de um gatilho, ou de todos (menos "keep"). Devolve quantos. */
+function cancelPending(trigId, keep = "") {
+  let n = 0;
+  for (const [id, m] of pending) {
+    if ((trigId && id !== trigId) || id === keep) continue;
+    for (const [tid, res] of m) { clearTimeout(tid); n++; if (res) res(false); }
+    m.clear();
+  }
+  return n;
+}
+
+/** As condições do gatilho valem agora? */
+async function checkConds(trigger, ctx) {
+  const [items, md] = await Promise.all([OBR.scene.items.getItems(), OBR.scene.getMetadata()]);
+  const actorIds = (trigger.conds || []).some((c) => c.type === "has") ? (await actors(trigger, ctx).catch(() => [])).map((i) => i.id) : [];
+  return condsOk(trigger, { alert: alertLevel(md), items, groups: Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [], dpi, zones: trigger.zones || [], actorIds });
+}
 
 /** Executa os efeitos de um gatilho. ctx: { by (token), at (entrada), from } */
 async function run(trigger, ctx = {}, depth = 0) {
   if (depth > 8) return; // proteção contra corrente infinita
+  // condição: se não valer, não dispara e não gasta o "uma vez" (o gatilho continua armado)
+  if (!ctx.force && !ctx.condsOk && (trigger.conds || []).length && !(await checkConds(trigger, ctx).catch(() => true))) {
+    if (trigger.once) trigger.armed = true;
+    log(`⏸ ${trigger.name}: condição não cumprida`);
+    return;
+  }
   if (trigger.once) saveTriggers((l) => l.map((t) => (t.id === trigger.id ? { ...t, armed: false } : t))).catch(() => {});
-  log(`⚡ ${trigger.name}${ctx.by ? ` (por ${names(ctx.by)})` : ""}`);
-  if (trigger.delay) await wait(trigger.delay);
+  log(`⚡ ${trigger.name}${ctx.by ? ` (por ${names(ctx.by)})` : ""}${ctx.force ? " (forçado)" : ""}`);
+  if (trigger.delay && !(await sleep(trigger.id, trigger.delay))) return;
   if (!ctx.actorIds) ctx = { ...ctx, actorIds: (await actors(trigger, ctx).catch(() => [])).map((i) => i.id) };
   for (const e of trigger.effects || []) {
     const go = async () => {
       try { await doEffect(e, ctx, depth, trigger); } catch (err) { console.error(`[${ID}]`, err); }
     };
-    if (e.delay) setTimeout(go, e.delay * 1000); else await go();
+    if (e.delay) later(trigger.id, e.delay, go); else await go();
   }
 }
 
@@ -150,7 +182,21 @@ async function doEffect(e, ctx, depth, trigger) {
         const list = who.length > 1 ? `${who.slice(0, -1).join(", ")} e ${who[who.length - 1]}` : who[0] || "alguém";
         text = text.replaceAll("{quem}", list);
       }
+      if (text.includes("{nivel}")) text = text.replaceAll("{nivel}", String(ctx.level ?? alertLevel(await OBR.scene.getMetadata())));
       return OBR.broadcast.sendMessage(CH_NOTE, { text, audience: e.audience || "all" }, { destination: "ALL" });
+    }
+    case "alarm": {
+      // nível de alerta da cena (0 a 3): subir, descer, ir para um nível ou zerar; os gatilhos "O nível de alerta mudou" reagem
+      const cur = alertLevel(await OBR.scene.getMetadata());
+      const next = alertNext(cur, e.alarmOp || "up", e.alarmTo);
+      if (next === cur) return null;
+      log(`🚨 Alerta ${cur} → ${next}`);
+      return OBR.scene.setMetadata({ [ALERT]: { level: next, at: Date.now() } });
+    }
+    case "cancel": {
+      // tira da espera os efeitos com atraso de um gatilho (vazio = de todos os outros)
+      const n = cancelPending(e.trigger || "", trigger.id);
+      return log(`⏹ ${n} efeito(s) com atraso cancelado(s)${e.trigger ? "" : " (todas as sequências)"}`);
     }
     case "lightning":
       return OBR.broadcast.sendMessage(CLIMA_FLASH, {}, { destination: "ALL" });
@@ -277,7 +323,7 @@ async function doEffect(e, ctx, depth, trigger) {
       const t = triggers.find((x) => x.id === e.trigger);
       if (!t) return;
       if (e.action === "rearm") return saveTriggers((l) => l.map((x) => (x.id === t.id ? { ...x, armed: true } : x)));
-      return run(t, ctx, depth + 1);
+      return run(t, { ...ctx, condsOk: false }, depth + 1);
     }
     case "broadcast": {
       let data = e.text;
@@ -300,6 +346,7 @@ async function handleInteract(itemId, userId, senderRole) {
   const it = items.find((i) => i.id === itemId);
   if (!it) return;
   const shape = zoneShape(it, dpi);
+  let blocked = "", did = false; // nada aconteceu porque a condição não valeu: o jogador vê a mensagem
   for (const tr of triggers) {
     if (!isInteract(tr) || !(tr.zones || []).includes(itemId)) continue;
     if ((tr.canUse === "players" && senderRole === "GM") || (tr.canUse === "gm" && senderRole !== "GM")) continue;
@@ -308,6 +355,12 @@ async function handleInteract(itemId, userId, senderRole) {
     const reach = senderRole === "GM" ? 0 : tr.reach ?? 1;
     let r = pickReacher(pool, shape, reach, dpi);
     if (!r.ok) continue;
+    // condição (alerta, nó, porta…): antes do restrito, para não gastar o cartão à toa
+    if ((tr.conds || []).length && !(await checkConds(tr, { by: r.token || undefined, cause: "interact" }).catch(() => true))) {
+      log(`⏸ ${tr.name}: condição não cumprida`);
+      if (senderRole !== "GM") blocked = blocked || tr.condMsg || "Nada acontece.";
+      continue;
+    }
     // restrito: só um personagem (ao alcance) com o item preso nele usa; o mestre usa sem o item
     let spend = null; // item do restrito que se gasta nesta passagem
     const hacked = nodeHacked(items, tr.reqNodes); // cartão clonado: o nó da Matriz hackeado libera sem o item
@@ -325,8 +378,10 @@ async function handleInteract(itemId, userId, senderRole) {
     }
     if (tr.once) tr.armed = false;
     if (spend) spendItem(spend, tr, r.token);
-    run(tr, { by: r.token || undefined, at: it.position, cause: "interact", on: r.token ? undefined : [] });
+    did = true;
+    run(tr, { by: r.token || undefined, at: it.position, cause: "interact", on: r.token ? undefined : [], condsOk: true });
   }
+  if (blocked && !did) OBR.broadcast.sendMessage(CH_DENY, { to: userId, title: it.text?.plainText?.trim() || it.name || "Objeto", text: blocked, show: "aviso" }, { destination: "ALL" }).catch(() => {});
 }
 
 /** Gasta um uso do item do restrito; no último uso o item some. */
@@ -420,7 +475,7 @@ function check(items) {
 
   const fired = [];
   for (const tr of triggers) {
-    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact" || VIG_CAUSES.includes(tr.cause) || ARSENAL_CAUSES.includes(tr.cause)) continue;
+    if (!tr.armed || tr.cause === "manual" || tr.cause === "interact" || VIG_CAUSES.includes(tr.cause) || ARSENAL_CAUSES.includes(tr.cause) || ALERT_CAUSES.includes(tr.cause)) continue;
     if (tr.cause === "appear" || tr.cause === "disappear") {
       for (const zid of tr.zones || []) {
         const it = byId.get(zid);
@@ -461,6 +516,7 @@ async function startGM() {
   gridSquare = (await OBR.scene.grid.getType().catch(() => "SQUARE")) === "SQUARE";
   const md = await OBR.scene.getMetadata();
   triggers = Array.isArray(md[LIST]) ? md[LIST] : [];
+  alertPrev = alertLevel(md); cancelPending("");
   prevPos.clear(); prevVis.clear(); memo.clear();
   const items = await OBR.scene.items.getItems();
   // só memoriza o estado inicial: abrir a cena não dispara nada
@@ -596,6 +652,8 @@ OBR.onReady(async () => {
     // mantém "desarmado" local até o metadado confirmar (evita disparo duplo)
     triggers = next;
     if (role === "GM") syncFlags(lastItems); // objeto virou (ou deixou de ser) interagível
+    const lvl = alertLevel(md);
+    if (role === "GM" && alertPrev !== null && lvl !== alertPrev) { const prev = alertPrev; alertPrev = lvl; onAlert(lvl, prev); } else if (role === "GM") alertPrev = lvl;
   });
   OBR.scene.items.onChange((items) => { if (role === "GM") check(items); });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; gridSquare = g.type === "SQUARE"; });
@@ -667,10 +725,41 @@ OBR.onReady(async () => {
     }
   });
 
+  // o nível de alerta mudou (só o mestre líder dispara)
+  async function onAlert(level, prev) {
+    if (!(await isLeader())) return;
+    for (const tr of triggers) {
+      if (!tr.armed || tr.cause !== "alertLevel" || !alertMatches(tr, level, prev)) continue;
+      if (tr.once) tr.armed = false;
+      run(tr, { cause: "alertLevel", level, prev });
+    }
+  }
+
+  // câmera que sobe o alerta: um clique cria o gatilho "a câmera viu alguém → alerta +1"
+  await OBR.contextMenu.create({
+    id: `${ID}/camera-alerta`,
+    icons: [{
+      icon: url("icon.svg"), label: "Gatilhos: esta câmera sobe o alerta",
+      filter: { roles: ["GM"], every: [{ key: ["metadata", VIG_CAM], value: undefined, operator: "!=" }] },
+    }],
+    onClick: async (ctx) => {
+      const cams = ctx.items.filter((i) => i.metadata?.[VIG_CAM]);
+      if (!cams.length) return;
+      const t = newTrigger(cams.map((i) => i.id), cams.length > 1 ? `Alerta: câmeras (${cams.length})` : `Alerta: ${names(cams[0])}`);
+      t.cause = "cameraSees"; t.once = false;
+      const up = newEffect("alarm"); up.alarmOp = "up";
+      const msg = newEffect("notify"); msg.text = "📷 {quem} foi visto. Alerta {nivel}."; msg.audience = "gm";
+      t.effects = [up, msg];
+      await saveTriggers((l) => [...l, t]);
+      OBR.notification.show("Pronto: quem a câmera vir faz o alerta subir 1 nível (até 3). Crie gatilhos com a causa \"O nível de alerta mudou\" para o que acontece em cada nível.", "SUCCESS");
+    },
+  });
+
   // disparo manual pelo painel (ou pelo Arsenal, com quem ativou)
   OBR.broadcast.onMessage(CH_FIRE, (e) => {
     if (role !== "GM") return;
     const t = triggers.find((x) => x.id === e.data?.id);
-    if (t) run(t, Array.isArray(e.data?.on) && e.data.on.length ? { on: e.data.on } : {});
+    // o ⚡ do painel testa o gatilho: ignora as condições (force)
+    if (t) run(t, { ...(Array.isArray(e.data?.on) && e.data.on.length ? { on: e.data.on } : {}), force: e.data?.force === true });
   });
 });

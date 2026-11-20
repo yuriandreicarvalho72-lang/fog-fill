@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -15,6 +15,7 @@ let itemHabs = new Map();    // habilidades do dossiê do Arsenal de cada NPC: i
 let itemDoor = new Map();    // portas da névoa: id -> { open, locked }
 let visuais = [];            // visuais do Arsenal por grupo (arsenal/visuais.json): [[grupo, [nomes]]]
 let estados = [];         // grupos da extensão Estados
+let alertNow = 0;         // nível de alerta atual
 const logLines = [];
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -175,6 +176,43 @@ function chargeRow(e) {
     <span class="hint">Vale para a carga escolhida e para as cargas coladas nos itens escolhidos. Precisa da extensão Arsenal.</span>`;
 }
 
+/** Alerta: subir, descer, ir para um nível ou zerar. */
+function alarmRow(e) {
+  const op = e.alarmOp || "up";
+  const lv = (from) => Array.from({ length: ALERT_MAX + 1 - from }, (_, i) => i + from);
+  const opt = (v, l) => `<option value="${v}" ${String(e.alarmTo ?? "") === String(v) ? "selected" : ""}>${l}</option>`;
+  const to = op === "up" ? `<span class="hint">até</span><select data-ek="alarmTo">${opt("", `${ALERT_MAX} (máximo)`)}${lv(1).filter((n) => n < ALERT_MAX).map((n) => opt(n, n)).join("")}</select>`
+    : op === "down" ? `<span class="hint">até</span><select data-ek="alarmTo">${opt("", "0 (mínimo)")}${lv(1).filter((n) => n < ALERT_MAX).map((n) => opt(n, n)).join("")}</select>`
+    : op === "set" ? `<select data-ek="alarmTo">${opt("", "nível…")}${lv(0).map((n) => opt(n, n)).join("")}</select>` : "";
+  return `<div class="row"><select data-ek="alarmOp">${ALERT_OPS.map(([v, l]) => `<option value="${v}" ${v === op ? "selected" : ""}>${l}</option>`).join("")}</select>${to}</div>
+    ${op === "set" && (e.alarmTo ?? "") === "" ? '<span class="hint warn">⚠ Escolha o nível.</span>' : ""}
+    <span class="hint">O alerta é da cena (0 a ${ALERT_MAX}). Use o gatilho com a causa "O nível de alerta mudou" para o que acontece em cada nível. Dica: câmera → botão direito → <b>Gatilhos: esta câmera sobe o alerta</b>. No texto da mensagem, {nivel} vira o nível.</span>`;
+}
+
+/** Uma condição do "Só se". */
+function condRow(t, c) {
+  const so = (k, opts, cur) => `<select data-ck="${k}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur ?? "") === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  const head = `<div class="row">${so("type", COND_TYPES.map((x) => [x.id, x.label]), c.type)}<button type="button" class="x" data-del-cond title="Remover condição">✕</button></div>`;
+  const ids = c.ids || [];
+  let body = "";
+  if (c.type === "alert") body = `<div class="row">${so("op", CMP_OPS, c.op)}<input type="number" data-ck="n" min="0" max="${ALERT_MAX}" step="1" value="${c.n ?? 1}" /><span class="hint">(0 a ${ALERT_MAX}; agora: ${alertNow})</span></div>`;
+  else if (c.type === "node") body = `<div class="sub">Nós: ${chips(ids, `c:${c.id}:ids`)}</div><div class="row">${so("op", [["==", "algum está"], ["!=", "nenhum está"]], c.op)}${so("is", NODE_STATES, c.is || "hackeado")}</div>
+    ${!ids.length ? '<span class="hint warn">⚠ Escolha os nós (sem eles a condição é ignorada).</span>' : !ids.some((id) => itemVig.get(id)?.node) ? '<span class="hint warn">⚠ Nenhum desses itens é nó da Matriz.</span>' : ""}`;
+  else if (c.type === "door") body = `<div class="sub">Portas: ${chips(ids, `c:${c.id}:ids`)}</div><div class="row">${so("op", [["==", "alguma"], ["!=", "nenhuma"]], c.op)}${so("is", DOOR_IS, c.is || "aberta")}</div>
+    ${!ids.length ? '<span class="hint warn">⚠ Escolha as portas (sem elas a condição é ignorada).</span>' : !ids.some((id) => itemDoor.has(id)) ? '<span class="hint warn">⚠ Nenhum desses itens é porta da névoa.</span>' : ""}`;
+  else if (c.type === "state") {
+    const g = estados.find((x) => x.id === c.group);
+    body = estados.length ? `<div class="row">${so("group", [["", "grupo…"], ...estados.map((x) => [x.id, x.name])], c.group)}${so("op", [["==", "está em"], ["!=", "não está em"]], c.op)}${so("is", [["", "estado…"], ...(g?.states || []).map((x) => [x.id, x.name])], c.is)}</div>
+      ${g && c.is ? `<span class="hint">Agora: ${esc((g.states || []).find((x) => x.id === g.current)?.name || "?")}</span>` : '<span class="hint warn">⚠ Escolha o grupo e o estado (sem eles a condição é ignorada).</span>'}` : '<span class="hint">Crie um grupo na extensão Estados primeiro.</span>';
+  } else if (c.type === "count") body = `<div class="sub">Zonas (vazio = as zonas do gatilho): ${chips(c.zones, `c:${c.id}:zones`)}</div>
+    <div class="row"><span class="hint">Tokens:</span>${so("op", CMP_OPS, c.op)}<input type="number" data-ck="n" min="0" step="1" value="${c.n ?? 3}" /></div>
+    <label class="check"><input type="checkbox" data-ckb="hid" ${c.hid ? "checked" : ""} /> Contar também os tokens escondidos</label>
+    ${!(c.zones || []).length && !(t.zones || []).length ? '<span class="hint warn">⚠ Sem zona: escolha a área onde contar (sem ela a condição é ignorada).</span>' : ""}`;
+  else if (c.type === "has") body = `<div class="row">${so("op", [["==", "tem"], ["!=", "não tem"]], c.op)}<input type="text" data-ck="name" value="${esc(c.name)}" placeholder="nome do item (ex.: Cartão de acesso)" /></div>
+    <span class="hint">O item precisa estar preso (attachment) no personagem que ativou, como no Restrito.</span>`;
+  return `<div class="cond" data-cid="${c.id}">${head}${body}</div>`;
+}
+
 function effectRow(t, e) {
   const a = ACTIONS.find((x) => x.id === e.action) || ACTIONS[0];
   const need = new Set(a.need);
@@ -192,6 +230,7 @@ function effectRow(t, e) {
     ${need.has("floor") ? floorRow(e) : ""}
     ${need.has("vision") ? visionRow(e) : ""}
     ${need.has("chargeOp") ? chargeRow(e) : ""}
+    ${need.has("alarm") ? alarmRow(e) : ""}
     ${need.has("doorOp") ? doorRow(e) : ""}
     ${need.has("attach") ? attachRow(t, e) : ""}
     ${need.has("fx") ? fxRow(e) : ""}
@@ -206,6 +245,9 @@ function effectRow(t, e) {
     ${need.has("audience") ? `<select data-ek="audience"><option value="all" ${e.audience !== "gm" ? "selected" : ""}>para todos</option><option value="gm" ${e.audience === "gm" ? "selected" : ""}>só para o mestre</option></select>` : ""}
     ${need.has("color") ? `<div class="row"><input type="color" data-ek="color" value="${esc(e.color)}" /><select data-ek="anim">${ANIMS.map(([v, l]) => `<option value="${v}" ${v === e.anim ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("trigger") ? `<select data-ek="trigger"><option value="">escolha o gatilho…</option>${list.filter((x) => x.id !== t.id).map((x) => `<option value="${x.id}" ${x.id === e.trigger ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : ""}
+    ${need.has("trigger") ? '<span class="hint">Para atrasar, use "depois de N s" no fim deste efeito. Dá para cancelar o atraso com "Cancelar sequência pendente".</span>' : ""}
+    ${need.has("triggerAny") ? `<select data-ek="trigger"><option value="">todas as sequências pendentes</option>${list.filter((x) => x.id !== t.id).map((x) => `<option value="${x.id}" ${x.id === e.trigger ? "selected" : ""}>só a de: ${esc(x.name)}</option>`).join("")}</select>
+      <span class="hint">Cancela os efeitos que ainda estão esperando o "depois de N s" (e o atraso do gatilho). Ex.: o jogador hackeia o alarme antes de os reforços chegarem.</span>` : ""}
     ${need.has("group") ? (estados.length ? `<div class="row"><select data-ek="group"><option value="">grupo…</option>${estados.map((g) => `<option value="${g.id}" ${g.id === e.group ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select>
       <select data-ek="to"><option value="next" ${e.to === "next" ? "selected" : ""}>próximo</option><option value="prev" ${e.to === "prev" ? "selected" : ""}>anterior</option>${(estados.find((g) => g.id === e.group)?.states || []).map((st) => `<option value="${st.id}" ${st.id === e.to ? "selected" : ""}>${esc(st.name)}</option>`).join("")}</select></div>`
       : '<span class="hint">Crie um grupo na extensão Estados primeiro.</span>') : ""}
@@ -222,14 +264,16 @@ function card(t) {
     <div class="head">
       <input type="checkbox" data-k="armed" title="Armado" ${t.armed ? "checked" : ""} />
       <button type="button" class="name">${esc(t.name)}<small>${esc(cause)} · ${t.effects?.length || 0} efeito(s)${t.armed ? "" : " · desarmado"}</small></button>
-      <button type="button" class="mini fire" title="Disparar agora. Sem movimento, &quot;quem ativou&quot; = quem está em cima da zona ou os tokens que você tiver selecionado.">⚡</button>
+      <button type="button" class="mini fire" title="Disparar agora (teste: ignora as condições). Sem movimento, &quot;quem ativou&quot; = quem está em cima da zona ou os tokens que você tiver selecionado.">⚡</button>
     </div>
     ${isOpen ? `<div class="body">
       <input type="text" data-k="name" value="${esc(t.name)}" />
       <h3>Quando</h3>
       <select data-k="cause">${CAUSES.map((c) => `<option value="${c.id}" ${c.id === t.cause ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       ${t.cause === "near" ? `<label class="inline">raio <input type="number" data-k="radius" min="0.5" step="0.5" value="${t.radius ?? 2}" /> quadrados</label>` : ""}
-      <div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : t.cause === "destroyed" ? "Objeto(s) destrutível(is)" : t.cause === "chargeBlew" ? "Perto de (vazio = qualquer carga)" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>
+      ${t.cause === "alertLevel" ? `<div class="row"><span class="hint">Quando o nível:</span><select data-k="alertDir">${ALERT_DIRS.map(([v, l]) => `<option value="${v}" ${(t.alertDir || "any") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <span class="hint">para</span><select data-k="alertTo"><option value="">qualquer nível</option>${Array.from({ length: ALERT_MAX + 1 }, (_, n) => `<option value="${n}" ${String(t.alertTo ?? "") === String(n) ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <p class="hint">Dispara quando o alerta da cena muda (efeito "Alerta: mudar o nível", ou os botões 🚨 no topo do painel). Use "Só se" para casos como "só se alguma porta estiver aberta".</p>` : `<div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : t.cause === "destroyed" ? "Objeto(s) destrutível(is)" : t.cause === "chargeBlew" ? "Perto de (vazio = qualquer carga)" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>`}
       ${t.cause === "cameraSees" ? `<p class="hint">Dispara quando a câmera (extensão Vigilância) vê alguém entrar no cone. "Quem ativou" = quem foi visto.</p>
         ${(t.zones || []).length && !(t.zones || []).some((id) => itemVig.get(id)?.cam) ? '<span class="hint warn">⚠ Nenhum desses itens é câmera (botão direito → Virar câmera).</span>' : ""}` : ""}
       ${t.cause === "destroyed" ? '<p class="hint">Dispara quando o objeto quebra no Arsenal (tiros pesados, explosões, cargas). "Quem ativou" = quem atirou ou plantou a carga.</p>' : ""}
@@ -259,6 +303,11 @@ function card(t) {
       ${t.who === "list" ? `<div class="sub">${chips(t.tokens, "tokens")}</div>` : ""}
       <label class="check"><input type="checkbox" data-k="ignoreHidden" ${t.ignoreHidden !== false ? "checked" : ""} /> Tokens escondidos não ativam</label>` : ""}
       ${t.cause === "enter" ? `<label class="check" title="Em vez de ir até onde o jogador soltou, o token para no meio do caminho, em cima da zona. Vale para a Régua e para o arrasto."><input type="checkbox" data-k="halt" ${t.halt ? "checked" : ""} /> Parar o token em cima da zona (corta o resto do movimento)</label>` : ""}
+      <h3>Só se (opcional)</h3>
+      ${(t.conds || []).map((c) => condRow(t, c)).join("")}
+      <div class="row"><button type="button" data-add-cond>+ condição</button>${(t.conds || []).length > 1 ? `<select data-k="condAny"><option value="0" ${!t.condAny ? "selected" : ""}>todas precisam valer</option><option value="1" ${t.condAny ? "selected" : ""}>basta uma valer</option></select>` : ""}</div>
+      ${(t.conds || []).length && t.cause === "interact" ? `<input type="text" data-k="condMsg" value="${esc(t.condMsg || "")}" placeholder="Se não valer, o jogador vê: (padrão: Nada acontece.)" />` : ""}
+      ${(t.conds || []).length ? '<span class="hint">Se a condição não valer, o gatilho não dispara e continua armado (não gasta o "uma vez" nem o cartão). O ⚡ do painel ignora as condições, para teste. Para uma porta que muda de comportamento, crie dois gatilhos no mesmo objeto, um com a condição e outro com a condição oposta.</span>' : ""}
       <div class="row">
         <select data-k="once"><option value="1" ${t.once ? "selected" : ""}>dispara uma vez (desarma)</option><option value="0" ${!t.once ? "selected" : ""}>dispara sempre</option></select>
         <label class="inline">atraso <input type="number" data-k="delay" min="0" step="0.5" value="${t.delay || 0}" /> s</label>
@@ -269,15 +318,15 @@ function card(t) {
     </div>` : ""}`;
 
   div.querySelector(".name").addEventListener("click", () => { open = isOpen ? null : t.id; render(); });
-  div.querySelector(".fire").addEventListener("click", () => OBR.broadcast.sendMessage(CH_FIRE, { id: t.id }, { destination: "LOCAL" }));
+  div.querySelector(".fire").addEventListener("click", () => OBR.broadcast.sendMessage(CH_FIRE, { id: t.id, force: true }, { destination: "LOCAL" }));
   for (const el of div.querySelectorAll("[data-k]")) {
     const k = el.dataset.k;
     el.addEventListener("change", () => {
       let v = el.type === "checkbox" ? el.checked : el.type === "number" ? Number(el.value) : el.value;
-      if (k === "once") v = v === "1";
+      if (k === "once" || k === "condAny") v = v === "1";
       t[k] = v;
       save(k === "armed");
-      if (["cause", "who", "armed", "name", "reqItem"].includes(k)) render();
+      if (["cause", "who", "armed", "name", "reqItem", "condAny"].includes(k)) render();
     });
   }
   for (const btn of div.querySelectorAll("[data-sel]")) {
@@ -287,6 +336,7 @@ function card(t) {
       if (key === "zones") t.zones = sel;
       else if (key === "reqNodes") t.reqNodes = sel;
       else if (key === "tokens") t.tokens = sel;
+      else if (key.startsWith("c:")) { const [, cid, field] = key.split(":"); const c = t.conds.find((x) => x.id === cid); if (c) c[field] = sel; }
       else {
         const [, eid, field] = key.split(":");
         const e = t.effects.find((x) => x.id === eid);
@@ -299,6 +349,23 @@ function card(t) {
       save(true); render();
     });
   }
+  for (const row of div.querySelectorAll(".cond")) {
+    const c = t.conds.find((x) => x.id === row.dataset.cid);
+    if (!c) continue;
+    for (const el of row.querySelectorAll("[data-ck]")) {
+      el.addEventListener("change", () => {
+        const k = el.dataset.ck;
+        if (k === "type") { Object.assign(c, newCond(el.value), { id: c.id }); save(true); return render(); }
+        c[k] = el.type === "number" ? Number(el.value) : el.value;
+        if (k === "group") c.is = "";
+        save();
+        if (["group", "is", "op"].includes(k)) render();
+      });
+    }
+    for (const el of row.querySelectorAll("[data-ckb]")) el.addEventListener("change", () => { c[el.dataset.ckb] = el.checked; save(); });
+    row.querySelector("[data-del-cond]").addEventListener("click", () => { t.conds = t.conds.filter((x) => x !== c); save(true); render(); });
+  }
+  div.querySelector("[data-add-cond]")?.addEventListener("click", () => { t.conds = [...(t.conds || []), newCond("alert")]; save(true); render(); });
   for (const btn of div.querySelectorAll("[data-noshooter]")) {
     btn.addEventListener("click", () => { const e = t.effects.find((x) => x.id === btn.dataset.noshooter); e.shooter = ""; save(true); render(); });
   }
@@ -328,7 +395,15 @@ function card(t) {
   return div;
 }
 
+function renderAlert() {
+  const el = $("alert");
+  if (!el) return;
+  el.innerHTML = `<span class="hint">🚨 Alerta:</span> ${Array.from({ length: ALERT_MAX + 1 }, (_, n) => `<button type="button" class="mini${n === alertNow ? " on" : ""}" data-alert="${n}" title="${n ? `Nível ${n}` : "Sem alerta"}">${n}</button>`).join("")}`;
+  for (const b of el.querySelectorAll("[data-alert]")) b.addEventListener("click", () => OBR.scene.setMetadata({ [ALERT]: { level: Number(b.dataset.alert), at: Date.now() } }));
+}
+
 function render() {
+  renderAlert();
   const box = $("list");
   box.innerHTML = "";
   if (!list.length) box.innerHTML = '<p class="hint">Nenhum gatilho. Selecione no mapa a zona (uma armadilha escondida, uma forma, uma linha de "fio") e clique em <b>Novo gatilho com a seleção</b>, ou use o botão direito → <b>Criar gatilho com esta zona</b>.</p>';
@@ -347,6 +422,7 @@ OBR.onReady(async () => {
     const md = await OBR.scene.getMetadata();
     list = Array.isArray(md[LIST]) ? md[LIST] : [];
     estados = Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [];
+    alertNow = alertLevel(md);
     render();
   };
   if (await OBR.scene.isReady()) await load();
@@ -354,6 +430,7 @@ OBR.onReady(async () => {
   OBR.scene.onMetadataChange((md) => {
     const next = Array.isArray(md[LIST]) ? md[LIST] : [];
     const est = Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [];
+    if (alertLevel(md) !== alertNow) { alertNow = alertLevel(md); renderAlert(); }
     if (JSON.stringify(est.map((g) => [g.id, g.name, g.states])) !== JSON.stringify(estados.map((g) => [g.id, g.name, g.states]))) { estados = est; if (JSON.stringify(next) === JSON.stringify(list)) render(); }
     // só redesenha se mudou por fora (ex.: o motor desarmou um gatilho)
     if (JSON.stringify(next) !== JSON.stringify(list)) { list = next; render(); }

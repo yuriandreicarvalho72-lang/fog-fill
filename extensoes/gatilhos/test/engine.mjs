@@ -103,3 +103,43 @@ t1('nó hackeado libera; ativo não; sem nós não', [nodeHacked(inv, ['no']), n
 t1('inventário: só itens visíveis presos; fixo não passa', [heldBy('rex', inv).map((i) => i.id), canGive(inv[5]), canGive(inv[3])], [['c', 'lock'], false, true]);
 t1('quem carrega o item', [holderOf(inv[3], inv)?.id, holderOf(inv[0], inv)], ['rex', null]);
 t1('ao lado passa, longe não', [nearby(inv[0], inv[1], 150), nearby(inv[0], inv[2], 150)], [true, false]);
+
+// alerta com nível, condições e cancelamento (1.14)
+import { alertLevel, alertNext, alertMatches, newCond, newTrigger, ALERT } from '../src/shared.js';
+import { evalCond, condsOk, cmp } from '../src/conditions.js';
+t1('alerta: nível lido da cena (limita 0..3)', [alertLevel({ [ALERT]: { level: 2 } }), alertLevel({ [ALERT]: { level: 9 } }), alertLevel({}), alertLevel({ [ALERT]: { level: -1 } })], [2, 3, 0, 0]);
+t1('alerta: subir/descer/ir/zerar', [alertNext(0, 'up'), alertNext(3, 'up'), alertNext(2, 'down'), alertNext(0, 'down'), alertNext(1, 'set', 3), alertNext(2, 'reset')], [1, 3, 1, 0, 3, 0]);
+t1('alerta: subir com teto 2 e descer com piso 1', [alertNext(2, 'up', 2), alertNext(1, 'up', 2), alertNext(3, 'down', 1), alertNext(1, 'down', 1)], [2, 2, 2, 1]);
+t1('alerta: subir não derruba quem já passou do teto', alertNext(3, 'up', 2), 3);
+t1('gatilho de nível: qualquer / só ao subir / só 2 / só ao descer', [
+  alertMatches({ alertTo: '', alertDir: 'any' }, 1, 0), alertMatches({ alertTo: '', alertDir: 'up' }, 0, 1),
+  alertMatches({ alertTo: '2', alertDir: 'any' }, 2, 1), alertMatches({ alertTo: '2', alertDir: 'any' }, 3, 2),
+  alertMatches({ alertTo: '', alertDir: 'down' }, 1, 2), alertMatches({ alertTo: '', alertDir: 'any' }, 1, 1)], [true, false, true, false, true, false]);
+t1('comparações', [cmp(2, '>=', 2), cmp(1, '>=', 2), cmp(2, '<=', 2), cmp(3, '==', 3), cmp(3, '!=', 3)], [true, false, true, true, false]);
+{
+  const S2 = 'com.battle-system.smoke/';
+  const items = [
+    { id: 'no', metadata: { 'vigilancia/no': { state: 'hackeado' } } },
+    { id: 'no2', metadata: { 'vigilancia/no': { state: 'ativo' } } },
+    { id: 'porta', type: 'CURVE', metadata: { [`${S2}isDoor`]: true, [`${S2}doorOpen`]: true } },
+    { id: 'porta2', type: 'CURVE', metadata: { [`${S2}isDoor`]: true, [`${S2}isDoorLocked`]: true } },
+    { id: 'sala', type: 'SHAPE', shapeType: 'RECTANGLE', position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, width: 600, height: 600, metadata: {} },
+    { id: 'g1', type: 'IMAGE', layer: 'CHARACTER', position: { x: 100, y: 100 }, visible: true, metadata: {} },
+    { id: 'g2', type: 'IMAGE', layer: 'CHARACTER', position: { x: 300, y: 300 }, visible: true, metadata: {} },
+    { id: 'g3', type: 'IMAGE', layer: 'CHARACTER', position: { x: 400, y: 400 }, visible: false, metadata: {} },
+    { id: 'fora', type: 'IMAGE', layer: 'CHARACTER', position: { x: 2000, y: 2000 }, visible: true, metadata: {} },
+    { id: 'rex', type: 'IMAGE', layer: 'CHARACTER', position: { x: 2000, y: 0 }, visible: true, metadata: {} },
+    { id: 'cartao', type: 'IMAGE', layer: 'ATTACHMENT', attachedTo: 'rex', visible: true, text: { plainText: 'Cartão de Acesso' }, metadata: {} },
+  ];
+  const env = { alert: 2, items, groups: [{ id: 'g', current: 'noite', states: [{ id: 'dia' }, { id: 'noite' }] }], dpi: 150, zones: ['sala'], actorIds: ['rex'] };
+  const C = (o) => ({ ...newCond(o.type), ...o });
+  t1('cond alerta (>=2, >=3, <=1)', [evalCond(C({ type: 'alert', op: '>=', n: 2 }), env), evalCond(C({ type: 'alert', op: '>=', n: 3 }), env), evalCond(C({ type: 'alert', op: '<=', n: 1 }), env)], [true, false, false]);
+  t1('cond nó hackeado: algum / nenhum / ativo', [evalCond(C({ type: 'node', ids: ['no', 'no2'], is: 'hackeado' }), env), evalCond(C({ type: 'node', ids: ['no2'], is: 'hackeado' }), env), evalCond(C({ type: 'node', ids: ['no2'], is: 'hackeado', op: '!=' }), env)], [true, false, true]);
+  t1('cond porta: aberta / trancada / sem itens ignora', [evalCond(C({ type: 'door', ids: ['porta'], is: 'aberta' }), env), evalCond(C({ type: 'door', ids: ['porta'], is: 'trancada' }), env), evalCond(C({ type: 'door', ids: ['porta2'], is: 'trancada' }), env), evalCond(C({ type: 'door', ids: [], is: 'aberta' }), env)], [true, false, true, true]);
+  t1('cond estado do grupo: é / não é / sem grupo ignora', [evalCond(C({ type: 'state', group: 'g', is: 'noite' }), env), evalCond(C({ type: 'state', group: 'g', is: 'dia' }), env), evalCond(C({ type: 'state', group: 'g', is: 'dia', op: '!=' }), env), evalCond(C({ type: 'state', group: '', is: '' }), env)], [true, false, true, true]);
+  t1('cond contagem na sala: 2 visíveis (3 com escondidos)', [evalCond(C({ type: 'count', op: '==', n: 2 }), env), evalCond(C({ type: 'count', op: '==', n: 3, hid: true }), env), evalCond(C({ type: 'count', op: '>=', n: 3 }), env), evalCond(C({ type: 'count', zones: ['sala'], op: '<=', n: 2 }), env)], [true, true, false, true]);
+  t1('cond contagem sem zona ignora', evalCond(C({ type: 'count', op: '>=', n: 9 }), { ...env, zones: [] }), true);
+  t1('cond quem ativou tem o item', [evalCond(C({ type: 'has', name: 'cartao' }), env), evalCond(C({ type: 'has', name: 'chave' }), env), evalCond(C({ type: 'has', name: 'chave', op: '!=' }), env), evalCond(C({ type: 'has', name: 'cartao' }), { ...env, actorIds: ['g1'] })], [true, false, true, false]);
+  const tr = { conds: [C({ type: 'alert', op: '>=', n: 2 }), C({ type: 'alert', op: '>=', n: 3 })], condAny: false };
+  t1('várias: todas / qualquer uma / nenhuma condição', [condsOk(tr, env), condsOk({ ...tr, condAny: true }, env), condsOk({ conds: [] }, env), condsOk(newTrigger(), env)], [false, true, true, true]);
+}
