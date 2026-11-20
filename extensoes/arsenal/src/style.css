@@ -134,3 +134,11 @@ button.vis.on { color: var(--accent); border-color: var(--accent); }
 .prev { margin: 6px 0; }
 .prev b { display: block; margin-bottom: 3px; color: var(--accent); }
 body.habp h4 { font-size: 11px; color: var(--muted); margin: 8px 0 2px; text-transform: uppercase; letter-spacing: .04em; }
+.linkbox { margin: 0 0 6px; }
+.linkbox small a { color: var(--accent); }
+.linkform { margin-top: 6px; }
+.linkform summary { font-size: 12px; }
+.linkform .row { margin-top: 4px; }
+.linkform .row select { flex: 1; margin: 0; }
+.linkform small { margin: 4px 0 0; }
+.visedit small.why { color: #ff9f8a; margin: 4px 0 0; }

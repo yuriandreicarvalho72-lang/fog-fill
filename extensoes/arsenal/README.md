@@ -41,6 +41,12 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   no painel mostra todos, por grupo (clique = prévia; com o 🎨 aberto, o clique troca). Dados: `metadata["arsenal/dossie"]` e `metadata["arsenal/hab-uso"]` no token;
   canal `arsenal/habilidade` (todos tocam a animação). Os 120 visuais aceitos estão em `src/abil.js` (`VISUAIS`), iguais aos do prompt (borboletas, pétalas, sangue, corações, correntes, vórtice...;
   20 deles vêm do Boss Loot FX: flecha de sangue, lança, tornado de fogo, muro de fogo, engrenagens, sinalizador...).
+- **Efeitos próprios** (1.6): (1) arquivos .webm no GitHub em `extensoes/arsenal/public/meus-efeitos/<tipo>/` (tipos: `alvo`, `area`,
+  `em-si`, `projetil`, `linha`, `cone`; arquivo solto = `area`). O build gera `meus-efeitos/lista.json` e cada arquivo vira o visual
+  `meu_<nome do arquivo>` (grupo "Meus efeitos" no 🎨 e na lista). (2) Link direto para um .webm no 🎨 da habilidade ("Usar um vídeo
+  próprio"), com o tipo; fica em `video: { url, tipo }` na habilidade e vence o visual. Largura, altura e duração são lidas do próprio vídeo
+  no navegador antes de tocar (`src/meus.js`). Projétil: horizontal, ~200 px de margem em cada ponta; linha/cone: começa na borda esquerda.
+  Ver `public/meus-efeitos/LEIA-ME.txt`.
 - **Otimizador**: se o jogador escolher um perfil na extensão Otimizador, o Arsenal obedece neste navegador (Leve e Apresentação
   desligam os vídeos JB2A e as cápsulas e baixam a intensidade do efeito desenhado). "Limpar sobras" apaga efeitos e miras que ficaram.
 - Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.
