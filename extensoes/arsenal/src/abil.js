@@ -146,12 +146,75 @@ Object.assign(LIB, Object.fromEntries(Object.entries(ABIL_LIB).map(([k, v]) => [
 // visuais que já existiam no Arsenal
 const ALIAS = { bala: "bullet", flecha: "arrow", raio_gelo: "frost", esfera: "plasma", arremesso: "flask" };
 export const VISUAIS = [...Object.keys(ABIL_LIB), ...Object.keys(ALIAS)].sort();
-const libKey = (vis) => (ALIAS[vis] ? ALIAS[vis] : ABIL_LIB[vis] ? `hab_${vis}` : null);
+const libKey = (vis) => (ALIAS[vis] ? ALIAS[vis] : ABIL_LIB[vis] ? `hab_${vis}` : customs.get(vis) || null);
 export const abilFiles = () => [...new Set(Object.values(ABIL_LIB).flatMap((a) => (a.v ? Object.values(a.v).map((x) => x.file) : [a.file])))].sort();
+
+// ---------------- efeitos próprios do mestre ----------------
+// 1) Arquivos .webm no repositório: extensoes/arsenal/public/meus-efeitos/<tipo>/<nome>.webm -> visual "meu_<nome>"
+//    (o build gera meus-efeitos/lista.json). 2) Link direto para um .webm, guardado na habilidade: { video: { url, tipo } }.
+// Largura, altura e duração vêm do próprio vídeo no navegador (setDims), antes de tocar.
+export const MEUS_LISTA = "meus-efeitos/lista.json";
+const TIPO = { alvo: "target", area: "area", "em-si": "self", projetil: "ranged", linha: "line", cone: "cone" };
+export const TIPOS_PROPRIOS = [["alvo", "no alvo"], ["area", "área"], ["em-si", "em si"], ["projetil", "projétil"], ["linha", "linha"], ["cone", "cone"]];
+const customs = new Map(); // nome "meu_x" -> chave no LIB
+const safeDecode = (u) => { try { return decodeURI(u); } catch { return u; } };
+function customAsset(type, file) {
+  if (type === "ranged") return { type, hit: 0.7, custom: true, v: { 30: { file, w: 0, h: 0, dur: 0 } } };
+  const a = { type, file, w: 0, h: 0, dur: 0, custom: true };
+  if (type === "line" || type === "cone") Object.assign(a, { ox: 0, span: 0 });
+  if (type === "target") a.size = 1.6;
+  if (type === "self") a.size = 2;
+  return a;
+}
+/** Nome do visual a partir do nome do arquivo: "Chuva de Cinzas.webm" -> "meu_chuva_de_cinzas". */
+export const meuNome = (arquivo) => "meu_" + String(arquivo).replace(/\.[^.]+$/, "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+/** Registra a lista do repositório: [{ nome, tipo, file }] (file relativo ao site da extensão). */
+export function registerMeus(list) {
+  for (const e of list || []) {
+    if (!TIPO[e?.tipo] || !/^meu_[a-z0-9_]+$/.test(e?.nome || "") || !e.file) continue;
+    const k = `meu:${e.nome}`;
+    if (!LIB[k]) LIB[k] = customAsset(TIPO[e.tipo], `../${e.file}`);
+    customs.set(e.nome, k);
+  }
+}
+export const meusVisuais = () => [...customs.keys()].sort();
+/** Chave de um link próprio (registra na primeira vez). */
+export function registerLink(url, tipo) {
+  if (!/^https?:\/\/\S+$/i.test(url || "") || !TIPO[tipo]) return null;
+  const k = `url:${tipo}:${url}`;
+  if (!LIB[k]) LIB[k] = customAsset(TIPO[tipo], safeDecode(url));
+  return k;
+}
+/** Chave do vídeo de uma habilidade: o link próprio vence o visual. */
+export const keyOf = (h) => (h?.video?.url ? registerLink(h.video.url, h.video.tipo) : libKey(h?.visual));
+const dimsOf = (a) => (a?.v ? a.v[30] : a);
+export const fileOfKey = (k) => dimsOf(LIB[k])?.file || null;
+/** Vídeos próprios que ainda não têm tamanho/duração (a habilidade e os ataques de "faz"). */
+export const pendingKeys = (ab, subs) => [...new Set([ab, ...Object.values(subs || {})].map(keyOf).filter((k) => k && LIB[k]?.custom && !dimsOf(LIB[k]).w))];
+/** Tamanho e duração lidos do vídeo. */
+export function setDims(k, { w, h, dur }) {
+  const a = LIB[k];
+  if (!a?.custom || !(w > 0) || !(h > 0)) return;
+  Object.assign(dimsOf(a), { w, h, dur: dur > 0 ? dur : 3000 });
+  if (a.type === "line" || a.type === "cone") a.span = w;
+}
+/** Troca o link próprio de uma habilidade (null = tira). Devolve o dossiê novo. */
+export function setVideo(dossie, nome, video) {
+  if (video && (!/^https?:\/\/\S+$/i.test(video.url || "") || !TIPO[video.tipo])) throw new Error("o link precisa começar com http(s):// e o tipo precisa ser alvo, área, em si, projétil, linha ou cone.");
+  return {
+    ...dossie,
+    habilidades: dossie.habilidades.map((h) => {
+      if (h.nome !== nome) return h;
+      const n = { ...h };
+      if (video) n.video = { url: video.url.trim(), tipo: video.tipo }; else delete n.video;
+      return n;
+    }),
+  };
+}
 
 const GRUPOS = [["target", "No alvo"], ["melee", "Corpo a corpo"], ["ranged", "Projétil e raio"], ["cone", "Cone"], ["line", "Linha"], ["area", "Área"], ["self", "Em si"], ["move", "Movimento"]];
 /** Visuais por grupo, para o seletor e a lista do painel: [[título, [visual...]]] */
-export const visualGroups = () => GRUPOS.map(([t, title]) => [title, VISUAIS.filter((v) => LIB[libKey(v)]?.type === t)]).filter(([, l]) => l.length);
+export const visualGroups = () => [...GRUPOS.map(([t, title]) => [title, VISUAIS.filter((v) => LIB[libKey(v)]?.type === t)]), ["Meus efeitos", meusVisuais()]].filter(([, l]) => l.length);
 /** Arquivo de vídeo da prévia no painel (projéteis: a versão de 30 ft). */
 export function previewFile(vis) {
   const a = LIB[libKey(vis)];
@@ -211,6 +274,7 @@ export function normalize(input) {
       cor: sem(h.cor), texto: txt(h.texto),
     };
     if (Array.isArray(h.faz) && h.faz.length) out.faz = h.faz.map(txt);
+    if (h.video?.url && registerLink(txt(h.video.url), sem(h.video.tipo).replace(/\s+/g, "-"))) out.video = { url: txt(h.video.url), tipo: sem(h.video.tipo).replace(/\s+/g, "-") };
     for (const k of Object.keys(out)) if (out[k] === "" || out[k] === null || out[k] === false) delete out[k];
     return out;
   });
@@ -337,19 +401,19 @@ export function buildAbility(ev, has = () => true, byName = null) {
   const { ab, from, aim = {}, cell = 150, mpc = 1.5, selfHalf = cell / 2 } = ev;
   const vids = [], els = [];
   const color = COLOR[ab.cor] || "#ff5a4a";
-  const key = libKey(ab.visual);
+  const key = keyOf(ab);
   const asset = key ? LIB[key] : null;
   const targets = aim.targets || [];
   const impact = (t, at, dir) => { const k = IMPACT[ab.impacto]; if (k) vids.push(pointVideo(k, at, k === "blood" ? 1.7 : 1.2, t, cell, k === "sparkO" ? null : dir)); };
 
   const one = (a, t0, tgList) => {
-    const A = a ? LIB[libKey(a.visual)] : null;
+    const A = a ? LIB[keyOf(a)] : null;
     if (!A) return 0;
     let end = t0;
     for (const tg of tgList) {
       const dir = V.norm(V.sub(tg.at, from));
       if (A.type === "ranged") {
-        const v = rangedVideo(libKey(a.visual), V.add(from, V.mul(dir, cell * 0.3)), tg.at, cell, t0);
+        const v = rangedVideo(keyOf(a), V.add(from, V.mul(dir, cell * 0.3)), tg.at, cell, t0);
         vids.push(v); impact(v.hitAt, tg.at, dir); end = Math.max(end, v.t0 + v.dur);
       } else if (A.type === "melee") {
         const anchor = V.sub(tg.at, V.mul(dir, cell));
@@ -357,7 +421,7 @@ export function buildAbility(ev, has = () => true, byName = null) {
         impact(t0 + (A.dur / 1000) * 0.35, tg.at, dir); end = Math.max(end, t0 + A.dur / 1000);
       } else {
         const size = (A.size || 1.4) * Math.max(1, (tg.half * 2) / cell);
-        const pv = pointVideo(libKey(a.visual), tg.at, size, t0, cell, A.side ? dir : null);
+        const pv = pointVideo(keyOf(a), tg.at, size, t0, cell, A.side ? dir : null);
         if (A.side) pv.offset = { x: A.w * A.side, y: A.h / 2 }; // jorro de sangue: sai do alvo na direção do golpe
         vids.push(pv);
         impact(t0 + 0.3, tg.at, dir); end = Math.max(end, t0 + A.dur / 1000);
@@ -406,7 +470,8 @@ export function buildAbility(ev, has = () => true, byName = null) {
     }
     els.push({ kind: "line", t0: 0, t1: 1.2, tag: "move", frame: (t) => ({ a: from, b: to, color, width: Math.max(2, cell / 30), opacity: 0.8 * (1 - t / 1.2) }) });
   }
-  const ok = vids.filter((v) => has(v.file));
+  // vídeos próprios (link ou pasta meus-efeitos) não estão no ok.json; só tocam depois de ter tamanho e duração
+  const ok = has ? vids.filter((v) => v.w > 0 && v.dur > 0 && (has(v.file) || /^(https?:|\.\.\/)/.test(v.file))) : []; // has = null: vídeos desligados
   const duration = Math.max(0.5, ...els.map((e) => e.t1), ...ok.map((v) => v.t0 + v.dur));
   return { elements: els, videos: ok, duration };
 }

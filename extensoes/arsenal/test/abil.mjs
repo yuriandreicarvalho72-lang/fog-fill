@@ -80,3 +80,31 @@ const blfx = abilFiles().filter((f) => f.startsWith("BLFX/"));
 ok("BLFX: 39 vídeos, todos com caminho da pasta artwork", [blfx.length, blfx.every((f) => /^BLFX\/0\d-/.test(f))], [39, true]);
 const muro = buildAbility({ ab: { nome: "M", forma: "linha", area: 9, visual: "muro_fogo" }, from, aim: { point: { x: 0, y: 900 } }, cell, selfHalf: 50 }, () => true);
 ok("muro de fogo estica na linha (9 m = 6 quadrados, para baixo)", [muro.videos[0].rotation, Math.round(muro.videos[0].dpi), muro.videos[0].position], [90, 200, { x: 0, y: 50 }]);
+
+// 1.6.0: efeitos próprios (pasta meus-efeitos no GitHub e link direto)
+import { meuNome, registerMeus, meusVisuais, registerLink, keyOf, pendingKeys, setDims, setVideo, fileOfKey } from "../src/abil.js";
+ok("nome do visual a partir do arquivo", [meuNome("Chuva de Cinzas.webm"), meuNome("explosão-ROXA 2.webm")], ["meu_chuva_de_cinzas", "meu_explosao_roxa_2"]);
+registerMeus([{ nome: "meu_cinzas", tipo: "area", file: "meus-efeitos/area/Cinzas.webm" }, { nome: "meu_dardo", tipo: "projetil", file: "meus-efeitos/projetil/dardo.webm" }, { nome: "ruim", tipo: "area", file: "x.webm" }]);
+ok("pasta: entram só nomes meu_ válidos, no grupo Meus efeitos", [meusVisuais(), visualGroups().at(-1)], [["meu_cinzas", "meu_dardo"], ["Meus efeitos", ["meu_cinzas", "meu_dardo"]]]);
+ok("dossiê aceita meu_ sem aviso", normalize({ habilidades: [{ nome: "C", forma: "area", visual: "meu_cinzas" }] }).avisos, []);
+const cz = { nome: "C", forma: "area", area: 3, alcance: 9, visual: "meu_cinzas" };
+ok("sem tamanho ainda: espera o vídeo abrir (não toca)", [pendingKeys(cz), buildAbility({ ab: cz, from, aim: { point: { x: 400, y: 0 } }, cell }, () => false).videos.length], [["meu:meu_cinzas"], 0]);
+setDims("meu:meu_cinzas", { w: 800, h: 800, dur: 2500 });
+const czv = buildAbility({ ab: cz, from, aim: { point: { x: 400, y: 0 } }, cell }, () => false).videos[0];
+ok("com tamanho: toca no ponto, arquivo da pasta do site, mesmo fora do ok.json", [czv.file, czv.position, Math.round(czv.dpi), czv.dur], ["../meus-efeitos/area/Cinzas.webm", { x: 400, y: 0 }, 200, 2.5]);
+ok("vídeos desligados (has = null): nada toca", buildAbility({ ab: cz, from, aim: { point: { x: 400, y: 0 } }, cell }, null).videos.length, 0);
+setDims("meu:meu_dardo", { w: 1600, h: 400, dur: 1000 });
+const dd = buildAbility({ ab: { ...H("Garras do Gânglio"), visual: "meu_dardo", impacto: "nenhum" }, from, aim: { targets: tg }, cell }, () => false).videos[0];
+ok("projétil próprio vai do NPC ao alvo", [dd.file, dd.rotation, Math.round(dd.dpi)], ["../meus-efeitos/projetil/dardo.webm", 0, Math.round(1200 / 1.7)]);
+// link direto
+const L = "https://exemplo.com/efeitos/Fogo%20Azul.webm";
+const d3 = setVideo(d, "Vômito de Biomassa", { url: L, tipo: "cone" });
+const vm = d3.habilidades.find((h) => h.nome === "Vômito de Biomassa");
+ok("link guardado na habilidade e vence o visual", [vm.video, vm.visual, keyOf(vm)], [{ url: L, tipo: "cone" }, "cone_acido", `url:cone:${L}`]);
+ok("link: arquivo sem %20 (o Owlbear codifica de novo)", fileOfKey(keyOf(vm)), "https://exemplo.com/efeitos/Fogo Azul.webm");
+setDims(keyOf(vm), { w: 600, h: 600, dur: 3000 });
+const cvl = buildAbility({ ab: vm, from, aim: { point: { x: 500, y: 0 } }, cell, selfHalf: 50 }, () => false).videos[0];
+ok("cone com link: sai do NPC com o tamanho do cone", [cvl.file.startsWith("https://"), Math.round(cvl.dpi), cvl.offset.x], [true, 150, 0]);
+ok("tirar o link", "video" in setVideo(d3, "Vômito de Biomassa", null).habilidades.find((h) => h.nome === "Vômito de Biomassa"), false);
+ok("link inválido dá erro", (() => { try { setVideo(d, "Vômito de Biomassa", { url: "c:/x.webm", tipo: "area" }); } catch (e) { return e.message.slice(0, 20); } })(), "o link precisa começ");
+ok("dossiê colado com video.url é aceito", normalize({ habilidades: [{ nome: "X", forma: "alvo", video: { url: L, tipo: "alvo" } }] }).dossie.habilidades[0].video, { url: L, tipo: "alvo" });
