@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -214,6 +214,35 @@ async function doEffect(e, ctx, depth, trigger) {
       // o Arsenal detona ou desarma (só um mestre executa); alvo = a carga, ou o objeto onde ela está colada
       if (!ids.length) return warn(`"${trigger.name}": a carga está sem alvo (escolha a carga ou o objeto onde ela está colada).`);
       return OBR.broadcast.sendMessage(ARSENAL_DETONATE, { ids, op: e.chargeOp || "detonar", from: trigger.name }, { destination: "ALL" });
+    case "door": {
+      // porta da névoa (Smoke & Spectre, ou a névoa do próprio Owlbear): abre/fecha a linha para todos
+      const doors = (ids.length ? await OBR.scene.items.getItems(ids) : []).filter(isFogDoor);
+      if (!doors.length) return warn(`"${trigger.name}": nenhum desses itens é porta da névoa (no Smoke & Spectre: botão direito na linha → Enable Door).`);
+      const op = e.doorOp || "alternar";
+      // tranca do Smoke: porta trancada não abre por gatilho (use "destrancar" antes)
+      const stuck = op === "abrir" || op === "alternar" ? doors.filter((d) => doorIsLocked(d) && !doorIsOpen(d)) : [];
+      if (stuck.length) OBR.broadcast.sendMessage(CH_NOTE, { text: stuck.length > 1 ? "As portas estão trancadas." : "A porta está trancada.", audience: "all" }, { destination: "ALL" }).catch(() => {});
+      const go = doors.filter((d) => !stuck.includes(d)).map((d) => d.id);
+      return go.length ? OBR.scene.items.updateItems(go, (d) => { for (const it of d) setDoor(it, op); }) : null;
+    }
+    case "fx": {
+      // o Arsenal toca o vídeo para todos (só um mestre executa); sem "sai de", fica em cima de cada item
+      if (!ids.length && !e.shooter) return warn(`"${trigger.name}": o efeito visual está sem alvo (escolha itens ou "+ quem ativou").`);
+      const link = e.fxSrc === "link";
+      if (link ? !/^https?:\/\/\S+$/i.test((e.fxUrl || "").trim()) : !(e.fxVis || "").trim()) return warn(`"${trigger.name}": o efeito visual está sem ${link ? "link (https://…/efeito.webm)" : "nome do visual"}.`);
+      const dur = e.fxDur === "loop" ? "fim" : e.fxDur === "secs" ? Math.max(1, Number(e.fxSecs) || 10) : 0;
+      return OBR.broadcast.sendMessage(ARSENAL_FX, {
+        visual: link ? undefined : e.fxVis.trim(), video: link ? { url: e.fxUrl.trim(), tipo: e.fxTipo || "area", giro: Number(e.fxGiro) || 0 } : undefined,
+        from: e.shooter || undefined, targets: ids.filter((id) => id !== e.shooter), dur, tamanho: Number(e.fxSize) > 0 ? Number(e.fxSize) : undefined,
+        tag: (e.fxTag || "").trim() || trigger.name, origem: trigger.name,
+      }, { destination: "ALL" });
+    }
+    case "fxEnd":
+      return OBR.broadcast.sendMessage(ARSENAL_FX_END, { tag: (e.fxTag || "").trim(), origem: trigger.name }, { destination: "ALL" });
+    case "npcAbility":
+      // o Arsenal usa a habilidade do dossiê (animação, quem ficou na área, contadores); o mestre rola os dados
+      if (!e.shooter || !e.ability) return warn(`"${trigger.name}": a habilidade de NPC está sem ${e.shooter ? "habilidade" : "NPC"}.`);
+      return OBR.broadcast.sendMessage(ARSENAL_HAB_USE, { token: e.shooter, nome: e.ability, targets: ids.filter((id) => id !== e.shooter), origem: trigger.name }, { destination: "ALL" });
     case "camPower":
     case "nodeSet": {
       // a Vigilância faz a troca (só um mestre executa)
@@ -393,6 +422,24 @@ OBR.onReady(async () => {
       filter: { max: 1, every: [{ key: ["metadata", FLAG], value: undefined, operator: "!=" }] },
     }],
     onClick: (ctx) => { if (ctx.items[0]) tryInteract(ctx.items[0].id, gmUse); },
+  });
+  // porta do Smoke & Spectre: um clique cria o gatilho "jogadores abrem e fecham esta porta"
+  await OBR.contextMenu.create({
+    id: `${ID}/porta-jogadores`,
+    icons: [{
+      icon: url("icon.svg"), label: "Gatilhos: jogadores abrem e fecham esta porta",
+      filter: { roles: ["GM"], every: [{ key: ["metadata", `${SMOKE}isDoor`], value: true }, { key: ["metadata", FLAG], value: undefined, operator: "==" }] },
+    }],
+    onClick: async (ctx) => {
+      const doors = ctx.items.filter(isSmokeDoor);
+      if (!doors.length) return;
+      const t = newTrigger(doors.map((i) => i.id), doors.length > 1 ? `Portas da névoa (${doors.length})` : `Porta${doors[0].text?.plainText?.trim() ? `: ${doors[0].text.plainText.trim()}` : " da névoa"}`);
+      t.cause = "interact"; t.once = false; t.reach = 1;
+      const fx = newEffect("door"); fx.targets = doors.map((i) => i.id); fx.doorOp = "alternar";
+      t.effects = [fx];
+      await saveTriggers((l) => [...l, t]);
+      OBR.notification.show("Porta pronta: o jogador com um personagem ao lado usa pelo painel Gatilhos (botão Usar). Trancada no Smoke, ela não abre.", "SUCCESS");
+    },
   });
   await OBR.contextMenu.create({
     id: `${ID}/tornar-interagivel`,

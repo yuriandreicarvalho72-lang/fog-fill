@@ -61,3 +61,19 @@ ok('sem limite (0)', pickReacher([tok('a', -3000, 75)], lev, 0, d).ok, true);
 ok('escolhe o mais perto', pickReacher([tok('longe', 1500, 75), tok('perto', 225, 75)], lev, 1, d).token.id, 'perto');
 ok('sem tokens e com alcance', pickReacher([], lev, 1, d).ok, false);
 ok('dentro do objeto = 0', distToShape({ x: 375, y: 75 }, lev), 0);
+
+// portas da névoa (Smoke & Spectre e névoa do Owlbear)
+import { setDoor, doorIsOpen, isFogDoor, doorIsLocked } from '../src/shared.js';
+const S = 'com.battle-system.smoke/';
+const door = () => ({ id: 'p', type: 'CURVE', metadata: { [`${S}isVisionLine`]: true, [`${S}isDoor`]: true, [`${S}blocking`]: true } });
+const p1 = door();
+const t1 = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? 'ok  ' : 'ERRO') + ' ' + n + ': ' + JSON.stringify(v));
+t1('linha com isDoor é porta; parede comum não', [isFogDoor(p1), isFogDoor({ metadata: { [`${S}isVisionLine`]: true } })], [true, false]);
+t1('abrir: doorOpen + disabled (como o Smoke faz)', [setDoor(p1, 'abrir'), p1.metadata[`${S}doorOpen`], p1.metadata[`${S}disabled`]], [true, true, true]);
+t1('alternar fecha e tira as duas marcas', [setDoor(p1, 'alternar'), `${S}doorOpen` in p1.metadata, `${S}disabled` in p1.metadata, p1.metadata[`${S}blocking`]], [false, false, false, true]);
+setDoor(p1, 'trancar');
+t1('trancar marca isDoorLocked e não abre', [doorIsLocked(p1), doorIsOpen(p1)], [true, false]);
+setDoor(p1, 'destrancar');
+t1('destrancar', doorIsLocked(p1), false);
+const fog = { id: 'f', type: 'SHAPE', metadata: { 'rodeo.owlbear.dynamic-fog/doors': [{ start: { distance: 0 }, end: { distance: 50 } }, { start: { distance: 90 }, end: { distance: 120 }, open: false }] } };
+t1('névoa do Owlbear: abre todas as portas do contorno', [isFogDoor(fog), setDoor(fog, 'abrir'), fog.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [true, true, [true, true]]);

@@ -27,8 +27,41 @@ export const VISION_MODES = [["termica", "térmica"], ["baixa", "baixa luz"], ["
 export const ARSENAL_DESTROYED = "arsenal/destruido"; // Arsenal -> todos: { id, name, at, by (token que atirou) }
 export const ARSENAL_BLAST = "arsenal/explodiu";      // Arsenal -> todos: { id, at, radius, by, caught: [tokens] }
 export const ARSENAL_DETONATE = "arsenal/detonar";    // { ids, op: "detonar"|"desarmar", from } pede ao Arsenal
+export const ARSENAL_FX = "arsenal/efeito";           // { visual? | video: { url, tipo, giro }, from?, targets, dur, tamanho?, tag, origem } vídeo no mapa
+export const ARSENAL_FX_END = "arsenal/efeito-fim";   // { tag ("" = todos), origem } encerra efeitos que ficaram
+export const ARSENAL_HAB_USE = "arsenal/habilidade-usar"; // { token, nome, targets, origem } habilidade do dossiê de um NPC
+export const ARSENAL_DOSSIE = "arsenal/dossie";       // metadado do token: dossiê de habilidades (Arsenal)
+export const FX_TIPOS = [["alvo", "no alvo"], ["area", "área"], ["em-si", "em si"], ["projetil", "projétil"], ["linha", "linha"], ["cone", "cone"]];
+export const FX_GIROS = [[0, "aponta → direita"], [90, "aponta ↓ baixo"], [180, "aponta ← esquerda"], [270, "aponta ↑ cima"]];
 export const ARSENAL_CAUSES = ["destroyed", "chargeBlew"];
 export const CHARGE_OPS = [["detonar", "detonar"], ["desarmar", "desarmar"]];
+
+// ---------- portas da névoa ----------
+// Smoke & Spectre: a porta é uma linha de obstrução com isDoor; aberta = doorOpen + disabled (a linha deixa ver e passar).
+// Névoa do próprio Owlbear: as portas ficam numa lista no item de névoa (cada uma com open).
+export const SMOKE = "com.battle-system.smoke/";
+export const OBR_FOG_DOORS = "rodeo.owlbear.dynamic-fog/doors";
+export const DOOR_OPS = [["alternar", "abrir ou fechar (alterna)"], ["abrir", "abrir"], ["fechar", "fechar"], ["trancar", "trancar"], ["destrancar", "destrancar"]];
+export const isSmokeDoor = (i) => i?.metadata?.[`${SMOKE}isDoor`] === true;
+const obrDoors = (i) => (Array.isArray(i?.metadata?.[OBR_FOG_DOORS]) ? i.metadata[OBR_FOG_DOORS] : []);
+export const isFogDoor = (i) => isSmokeDoor(i) || obrDoors(i).length > 0;
+export const doorIsOpen = (i) => (isSmokeDoor(i) ? i.metadata[`${SMOKE}doorOpen`] === true : obrDoors(i).some((d) => d?.open === true));
+export const doorIsLocked = (i) => isSmokeDoor(i) && i.metadata[`${SMOKE}isDoorLocked`] === true;
+/** Muda a porta (rascunho do item). op: abrir | fechar | alternar | trancar | destrancar. Devolve o estado final (aberta?). */
+export function setDoor(it, op) {
+  const md = it.metadata;
+  if (isSmokeDoor(it)) {
+    if (op === "trancar") { md[`${SMOKE}isDoorLocked`] = true; return doorIsOpen(it); }
+    if (op === "destrancar") { delete md[`${SMOKE}isDoorLocked`]; return doorIsOpen(it); }
+    const open = op === "abrir" ? true : op === "fechar" ? false : !doorIsOpen(it);
+    if (open) { md[`${SMOKE}doorOpen`] = true; md[`${SMOKE}disabled`] = true; } else { delete md[`${SMOKE}doorOpen`]; delete md[`${SMOKE}disabled`]; }
+    return open;
+  }
+  if (op === "trancar" || op === "destrancar") return doorIsOpen(it); // a névoa do Owlbear não tem tranca
+  const open = op === "abrir" ? true : op === "fechar" ? false : !doorIsOpen(it);
+  md[OBR_FOG_DOORS] = obrDoors(it).map((d) => ({ ...d, open }));
+  return open;
+}
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -76,6 +109,10 @@ export const ACTIONS = [
   { id: "nodeSet", label: "Mudar estado do nó da Matriz (Vigilância)", need: ["targets", "nodeState"] },
   { id: "vision", label: "Ligar/desligar modo de visão (Vigilância)", need: ["targets", "vision"] },
   { id: "charge", label: "Carga (Arsenal): detonar ou desarmar", need: ["targets", "chargeOp"] },
+  { id: "door", label: "Porta da névoa: abrir / fechar (Smoke & Spectre)", need: ["targets", "doorOp"] },
+  { id: "fx", label: "Efeito visual (Arsenal): vídeo no mapa", need: ["shooter", "targets", "fx"] },
+  { id: "fxEnd", label: "Encerrar efeito visual (Arsenal)", need: ["fxEnd"] },
+  { id: "npcAbility", label: "Habilidade de NPC (Arsenal)", need: ["shooter", "targets", "ability"] },
   { id: "chain", label: "Disparar outro gatilho", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },
@@ -96,7 +133,8 @@ export function newTrigger(zones = [], name = "Gatilho") {
   };
 }
 export function newEffect(action = "show") {
-  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0 };
+  return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0,
+    fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar" };
 }
 
 // quem o teleporte leva

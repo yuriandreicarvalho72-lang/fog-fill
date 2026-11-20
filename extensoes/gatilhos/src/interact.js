@@ -5,10 +5,10 @@
 //   O alcance é conferido aqui (resposta na hora) e de novo no navegador do mestre, que executa o gatilho.
 import OBR, { buildShape } from "@owlbear-rodeo/sdk";
 import { zoneShape, shapeBox, pickReacher } from "./engine.js";
-import { LIST, CH_INTERACT, isInteract, isToken } from "./shared.js";
+import { LIST, CH_INTERACT, isInteract, isToken, isFogDoor } from "./shared.js";
 
 const GLOW_META = "gatilhos/brilho";
-const nameOf = (it) => it?.text?.plainText?.trim() || it?.name || "isto";
+const nameOf = (it) => (isFogDoor(it) && !it?.text?.plainText?.trim() ? "a porta" : it?.text?.plainText?.trim() || it?.name || "isto");
 
 /** Gatilhos de interação de um item que esta pessoa pode usar. */
 export function usableTriggers(triggers, itemId, role) {
@@ -58,7 +58,7 @@ function ringItem(it, t, dpi) {
     .strokeDash([dpi / 7, dpi / 11])
     .fillColor(t.glowColor || "#ffd34d").fillOpacity(0.06)
     .attachedTo(it.id).layer("ATTACHMENT").locked(true).disableHit(true)
-    .disableAttachmentBehavior(["COPY", "LOCKED"])
+    .disableAttachmentBehavior(["COPY", "LOCKED", "VISIBLE"]) // porta da névoa é uma linha escondida: o brilho aparece mesmo assim
     .name("Interagível").metadata({ [GLOW_META]: true })
     .build();
 }
@@ -75,7 +75,7 @@ async function reconcile() {
       for (const t of triggers) {
         if (!isInteract(t) || t.glow === false) continue;
         if (t.canUse === "gm" && role !== "GM") continue; // jogador não vê brilho do que não pode usar
-        for (const z of t.zones || []) { const it = byId.get(z); if (it && it.visible !== false && !wanted.has(z)) wanted.set(z, t); }
+        for (const z of t.zones || []) { const it = byId.get(z); if (it && (it.visible !== false || isFogDoor(it)) && !wanted.has(z)) wanted.set(z, t); }
       }
       const mine = items.filter((i) => isToken(i) && i.createdUserId === userId);
       const add = [], del = [];

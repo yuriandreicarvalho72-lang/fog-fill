@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -11,6 +11,9 @@ let itemNames = new Map();
 let itemWeapons = new Map(); // armas do Arsenal de cada token
 let itemImages = new Map();  // nomes das imagens do Trocador de cada item
 let itemVig = new Map();     // câmeras e nós da Vigilância: id -> { cam, node }
+let itemHabs = new Map();    // habilidades do dossiê do Arsenal de cada NPC: id -> [{ nome, forma }]
+let itemDoor = new Map();    // portas da névoa: id -> { open, locked }
+let visuais = [];            // visuais do Arsenal por grupo (arsenal/visuais.json): [[grupo, [nomes]]]
 let estados = [];         // grupos da extensão Estados
 const logLines = [];
 
@@ -22,6 +25,8 @@ async function refreshNames() {
   itemNames = new Map(items.map((i) => [i.id, i.text?.plainText || i.name || i.type]));
   itemWeapons = new Map(items.map((i) => [i.id, i.metadata?.[ARSENAL_WEAPONS] || []]));
   itemImages = new Map(items.filter((i) => Array.isArray(i.metadata?.[TROCADOR_IMAGES])).map((i) => [i.id, i.metadata[TROCADOR_IMAGES].map((v) => v.name)]));
+  itemDoor = new Map(items.filter(isFogDoor).map((i) => [i.id, { open: doorIsOpen(i), locked: doorIsLocked(i) }]));
+  itemHabs = new Map(items.filter((i) => Array.isArray(i.metadata?.[ARSENAL_DOSSIE]?.habilidades)).map((i) => [i.id, i.metadata[ARSENAL_DOSSIE].habilidades.map((h) => ({ nome: h.nome, forma: h.forma, secao: h.secao }))]));
   itemVig = new Map(items.filter((i) => i.metadata?.[VIG_CAM] || i.metadata?.[VIG_NODE_META]).map((i) => [i.id, { cam: !!i.metadata[VIG_CAM], node: !!i.metadata[VIG_NODE_META] }]));
 }
 
@@ -52,6 +57,50 @@ function arsenalRow(e) {
       <select data-ek="hit"><option value="hit" ${e.hit !== "miss" && e.hit !== "half" ? "selected" : ""}>acerta</option><option value="miss" ${e.hit === "miss" ? "selected" : ""}>erra</option><option value="half" ${e.hit === "half" ? "selected" : ""}>50% de chance</option></select>
     </div>${(e.targets || []).length ? "" : '<span class="hint warn">⚠ Sem alvo: use "+ quem ativou" para atirar em quem pisou na zona.</span>'}
     <span class="hint">Usa a munição da arma. Precisa da extensão Arsenal instalada.</span>`;
+}
+
+/** Abrir, fechar, alternar, trancar ou destrancar portas da névoa. */
+function doorRow(e) {
+  const tg = (e.targets || []).filter((id) => id !== ACTOR);
+  const bad = tg.length && !tg.some((id) => itemDoor.has(id));
+  return `<div class="row"><span class="hint">Porta:</span><select data-ek="doorOp">${DOOR_OPS.map(([v, l]) => `<option value="${v}" ${(e.doorOp || "alternar") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    ${tg.length ? `<div class="hint">${tg.filter((id) => itemDoor.has(id)).map((id) => `${esc(nameOf(id))}: ${itemDoor.get(id).open ? "aberta" : "fechada"}${itemDoor.get(id).locked ? " (trancada)" : ""}`).join(" · ")}</div>` : '<span class="hint warn">⚠ Sem porta: selecione a linha da porta (Smoke & Spectre) e clique em "usar seleção".</span>'}
+    ${bad ? '<span class="hint warn">⚠ Nenhum desses itens é porta da névoa (no Smoke & Spectre: botão direito na linha → Enable Door).</span>' : ""}
+    <span class="hint">Para os jogadores abrirem: causa "Interagir" na própria linha da porta (ou botão direito na linha → <b>Gatilhos: jogadores abrem e fecham esta porta</b>). Porta trancada no Smoke não abre.</span>`;
+}
+
+/** Efeito visual do Arsenal: vídeo da lista ou link, duração, nome (para encerrar), tamanho. */
+function fxRow(e) {
+  const link = e.fxSrc === "link";
+  const dur = e.fxDur || "once";
+  return `<div class="row"><span class="hint">Vídeo:</span><select data-ek="fxSrc"><option value="lista" ${!link ? "selected" : ""}>da lista do Arsenal</option><option value="link" ${link ? "selected" : ""}>link próprio (.webm)</option></select></div>
+    ${link ? `<input type="text" data-ek="fxUrl" value="${esc(e.fxUrl)}" placeholder="https://…/meu-efeito.webm" />
+      <div class="row"><select data-ek="fxTipo">${FX_TIPOS.map(([v, l]) => `<option value="${v}" ${(e.fxTipo || "area") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select data-ek="fxGiro">${FX_GIROS.map(([v, l]) => `<option value="${v}" ${Number(e.fxGiro || 0) === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>`
+    : `<input type="text" data-ek="fxVis" list="gat-visuais" value="${esc(e.fxVis)}" placeholder="nome do visual (ex.: nuvem_veneno, muro_fogo, meu_…)" />
+      ${e.fxVis && visuais.length && !visuais.some(([, l]) => l.includes(e.fxVis.trim())) ? '<span class="hint warn">⚠ Esse nome não está na lista de visuais do Arsenal.</span>' : ""}`}
+    <div class="row"><span class="hint">Duração:</span><select data-ek="fxDur"><option value="once" ${dur === "once" ? "selected" : ""}>uma vez</option><option value="secs" ${dur === "secs" ? "selected" : ""}>por segundos (em loop)</option><option value="loop" ${dur === "loop" ? "selected" : ""}>em loop até encerrar</option></select>
+      ${dur === "secs" ? `<input type="number" data-ek="fxSecs" min="1" step="1" value="${e.fxSecs || 10}" /> s` : ""}</div>
+    <div class="row"><input type="text" class="grow" data-ek="fxTag" value="${esc(e.fxTag)}" placeholder="nome do efeito (padrão: nome do gatilho)" />
+      <label class="inline" title="0 = tamanho padrão do vídeo">tam. <input type="number" data-ek="fxSize" min="0" step="0.5" value="${e.fxSize || 0}" /> q</label></div>
+    ${(e.targets || []).length || e.shooter ? "" : '<span class="hint warn">⚠ Sem alvo: escolha os itens onde o efeito aparece, ou "+ quem ativou".</span>'}
+    <span class="hint">Sem "Sai de", o vídeo fica em cima de cada item. Com "Sai de", projétil, linha e cone saem dele até cada item. Para encerrar um efeito em loop: efeito "Encerrar efeito visual" com o mesmo nome, ou ✕ no painel Habilidades do Arsenal. Precisa da extensão Arsenal.</span>`;
+}
+
+/** Encerrar efeitos que ficaram no mapa (pelo nome; vazio = todos). */
+function fxEndRow(e) {
+  return `<input type="text" data-ek="fxTag" value="${esc(e.fxTag)}" placeholder="nome do efeito (vazio = encerra todos)" />
+    <span class="hint">Encerra os efeitos em loop com esse nome (o nome dado no efeito visual, o nome do gatilho que o criou, ou o nome da habilidade do NPC). Precisa da extensão Arsenal.</span>`;
+}
+
+/** Habilidade do dossiê de um NPC (Arsenal). */
+function abilityRow(e) {
+  if (!e.shooter) return '<span class="hint">Escolha o NPC: selecione o token que tem dossiê de habilidades no Arsenal e clique em "usar seleção".</span>';
+  const hs = itemHabs.get(e.shooter) || [];
+  if (!hs.length) return '<span class="hint warn">⚠ Esse token não tem dossiê de habilidades no Arsenal (ferramenta Habilidades → colar o dossiê).</span>';
+  const known = hs.some((h) => h.nome === e.ability);
+  return `<select data-ek="ability"><option value="">habilidade…</option>${hs.filter((h) => h.secao !== "passiva").map((h) => `<option value="${esc(h.nome)}" ${h.nome === e.ability ? "selected" : ""}>${esc(h.nome)} (${esc(h.forma)})</option>`).join("")}${e.ability && !known ? `<option value="${esc(e.ability)}" selected>${esc(e.ability)} (não está no dossiê)</option>` : ""}</select>
+    <span class="hint">Os alvos também dão a direção de cone, linha e área (o primeiro alvo). Usa os contadores (recarga, lendárias) e mostra o resultado no painel Habilidades; você rola os dados.</span>`;
 }
 
 /** Qual imagem o Trocador usa: próxima/anterior ou uma pelo nome (nomes das imagens dos alvos). */
@@ -119,8 +168,8 @@ function effectRow(t, e) {
       <select data-ek="action">${ACTIONS.map((x) => `<option value="${x.id}" ${x.id === e.action ? "selected" : ""}>${x.label}</option>`).join("")}</select>
       <button type="button" class="x" data-del-effect title="Remover efeito">✕</button>
     </div>
-    ${need.has("shooter") ? `<div class="sub">Atirador: ${chips(e.shooter ? [e.shooter] : [], `e:${e.id}:shooter`)}</div>` : ""}
-    ${need.has("targets") ? `<div class="sub">${e.action === "arsenal" ? "Alvos" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
+    ${need.has("shooter") ? `<div class="sub">${e.action === "fx" ? "Sai de (opcional)" : e.action === "npcAbility" ? "NPC" : "Atirador"}: ${chips(e.shooter ? [e.shooter] : [], `e:${e.id}:shooter`)}${e.action === "fx" && e.shooter ? ` <button type="button" class="mini" data-noshooter="${e.id}" title="O efeito fica em cima de cada item">✕ sem origem</button>` : ""}</div>` : ""}
+    ${need.has("targets") ? `<div class="sub">${["arsenal", "npcAbility"].includes(e.action) ? "Alvos" : e.action === "fx" ? "Onde aparece" : "Itens"}: ${chips(e.targets, `e:${e.id}:targets`, true)}</div>` : ""}
     ${need.has("weapon") ? arsenalRow(e) : ""}
     ${need.has("image") ? imageRow(e) : ""}
     ${need.has("power") ? vigRow(e, "power") : ""}
@@ -128,6 +177,10 @@ function effectRow(t, e) {
     ${need.has("floor") ? floorRow(e) : ""}
     ${need.has("vision") ? visionRow(e) : ""}
     ${need.has("chargeOp") ? chargeRow(e) : ""}
+    ${need.has("doorOp") ? doorRow(e) : ""}
+    ${need.has("fx") ? fxRow(e) : ""}
+    ${need.has("fxEnd") ? fxEndRow(e) : ""}
+    ${need.has("ability") ? abilityRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
     ${need.has("moving") && !MOVING.includes(t.cause) ? '<span class="hint warn">⚠ Barrar só funciona com Entrar, Sair ou Chegar perto (precisa de alguém se movendo).</span>' : ""}
@@ -214,13 +267,16 @@ function card(t) {
         const [, eid, field] = key.split(":");
         const e = t.effects.find((x) => x.id === eid);
         if (field === "dest") e.dest = sel[0] || null;
-        else if (field === "shooter") { e.shooter = sel[0] || ""; e.weapon = ""; e.mode = ""; }
+        else if (field === "shooter") { e.shooter = sel[0] || ""; e.weapon = ""; e.mode = ""; if (e.action === "npcAbility") e.ability = ""; }
         else e.targets = (e.targets || []).includes(ACTOR) ? [ACTOR, ...sel] : sel;
       }
       if (!sel.length) OBR.notification.show("Gatilhos: selecione itens no mapa primeiro (a seleção ficou vazia).", "WARNING");
       await refreshNames();
       save(true); render();
     });
+  }
+  for (const btn of div.querySelectorAll("[data-noshooter]")) {
+    btn.addEventListener("click", () => { const e = t.effects.find((x) => x.id === btn.dataset.noshooter); e.shooter = ""; save(true); render(); });
   }
   for (const btn of div.querySelectorAll("[data-actor]")) {
     btn.addEventListener("click", () => {
@@ -237,7 +293,7 @@ function card(t) {
         e[el.dataset.ek] = el.type === "number" ? Number(el.value) : el.value;
         save();
         if (el.dataset.ek === "weapon") e.mode = "";
-        if (["action", "group", "who", "weapon"].includes(el.dataset.ek)) render();
+        if (["action", "group", "who", "weapon", "fxSrc", "fxDur", "fxVis"].includes(el.dataset.ek)) render();
       });
     }
     for (const el of row.querySelectorAll("[data-ekb]")) el.addEventListener("change", () => { e[el.dataset.ekb] = el.checked; save(); });
@@ -253,12 +309,15 @@ function render() {
   box.innerHTML = "";
   if (!list.length) box.innerHTML = '<p class="hint">Nenhum gatilho. Selecione no mapa a zona (uma armadilha escondida, uma forma, uma linha de "fio") e clique em <b>Novo gatilho com a seleção</b>, ou use o botão direito → <b>Criar gatilho com esta zona</b>.</p>';
   for (const t of list) box.appendChild(card(t));
+  if (visuais.length) box.insertAdjacentHTML("beforeend", `<datalist id="gat-visuais">${visuais.flatMap(([, l]) => l).map((v) => `<option value="${esc(v)}"></option>`).join("")}</datalist>`);
   $("log").innerHTML = logLines.length ? logLines.map((l) => `<div>${esc(l)}</div>`).join("") : '<span class="hint">Nada disparou ainda.</span>';
 }
 
 OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
   if ((await OBR.player.getRole()) !== "GM") return playerView();
+  // lista de visuais do Arsenal (mesmo site): sugestões no efeito visual
+  fetch(new URL("../arsenal/visuais.json", window.location.href), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (Array.isArray(j?.grupos)) { visuais = j.grupos; render(); } }).catch(() => {});
   const load = async () => {
     await refreshNames();
     const md = await OBR.scene.getMetadata();
@@ -302,12 +361,13 @@ async function playerView() {
     const rows = [];
     for (const id of ids) {
       const it = items.find((i) => i.id === id);
-      if (!it || it.visible === false) continue;
+      if (!it || (it.visible === false && !isFogDoor(it))) continue;
       const trs = usableTriggers(triggers, id, "PLAYER");
       if (!trs.length) continue;
       const reach = Math.max(...trs.map((t) => (t.reach > 0 ? t.reach : Infinity)));
       const ok = pickReacher(mine, zoneShape(it, dpi), reach === Infinity ? 0 : reach, dpi).ok;
-      rows.push({ id, name: it.text?.plainText?.trim() || it.name || "objeto", ok });
+      const door = isFogDoor(it);
+      rows.push({ id, name: it.text?.plainText?.trim() || (door ? `Porta (${doorIsOpen(it) ? "aberta" : "fechada"})` : it.name || "objeto"), ok });
     }
     rows.sort((a, b) => (b.ok - a.ok) || a.name.localeCompare(b.name, "pt-BR"));
     $("usable").innerHTML = rows.length ? `<div class="mlist">${rows.map((r) => `
