@@ -5,7 +5,7 @@ const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "
 const raw = readFileSync(new URL("./saciado.json", import.meta.url), "utf8");
 
 // a lista de visuais do prompt (PARTE 2) é exatamente a da extensão
-const PROMPT = "garra mordida soco arma_corte arma_impacto arma_perfuracao pinca bala flecha projetil_fogo raio_gelo raio_energia raio_eletrico raio_luz raio_sombra misseis esfera arremesso cone_fogo cone_gelo cone_acido cone_veneno cone_eletrico cone_vento linha_eletrica linha_fogo linha_energia explosao_fogo explosao onda_choque estilhaco tempestade_raios chuva_gelo nevoa escuridao teia vinhas lodo laminas coluna_luz fenda_chao aura_espiritos aura_tentaculos aura_sombra aura_fogo aura_eletrica rugido giro cura escudo bencao marca_alvo golpe_divino teleporte fumaca transformacao regeneracao morcegos investida salto rastro".split(" ");
+const PROMPT = "garra mordida soco arma_corte arma_impacto arma_perfuracao pinca bala flecha projetil_fogo raio_gelo raio_energia raio_eletrico raio_luz raio_sombra misseis esfera arremesso cone_fogo cone_gelo cone_acido cone_veneno cone_eletrico cone_vento linha_eletrica linha_fogo linha_energia explosao_fogo explosao onda_choque estilhaco tempestade_raios chuva_gelo nevoa escuridao teia vinhas lodo laminas coluna_luz fenda_chao aura_espiritos aura_tentaculos aura_sombra aura_fogo aura_eletrica rugido giro cura escudo bencao marca_alvo golpe_divino teleporte fumaca transformacao regeneracao morcegos investida salto rastro borboletas revoada_borboletas borboletas_laranja petalas folhas rajada_folhas penas fadas vagalumes plantas espinhos sangue jorro_sangue sangramento chuva_sangue coracoes encanto caveira caveiras medo marca_veneno nuvem_veneno atordoado correntes musica notas_musicais olhos vortice portal circulo_magico runas poder bolha fogos_artificio lava espinhos_gelo respingo_agua cartas bola_neve".split(" ");
 ok("visuais do prompt = visuais da extensão", [PROMPT.filter((v) => !VISUAIS.includes(v)), VISUAIS.filter((v) => !PROMPT.includes(v))], [[], []]);
 ok("vídeos das habilidades entram no download", abilFiles().every((f) => allFiles().includes(f)), true);
 
@@ -65,3 +65,12 @@ ok("sem vídeo tira o campo", "visual" in setVisual(d, "Garras do Gânglio", "")
 ok("visual inexistente dá erro", (() => { try { setVisual(d, "Garras do Gânglio", "dragao_rosa"); } catch (e) { return e.message; } })(), "visual \"dragao_rosa\" não existe.");
 const trocado = buildAbility({ ab: d2.habilidades.find((h) => h.nome === "Vômito de Biomassa"), from, aim: { point: { x: 500, y: 0 } }, cell, selfHalf: 50 }, () => true);
 ok("o vídeo novo é o que toca", trocado.videos[0].file.includes("Fire01"), true);
+
+// 1.5.2: visuais novos (borboletas, pétalas, sangue...)
+ok("100 visuais", VISUAIS.length, 100);
+const jorro = buildAbility({ ab: { ...H("Garras do Gânglio"), visual: "jorro_sangue", impacto: "nenhum" }, from, aim: { targets: tg }, cell }, () => true);
+ok("jorro de sangue sai do alvo na direção do golpe", [jorro.videos[0].rotation, jorro.videos[0].offset.x, jorro.videos[0].position], [0, 72, { x: 200, y: 0 }]);
+const pet = buildAbility({ ab: { nome: "P", forma: "area", area: 3, alcance: 9, visual: "petalas" }, from, aim: { point: { x: 400, y: 0 } }, cell }, () => true);
+ok("pétalas numa área de 3 m (raio 2 quadrados)", [pet.videos[0].file.includes("Pink"), pet.videos[0].position, Math.round(pet.videos[0].dpi)], [true, { x: 400, y: 0 }, 100]);
+const cartas = buildAbility({ ab: { ...H("Garras do Gânglio"), visual: "cartas", impacto: "nenhum" }, from, aim: { targets: [{ id: "x", at: { x: 600, y: 0 }, half: 50 }] }, cell }, () => true);
+ok("cartas: projétil de 6 quadrados usa o vídeo de 30 ft", cartas.videos[0].file.includes("_30ft_"), true);

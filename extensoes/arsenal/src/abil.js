@@ -71,6 +71,49 @@ export const ABIL_LIB = {
   investida: { type: "move", file: "Generic/Wind/WindLines01_01_Regular_White_500x500.webm", w: 500, h: 500, dur: 5000 },
   salto: { type: "move", file: "Generic/Smoke/SmokePuff01_01_Regular_Grey_400x400.webm", w: 400, h: 400, dur: 2300 },
   rastro: { type: "move", file: "Generic/FootPrint/ShoePrint_01_Grey_200x200.webm", w: 200, h: 200, dur: 4792 },
+  // natureza e fantasia (1.5.2)
+  borboletas: { type: "self", file: "Generic/Butterflies/ButterfliesComplete01_01_Regular_BluePurple_600x600.webm", w: 600, h: 600, dur: 8833, size: 2.6 },
+  revoada_borboletas: { type: "area", file: "Generic/Butterflies/ButterfliesOutwardBurst01_01_Regular_BluePurple_400x400.webm", w: 400, h: 400, dur: 1333 },
+  borboletas_laranja: { type: "area", file: "Generic/Butterflies/Butterflies_01_Regular_Orange_Many_400x400.webm", w: 400, h: 400, dur: 6000 },
+  petalas: { type: "area", file: "Generic/Nature/SwirlingLeavesOutburst_01_01_Regular_Pink_400x400.webm", w: 400, h: 400, dur: 2233 },
+  folhas: { type: "self", file: "Generic/Nature/SwirlingLeavesComplete01_01_Regular_Green_400x400.webm", w: 400, h: 400, dur: 8708, size: 2.2 },
+  rajada_folhas: { type: "ranged", hit: 0.6, v: { 5: { file: "Generic/Nature/SwirlingLeaves01_01_Regular_GreenOrange_05ft_600x400.webm", w: 600, h: 400, dur: 3542 }, 15: { file: "Generic/Nature/SwirlingLeaves01_01_Regular_GreenOrange_15ft_1000x400.webm", w: 1000, h: 400, dur: 4000 }, 30: { file: "Generic/Nature/SwirlingLeaves01_01_Regular_GreenOrange_30ft_1600x400.webm", w: 1600, h: 400, dur: 4542 }, 60: { file: "Generic/Nature/SwirlingLeaves01_01_Regular_GreenOrange_60ft_2800x400.webm", w: 2800, h: 400, dur: 5000 }, 90: { file: "Generic/Nature/SwirlingLeaves01_01_Regular_GreenOrange_90ft_4000x400.webm", w: 4000, h: 400, dur: 5542 } } },
+  penas: { type: "area", file: "Generic/Nature/SwirlingFeathersOutburst01_01_Regular_Textured_400x400.webm", w: 400, h: 400, dur: 2333 },
+  fadas: { type: "self", file: "Generic/Creature/FairiesComplete01_01_Regular_BluePurple_600x600.webm", w: 600, h: 600, dur: 8833, size: 2.6 },
+  vagalumes: { type: "area", file: "Generic/Fireflies/Fireflies_01_Green_Many01_400x400.webm", w: 400, h: 400, dur: 8000 },
+  plantas: { type: "area", file: "Generic/Nature/PlantGrowthRound03_01_Regular_GreenYellow_500x500.webm", w: 500, h: 500, dur: 8500 },
+  espinhos: { type: "area", file: "Generic/Nature/PlantGrowthRing02_01_Regular_GreenRed_500x500.webm", w: 500, h: 500, dur: 7750 },
+  // sangue
+  sangue: { type: "target", file: "Generic/Liquid/LiquidSplash02_01_Regular_Red_500x500.webm", w: 500, h: 500, dur: 1133, size: 1.6 },
+  jorro_sangue: { type: "target", file: "Generic/Liquid/LiquidSplashSide02_01_Regular_Red_600x600.webm", w: 600, h: 600, dur: 1033, size: 1.8, side: 0.12 },
+  sangramento: { type: "target", file: "Generic/Marker/MarkerDrop_01_Regular_Red_400x400.webm", w: 400, h: 400, dur: 6042, size: 1.4 },
+  chuva_sangue: { type: "area", file: "Generic/Template/Circle/TemplateDropCircle_01_Regular_Red_800x800.webm", w: 800, h: 800, dur: 6042 },
+  // mente e condições
+  coracoes: { type: "target", file: "Generic/Marker/MarkerHeart_01_Regular_Pink_400x400.webm", w: 400, h: 400, dur: 6042, size: 1.4 },
+  encanto: { type: "area", file: "Generic/Template/Circle/TemplateHeartCircle_01_Regular_Pink_800x800.webm", w: 800, h: 800, dur: 6042 },
+  caveira: { type: "target", file: "Generic/Marker/MarkerSkull_01_Regular_Purple_400x400.webm", w: 400, h: 400, dur: 6042, size: 1.4 },
+  caveiras: { type: "area", file: "Generic/Template/Circle/TemplateSkullCircle_01_Regular_Purple_800x800.webm", w: 800, h: 800, dur: 6042 },
+  medo: { type: "area", file: "Generic/Template/Circle/TemplateFearCircle_01_Dark_Purple_800x800.webm", w: 800, h: 800, dur: 6042 },
+  marca_veneno: { type: "target", file: "Generic/Marker/MarkerPoison_01_Dark_Green_400x400.webm", w: 400, h: 400, dur: 6042, size: 1.4 },
+  nuvem_veneno: { type: "area", file: "Generic/Template/Circle/TemplatePoisonCircle_01_Dark_Green_800x800.webm", w: 800, h: 800, dur: 6042 },
+  atordoado: { type: "target", file: "Generic/Conditions/Dizzy_Stars/DizzyStars_01_BlueOrange_400x400.webm", w: 400, h: 400, dur: 2000, size: 1.2 },
+  correntes: { type: "target", file: "Generic/Marker/MarkerChainStandard01_02_Regular_Red_Complete_400x400.webm", w: 400, h: 400, dur: 8333, size: 1.6 },
+  musica: { type: "area", file: "Generic/Template/Circle/TemplateMusicNoteCircle_01_Regular_Blue_800x800.webm", w: 800, h: 800, dur: 6042 },
+  notas_musicais: { type: "target", file: "Generic/Marker/MarkerMusicNote_01_Regular_Blue_400x400.webm", w: 400, h: 400, dur: 6000, size: 1.4 },
+  olhos: { type: "area", file: "Generic/Eyes/Eyes_Many01_01_Dark_Green_600x600.webm", w: 600, h: 600, dur: 4958 },
+  // magia, energia e elementos
+  vortice: { type: "area", file: "Generic/Template/Circle/Vortex_01_Regular_Blue_600x600.webm", w: 600, h: 600, dur: 5042 },
+  portal: { type: "self", file: "Generic/Portals/Portal_Bright_Yellow_H_400x400.webm", w: 400, h: 400, dur: 8042, size: 2 },
+  circulo_magico: { type: "area", file: "Generic/Magic_Signs/EvocationCircleComplete_02_Regular_Red_800x800.webm", w: 800, h: 800, dur: 11042 },
+  runas: { type: "area", file: "Generic/Template/Circle/TemplateRunesCircle_01_Regular_Orange_800x800.webm", w: 800, h: 800, dur: 6042 },
+  poder: { type: "self", file: "Generic/On_Token/Buff/Ontoken_Buff001_001_PurpleRed_400x400.webm", w: 400, h: 400, dur: 1833, size: 2 },
+  bolha: { type: "self", file: "Generic/Liquid/Bubble/BubbleComplete001_001_Blue_2x2_400x400.webm", w: 400, h: 400, dur: 5567, size: 2 },
+  fogos_artificio: { type: "area", file: "Generic/Fireworks/Firework01_01_Regular_OrangeYellow_600x600.webm", w: 600, h: 600, dur: 3000 },
+  lava: { type: "area", file: "Generic/Lava/Spout001/LavaSpoutComplete001_001_OrangeYellow_600x600.webm", w: 600, h: 600, dur: 6667 },
+  espinhos_gelo: { type: "area", file: "Generic/Ice/IceSpikesRadialBurst_01_Regular_White_1000x1000.webm", w: 1000, h: 1000, dur: 4033 },
+  respingo_agua: { type: "target", file: "Generic/Liquid/LiquidSplash01_Regular_Blue_400x400.webm", w: 400, h: 400, dur: 3542, size: 1.6 },
+  cartas: { type: "ranged", hit: 0.6, v: { 15: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_15ft_1000x400.webm", w: 1000, h: 400, dur: 2200 }, 30: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_30ft_1600x400.webm", w: 1600, h: 400, dur: 2200 }, 60: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_60ft_2800x400.webm", w: 2800, h: 400, dur: 2700 }, 90: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_90ft_4000x400.webm", w: 4000, h: 400, dur: 3233 } } },
+  bola_neve: { type: "ranged", hit: 0.6, v: { 5: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_05ft_600x500.webm", w: 600, h: 500, dur: 2867 }, 15: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_15ft_1000x500.webm", w: 1000, h: 500, dur: 2867 }, 30: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_30ft_1600x500.webm", w: 1600, h: 500, dur: 2867 }, 60: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_60ft_2800x500.webm", w: 2800, h: 500, dur: 3367 }, 90: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_90ft_4000x500.webm", w: 4000, h: 500, dur: 3567 } } },
 };
 Object.assign(LIB, Object.fromEntries(Object.entries(ABIL_LIB).map(([k, v]) => [`hab_${k}`, v])));
 // visuais que já existiam no Arsenal
@@ -287,7 +330,9 @@ export function buildAbility(ev, has = () => true, byName = null) {
         impact(t0 + (A.dur / 1000) * 0.35, tg.at, dir); end = Math.max(end, t0 + A.dur / 1000);
       } else {
         const size = (A.size || 1.4) * Math.max(1, (tg.half * 2) / cell);
-        vids.push(pointVideo(libKey(a.visual), tg.at, size, t0, cell, A.type === "target" ? null : null));
+        const pv = pointVideo(libKey(a.visual), tg.at, size, t0, cell, A.side ? dir : null);
+        if (A.side) pv.offset = { x: A.w * A.side, y: A.h / 2 }; // jorro de sangue: sai do alvo na direção do golpe
+        vids.push(pv);
         impact(t0 + 0.3, tg.at, dir); end = Math.max(end, t0 + A.dur / 1000);
       }
     }
