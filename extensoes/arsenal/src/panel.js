@@ -8,6 +8,8 @@ import { coverText } from "./cover.js";
 import { renderDestr, renderCharges } from "./panel-extra.js";
 import { getPlantCfg } from "./scenery.js";
 import { chargeOf } from "./destroy.js";
+import { readPerf, onPerf } from "./perf.js";
+const PERF_NAME = { maximo: "Máximo", equilibrado: "Equilibrado", leve: "Leve", apresentacao: "Apresentação", custom: "personalizado" };
 import {
   WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, RULES, DEFAULT_CONFIG, GRENADES, PLANT_CFG,
   weaponFrom, decodeCatalog, fxLabel, rangeBand, metersPerUnit, itemName, isToken, uid, applyTheme, myShooters,
@@ -189,6 +191,7 @@ function renderConfig() {
     <label class="check"><input type="checkbox" id="kLbl" ${c.mapLabel ? "checked" : ""} /> Distância em cima do alvo no mapa</label>
     <label class="check"><input type="checkbox" id="kJ" ${c.jb2a !== false ? "checked" : ""} /> Animações em vídeo (JB2A)</label>
     <small>Só para você. Desligue se o computador ficar lento: volta para o efeito desenhado (intensidade, velocidade e cor abaixo valem para ele).</small>
+    ${(() => { const p = readPerf(); return p && (!p.arsenal.jb2a || !p.arsenal.casings || p.arsenal.intensity < 1) ? `<small class="hint warn">Otimizador (perfil ${esc(PERF_NAME[p.level] || p.level)}): ${[!p.arsenal.jb2a && "vídeos desligados", !p.arsenal.casings && "sem cápsulas", p.arsenal.intensity < 1 && `intensidade até ${Math.round(p.arsenal.intensity * 100)}%`].filter(Boolean).join(", ")}.</small>` : ""; })()}
     <label>Intensidade dos efeitos <output>${Math.round(c.intensity * 100)}%</output><input type="range" id="kI" min="0.5" max="1.5" step="0.1" value="${c.intensity}" /></label>
     <label>Velocidade do traçante <output>${c.speed}×</output><input type="range" id="kS" min="0.25" max="2" step="0.25" value="${c.speed}" /></label>
     <div class="row"><label class="check"><input type="checkbox" id="kOwn" ${c.ownColor ? "checked" : ""} /> Cor própria do traçante</label><input type="color" id="kC" value="${esc(c.color)}" /></div>
@@ -259,6 +262,7 @@ OBR.onReady(async () => {
   if (await OBR.scene.isReady()) await load();
   OBR.scene.onReadyChange((r) => r && load());
   $("q").addEventListener("input", renderSearch);
+  onPerf(() => { if (!typing()) renderConfig(); });
   OBR.scene.onMetadataChange((md) => { sceneMd = md; if (!typing()) renderExtras(); });
   // contagem regressiva das cargas no painel
   setInterval(() => { if (!typing() && items.some((i) => chargeOf(i)?.mode === "timer")) renderExtras(); }, 1000);

@@ -6,6 +6,7 @@ import OBR, { buildShape, buildLabel, buildPath } from "@owlbear-rodeo/sdk";
 import { buildShot, buildLabel as labelAnim } from "./fx.js";
 import { buildShotJB2A } from "./jb2a.js";
 import { play, clearAll } from "./render.js";
+import { readPerf, onPerf, onClean } from "./perf.js";
 import { fire, fireWith, reload, setActive, setTargets, getPlayerMeta, cycleShooter, getRules, loadObstacles, coverOf } from "./fire.js";
 import { COVER, MARKS } from "./cover.js";
 import { DESTR, CHARGE, damageEvents, buildDebris, buildBlast, chargeOf, remaining, seesCountdown, canControl } from "./destroy.js";
@@ -23,6 +24,8 @@ let dpi = 150;
 let me = { id: "", role: "PLAYER" };
 let myConn = "";
 let hideAimsUntil = 0; // durante o disparo a mira some (não cobre o efeito)
+let perf = null;       // perfil do Otimizador neste navegador (null = sem perfil)
+const videosOn = () => config.jb2a !== false && perf?.arsenal?.jb2a !== false;
 
 // ---------- vídeos JB2A (baixados no build para jb2a/; ok.json lista os que chegaram) ----------
 const JB2A_BASE = url("jb2a/");
@@ -38,8 +41,12 @@ async function loadJB2A() {
 async function onShot(data) {
   if (!data?.spec) return;
   // sangue, cápsulas e vídeos são preferência de quem assiste
-  const spec = { ...data.spec, gore: config.gore, casings: config.casings };
-  const anim = (config.jb2a !== false && jb2aFiles && buildShotJB2A(spec, (f) => jb2aFiles.has(f))) || buildShot(spec);
+  // o Otimizador pode desligar vídeos e cápsulas e baixar a intensidade (só para quem assiste)
+  const spec = {
+    ...data.spec, gore: config.gore, casings: config.casings && perf?.arsenal?.casings !== false,
+    intensity: perf ? Math.min(data.spec.intensity ?? 1, perf.arsenal.intensity) : data.spec.intensity,
+  };
+  const anim = (videosOn() && jb2aFiles && buildShotJB2A(spec, (f) => jb2aFiles.has(f))) || buildShot(spec);
   if (aimIds.length) {
     hideAimsUntil = Date.now() + Math.min(4, anim.duration) * 1000;
     drawAims();
@@ -70,7 +77,7 @@ async function onShotDamage(data) {
   for (const ev of evs) { const k = Math.round(ev.t * 2) / 2; if (!slots.has(k)) slots.set(k, []); slots.get(k).push(ev); }
   for (const [t, list] of slots) setTimeout(() => applyEvents(list, data.shooter || null).catch((e) => console.error(`[${ID}]`, e)), t * 1000);
 }
-const hasVideo = () => (config.jb2a !== false && jb2aFiles ? (f) => jb2aFiles.has(f) : null);
+const hasVideo = () => (videosOn() && jb2aFiles ? (f) => jb2aFiles.has(f) : null);
 
 // ---------- cargas plantadas ----------
 let sceneItems = [];
@@ -229,6 +236,17 @@ OBR.onReady(async () => {
   OBR.player.onChange((p) => { me.role = p.role; });
   loadJB2A();
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; drawAims(); });
+  perf = readPerf();
+  onPerf((p) => { perf = p; });
+  // Otimizador: limpar sobras (efeitos, miras, cópias de cargas e contagens) e redesenhar o que precisa
+  onClean(async () => {
+    await clearAll();
+    const left = await OBR.scene.local.getItems((i) => i.metadata?.[META_AIM] || i.metadata?.[CARGO_LOCAL]).catch(() => []);
+    if (left.length) await OBR.scene.local.deleteItems(left.map((i) => i.id)).catch(() => {});
+    aimIds = [];
+    cShown.clear();
+    drawAims();
+  });
 
   OBR.broadcast.onMessage(CH_SHOT, (e) => { onShot(e.data); onShotDamage(e.data); });
   OBR.broadcast.onMessage(CH_DESTROYED, (e) => {

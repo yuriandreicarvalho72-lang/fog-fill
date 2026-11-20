@@ -31,6 +31,8 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   A explosão (JB2A) danifica o cenário no raio, avisa o mestre de quem foi pego e explode outras cargas por perto.
   Desarmar: quem plantou e o mestre desarmam direto; outro jogador pede (botão direito, se o mestre mostrar a carga) e o mestre
   aprova ou nega no painel.
+- **Otimizador**: se o jogador escolher um perfil na extensão Otimizador, o Arsenal obedece neste navegador (Leve e Apresentação
+  desligam os vídeos JB2A e as cápsulas e baixam a intensidade do efeito desenhado). "Limpar sobras" apaga efeitos e miras que ficaram.
 - Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.
   Se o jogador não puder editar o token, a munição é descontada pelo mestre (precisa de um mestre na sala).
 - Para outras extensões: o canal `arsenal/disparo` recebe { spec, shooter, shooterName, weapon, rounds, targets, hit } a cada tiro.
