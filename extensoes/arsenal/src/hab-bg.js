@@ -2,6 +2,7 @@
 import OBR, { buildShape, buildPath, buildLabel } from "@owlbear-rodeo/sdk";
 import { CH_HAB, DOSSIE, buildAbility, shapeOf } from "./abil.js";
 import { halfSize } from "./cover.js";
+import { loadMeus, prepareCustom } from "./meus.js";
 import { url, isToken, itemName } from "./shared.js";
 import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell } from "./hab-ops.js";
 
@@ -11,11 +12,13 @@ export async function setupHabilities({ play, base, has }) {
   OBR.player.onChange((p) => { role = p.role; });
 
   // ---------- todos: tocar a habilidade ----------
-  OBR.broadcast.onMessage(CH_HAB, (e) => {
+  loadMeus();
+  OBR.broadcast.onMessage(CH_HAB, async (e) => {
     const ev = e.data;
     if (!ev?.ab) return;
-    const h = has();
-    const anim = buildAbility(ev, h || (() => false), (n) => ev.subs?.[n]);
+    const h = has(); // null = vídeos desligados (painel ou Otimizador)
+    if (h) await prepareCustom(ev.ab, ev.subs); // vídeos próprios: tamanho e duração lidos do arquivo
+    const anim = buildAbility(ev, h, (n) => ev.subs?.[n]);
     play(anim, base).catch(() => {});
   });
 

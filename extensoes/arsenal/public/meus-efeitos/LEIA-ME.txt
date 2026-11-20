@@ -1,0 +1,15 @@
+EFEITOS PRÓPRIOS DO MESTRE (Arsenal → Habilidades)
+
+Coloque aqui arquivos .webm (de preferência com fundo transparente), cada um na pasta do tipo:
+  alvo/      toca em cima do alvo (golpe, marca, condição)
+  area/      toca no centro de uma área ou aura (o tamanho acompanha o raio)
+  em-si/     toca em volta do próprio NPC
+  projetil/  vai do NPC até o alvo (horizontal, da esquerda para a direita, ~200 px de margem em cada ponta)
+  linha/     estica do NPC até o fim da linha (horizontal, começando na borda esquerda)
+  cone/      abre a partir do NPC (horizontal, começando na borda esquerda)
+
+O nome do arquivo vira o nome do visual: "Chuva de Cinzas.webm" -> meu_chuva_de_cinzas.
+Depois do envio (commit), o GitHub publica a extensão de novo em 1–3 minutos e o visual aparece
+no painel das Habilidades, no grupo "Meus efeitos" (seletor 🎨 e lista "Visuais disponíveis").
+
+Atenção: tudo nesta pasta fica público no site da extensão.

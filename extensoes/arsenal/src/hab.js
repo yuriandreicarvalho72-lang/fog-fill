@@ -1,8 +1,9 @@
 // Painel das Habilidades (ícone próprio na barra; só o mestre): dossiê do NPC, mira e contadores.
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";
-import { SECOES, VISUAIS, BLFX_LICENSE, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
-import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { SECOES, VISUAIS, BLFX_LICENSE, TIPOS_PROPRIOS, meusVisuais, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
+import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { loadMeus, probeVideo, videoSrc } from "./meus.js";
 import { itemName, isToken, applyTheme, url } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
@@ -15,16 +16,19 @@ let note = ""; // avisos do último dossiê colado
 let editing = "";  // "<token>\n<habilidade>" com o seletor de visual aberto
 let preview = "";  // visual mostrado na prévia da lista
 let listOpen = false;
-const typing = () => ["TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-const GROUPS = visualGroups();
-const video = (vis) => { const f = previewFile(vis); return f ? `<video src="${esc(url(`jb2a/${f}`))}" autoplay loop muted playsinline></video>` : ""; };
+const typing = () => ["TEXTAREA", "SELECT", "INPUT"].includes(document.activeElement?.tagName);
+let GROUPS = visualGroups(); // refeito quando a lista de efeitos próprios chega
+const videoTag = (src) => `<video src="${esc(src)}" autoplay loop muted playsinline></video>`;
+const video = (vis) => { const f = previewFile(vis); return f ? videoTag(videoSrc(f)) : ""; };
+let linkNote = ""; // resultado da última checagem de link
 
 /** Lista dos visuais (vídeos JB2A) que o dossiê aceita, com prévia. */
 function listHtml() {
-  return `<details id="lista"${listOpen ? " open" : ""}><summary>Visuais disponíveis (${VISUAIS.length})</summary>
+  return `<details id="lista"${listOpen ? " open" : ""}><summary>Visuais disponíveis (${VISUAIS.length + meusVisuais().length})</summary>
     <p class="hint">Clique num nome para ver a prévia. Com o 🎨 de uma habilidade aberto, o clique troca o visual dela. São os nomes do campo <b>visual</b> do dossiê.</p>
     ${preview ? `<div class="prev"><b>${esc(preview)}</b>${video(preview)}</div>` : ""}
     ${GROUPS.map(([t, l]) => `<h4>${esc(t)}</h4><div class="chips">${l.map((v) => `<button type="button" class="chip${v === preview ? " on" : ""}" data-prev="${v}">${v}</button>`).join("")}</div>`).join("")}
+    ${meusVisuais().length ? "" : `<p class="hint">Efeitos próprios: coloque arquivos .webm no GitHub em <b>extensoes/arsenal/public/meus-efeitos/&lt;tipo&gt;/</b> (tipos: alvo, area, em-si, projetil, linha, cone). Eles aparecem aqui como <b>meu_nome</b>. Ou use um link direto no 🎨 de uma habilidade.</p>`}
     <p class="credit">Animações: JB2A (jb2a.com), <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a> · Boss Loot FX Assets, Boss Loot Team (<a href="${esc(BLFX_LICENSE)}" target="_blank" rel="noopener">licença</a>)</p>
   </details>`;
 }
@@ -101,8 +105,23 @@ function render() {
   for (const b of box.querySelectorAll("[data-vis]")) b.addEventListener("click", () => {
     const k = `${tok.id}\n${b.dataset.vis}`;
     editing = editing === k ? "" : k;
+    linkNote = "";
     render();
   });
+  for (const b of box.querySelectorAll("[data-linkset]")) b.addEventListener("click", async () => {
+    const nome = b.dataset.linkset;
+    const u = $("linkurl")?.value.trim() || "";
+    const tipo = $("linktipo")?.value || "area";
+    if (!/^https?:\/\//i.test(u)) { linkNote = "Cole um link que comece com http:// ou https://"; render(); return; }
+    linkNote = "Conferindo o vídeo…"; b.blur(); render();
+    try {
+      const m = await probeVideo(u);
+      await setVideoOn(tok.id, nome, { url: u, tipo });
+      linkNote = `Link guardado (${m.w}×${m.h}, ${(m.dur / 1000).toFixed(1).replace(".", ",")} s).`;
+    } catch (e) { linkNote = `Não guardei: ${e.message}.`; }
+    render();
+  });
+  for (const b of box.querySelectorAll("[data-linkdel]")) b.addEventListener("click", async () => { linkNote = ""; await setVideoOn(tok.id, b.dataset.linkdel, null); });
   for (const s of box.querySelectorAll("[data-visset]")) s.addEventListener("change", async () => {
     const v = s.value;
     s.blur();
@@ -131,12 +150,18 @@ function row(h, d, uso, tok) {
   const armedBox = armed ? `<div class="armed">${esc(HINT[h.forma] || "")}${h.forma === "alvo" ? ` (${tgCount}/${max})` : aim.point ? " ✓" : ""}
       <div class="btns"><button type="button" class="primary" id="fire">✔ Usar (Enter)</button><button type="button" id="cancel">✕</button></div></div>` : "";
   const open = editing === `${tok.id}\n${h.nome}`;
-  const visEdit = open ? `<div class="visedit"><select data-visset="${esc(h.nome)}"><option value="">(sem vídeo)</option>${GROUPS.map(([t, l]) => `<optgroup label="${esc(t)}">${l.map((v) => `<option value="${v}"${v === h.visual ? " selected" : ""}>${v}</option>`).join("")}</optgroup>`).join("")}</select>${h.visual ? video(h.visual) : ""}</div>` : "";
+  const link = h.video?.url ? `<div class="linkbox"><small>Vídeo próprio (${esc(TIPOS_PROPRIOS.find(([k]) => k === h.video.tipo)?.[1] || h.video.tipo)}): <a href="${esc(h.video.url)}" target="_blank" rel="noopener">${esc(h.video.url.split("/").pop())}</a> — ele vence o visual da lista.</small>${videoTag(h.video.url)}<div class="btns"><button type="button" class="danger" data-linkdel="${esc(h.nome)}">Tirar link</button></div></div>` : "";
+  const visEdit = open ? `<div class="visedit">${link}<select data-visset="${esc(h.nome)}"><option value="">(sem vídeo)</option>${GROUPS.map(([t, l]) => `<optgroup label="${esc(t)}">${l.map((v) => `<option value="${v}"${v === h.visual ? " selected" : ""}>${v}</option>`).join("")}</optgroup>`).join("")}</select>${h.visual && !h.video?.url ? video(h.visual) : ""}
+      <details class="linkform"><summary>Usar um vídeo próprio (link)</summary>
+        <input type="text" id="linkurl" placeholder="https://…/meu-efeito.webm" value="${esc(h.video?.url || "")}">
+        <div class="row"><select id="linktipo">${TIPOS_PROPRIOS.map(([k, t]) => `<option value="${k}"${(h.video?.tipo || "area") === k ? " selected" : ""}>${t}</option>`).join("")}</select><button type="button" class="primary" data-linkset="${esc(h.nome)}">Usar link</button></div>
+        <small>Link direto para um .webm (de preferência com fundo transparente). O tipo diz como ele é posto no mapa.</small>
+      </details>${linkNote ? `<small class="${/^Não|Cole/.test(linkNote) ? "why" : ""}">${esc(linkNote)}</small>` : ""}</div>` : "";
   return `<div class="ab${armed ? " on" : ""}${can.ok ? "" : " off"}">
     <div class="row"><button type="button" class="mini go" data-go="${esc(h.nome)}" ${can.ok ? "" : "disabled"} title="${instant(h) ? "Usar agora" : "Mirar no mapa"}">${instant(h) ? "▶" : "🎯"}</button>
       <span class="grow name" title="${esc(h.texto || "")}">${esc(h.nome)}</span>${use}<span class="tag">${esc(shapeText(h) || "")}${cost}</span></div>
     ${n ? `<small>${esc(n)}</small>` : ""}${!can.ok ? `<small class="why">${esc(can.why)} ${back}</small>` : ""}
-    ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.visual || "sem vídeo")}</button></div>${visEdit}`}${armedBox}</div>`;
+    ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.video?.url ? "link próprio" : h.visual || "sem vídeo")}</button></div>${visEdit}`}${armedBox}</div>`;
 }
 
 function bindChips() {
@@ -176,6 +201,7 @@ async function fire() {
 
 OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
+  loadMeus().then(() => { GROUPS = visualGroups(); render(); });
   const load = async () => {
     items = (await OBR.scene.items.getItems()).filter((i) => i.type === "IMAGE");
     sel = (await OBR.player.getSelection()) || [];
