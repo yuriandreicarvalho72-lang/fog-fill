@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 
 // Hospedada como subpasta do repositório fog-fill no GitHub Pages.
+// Sem ícone na barra de cima (pedido do Yuri): tudo pelo botão direito; o painel completo abre pelo ⚙ do menu.
 const BASE = process.env.BASE ?? "/fog-fill/trocador/";
 
 function manifest() {
@@ -10,13 +11,12 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Trocador",
-        version: "1.0.0",
+        version: "1.0.1",
         manifest_version: 1,
         author: "Yuri",
         description: "Troca a arte de tokens e objetos entre imagens guardadas neles. Integra com Gatilhos e Estados.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
-        action: { title: "Trocador", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 560, width: 360 },
       };
       if (m.description.length > 128) throw new Error("descrição do manifest passa de 128 caracteres");
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });

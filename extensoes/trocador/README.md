@@ -8,7 +8,7 @@ posição, escala, rotação, nome e os dados de outras extensões ficam como es
 - **Botão direito → Trocar imagem**: miniaturas dentro do próprio menu; clique numa para trocar (◀ ▶ = anterior/próxima).
   O mestre também tem **+ imagens** (abre o seletor de imagens do Owlbear) e **guardar atual**.
 - **Botão direito → Próxima imagem**: atalho que só aparece em itens que já têm imagens guardadas.
-- **Painel** (ícone do Trocador): lista do item selecionado com nome, ordem (▲ ▼) e remover (✕); copiar a lista para os
+- **Painel** (botão **⚙** no menu Trocar imagem; não há ícone na barra de cima): lista do item selecionado com nome, ordem (▲ ▼) e remover (✕); copiar a lista para os
   outros itens selecionados (ex.: todos os guardas com as mesmas artes); opção de trocar o nome do item junto com a imagem.
 - Vários itens selecionados: clicar numa imagem troca todos; cada um usa a sua imagem **de mesmo nome** (ou recebe a escolhida).
 - Jogadores trocam a imagem dos itens que podem editar. Só o mestre adiciona imagens.
