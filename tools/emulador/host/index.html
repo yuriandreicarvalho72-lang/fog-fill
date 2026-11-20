@@ -1,0 +1,20 @@
+<!doctype html><html><body>
+<iframe id="f" style="width:340px;height:900px"></iframe>
+<script>
+window.log = []; window.responders = {};
+const f = document.getElementById('f');
+window.extra = [];
+window.addEventListener('message', (e) => {
+  const m = e.data; if (!m || typeof m.id !== 'string') return;
+  window.log.push({ id: m.id, data: m.data });
+  const r = window.responders[m.id];
+  let data = {};
+  try { data = r ? r(m.data) : {}; } catch (err) { data = {}; }
+  const to = e.source || f.contentWindow;
+  if (m.nonce !== undefined) to.postMessage({ id: m.id + '_RESPONSE' + m.nonce, data }, '*');
+});
+window.load = (url) => new Promise((res) => { f.onload = () => { f.contentWindow.postMessage({ id: 'OBR_READY', data: { ref: 'r', userId: 'u' } }, '*'); res(); }; f.src = url; });
+// segunda (terceira...) moldura: painel junto do segundo plano
+window.load2 = (url, style) => new Promise((res) => { const g = document.createElement('iframe'); g.style.cssText = style || 'width:380px;height:1050px;border:0'; g.onload = () => { g.contentWindow.postMessage({ id: 'OBR_READY', data: { ref: 'r', userId: 'u' } }, '*'); res(); }; g.src = url; document.body.appendChild(g); window.extra.push(g); });
+window.emit = (id, data) => { f.contentWindow.postMessage({ id, data }, '*'); for (const g of window.extra) g.contentWindow.postMessage({ id, data }, '*'); };
+</script></body></html>
