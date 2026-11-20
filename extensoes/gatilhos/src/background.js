@@ -150,6 +150,7 @@ async function syncMenu() {
       menuAgain = false;
       const per = new Map(); // item -> quantos gatilhos usam
       for (const t of triggers) for (const id of involvedIds(t)) per.set(id, (per.get(id) || 0) + 1);
+      // o filtro do Owlbear junta as condições com "e"; para "este item OU aquele" cada uma leva coordinator "||" (como o Clima faz)
       const ids = [...per.keys()].slice(0, 600);
       const height = Math.max(70, Math.min(340, Math.max(0, ...per.values()) * 38 + 54));
       const sig = JSON.stringify([ids, height]);
@@ -157,7 +158,7 @@ async function syncMenu() {
       if (!ids.length) await OBR.contextMenu.remove(`${ID}/lista`).catch(() => {});
       else await OBR.contextMenu.create({
         id: `${ID}/lista`,
-        icons: [{ icon: url("icon.svg"), label: "Gatilhos deste item", filter: { roles: ["GM"], some: ids.map((x) => ({ key: "id", value: x })) } }],
+        icons: [{ icon: url("icon.svg"), label: "Gatilhos deste item", filter: { roles: ["GM"], every: ids.map((x, i) => (i < ids.length - 1 ? { key: "id", value: x, coordinator: "||" } : { key: "id", value: x })) } }],
         embed: { url: url("menu.html"), height },
       }).catch(() => {});
       menuSig = sig;

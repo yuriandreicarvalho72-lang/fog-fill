@@ -41,7 +41,7 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
 - **Menu do botão direito** (1.16): botão direito num item que faz parte de algum gatilho mostra **Gatilhos deste item**, um submenu (como o
   "Colored Rings") com a lista desses gatilhos: **●/○** arma e rearma, **⚡** ativa na hora (ignora as condições; o personagem selecionado
   conta como "quem ativou"), e **Armar todos / Desarmar todos**. Vale para zona, alvo de efeito, destino, atirador, nó, item de condição e token da
-  lista. A lista segue a seleção e as edições do painel. Só o mestre vê. (Na 1.15 eram uma linha por gatilho no menu; a 1.16 troca por este submenu.)
+  lista. A lista segue a seleção e as edições do painel. Só o mestre vê. (Na 1.15 eram uma linha por gatilho no menu; a 1.16 troca por este submenu. A 1.16.1 corrige o filtro: com mais de um item em gatilhos o submenu não aparecia.)
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.

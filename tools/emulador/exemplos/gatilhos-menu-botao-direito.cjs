@@ -34,9 +34,10 @@ const fixture = (sel) => {
   const bg = await b.newPage(); bg.on('pageerror', (e) => errs.push(e.message));
   await bg.goto('http://localhost:8001/index.html'); await bg.evaluate(fixture, []);
   await bg.evaluate((u) => window.load(u), `http://localhost:8002/gatilhos/background.html?obrref=${ref}`); await bg.waitForTimeout(1200);
-  const menus = await bg.evaluate(() => window.log.filter((l) => l.id === 'OBR_CONTEXT_MENU_CREATE' && /^gatilhos\/lista$/.test(l.data.id)).map((l) => ({ label: l.data.icons[0].label, ids: l.data.icons[0].filter.some.map((s) => s.value), roles: l.data.icons[0].filter.roles, embed: l.data.embed })));
+  const menus = await bg.evaluate(() => window.log.filter((l) => l.id === 'OBR_CONTEXT_MENU_CREATE' && /^gatilhos\/lista$/.test(l.data.id)).map((l) => ({ label: l.data.icons[0].label, ids: l.data.icons[0].filter.every.map((s) => s.value), coords: l.data.icons[0].filter.every.map((s) => s.coordinator || ''), roles: l.data.icons[0].filter.roles, embed: l.data.embed })));
   ok('um submenu "Gatilhos deste item" só para o mestre', menus.map((m) => [m.label, m.roles]), [['Gatilhos deste item', ['GM']]]);
   ok('aparece nos itens que estão em algum gatilho', menus[0].ids.sort(), ['luz', 'painel']);
+  ok('o filtro une os itens com OU (coordinator "||" em todos menos o último), senão nenhum item casaria com 2 ids ao mesmo tempo', menus[0].coords, ['||', '']);
   ok('embed é a lista (menu.html) com altura limitada', [/menu\.html$/.test(menus[0].embed.url), menus[0].embed.height > 60 && menus[0].embed.height <= 340], [true, true]);
   // 2) a lista (página do submenu) com a luz selecionada: 2 gatilhos (um armado, um desarmado)
   const em = await b.newPage({ viewport: { width: 300, height: 400 } }); em.on('pageerror', (e) => errs.push(e.message));
