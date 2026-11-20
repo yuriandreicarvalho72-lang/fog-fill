@@ -1,7 +1,7 @@
 // Habilidades: operações com o SDK, usadas pelo painel e pelo segundo plano.
 // Só o mestre usa. O dossiê fica no token; a mira (habilidade ativa, alvos, ponto) fica no metadado do jogador.
 import OBR from "@owlbear-rodeo/sdk";
-import { DOSSIE, HAB_USO, CH_HAB, normalize, canUse, markUse, numbers, shapeOf, caughtIn } from "./abil.js";
+import { DOSSIE, HAB_USO, CH_HAB, normalize, canUse, markUse, numbers, shapeOf, caughtIn, setVisual } from "./abil.js";
 import { halfSize } from "./cover.js";
 import { ID, metersPerUnit, itemName, isToken } from "./shared.js";
 
@@ -27,6 +27,8 @@ export async function saveDossie(tokenId, raw) {
   return { dossie, avisos };
 }
 export const removeDossie = (tokenId) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) { delete it.metadata[DOSSIE]; delete it.metadata[HAB_USO]; } });
+/** Troca o visual (vídeo) de uma habilidade do dossiê do token ("" = sem vídeo). */
+export const setVisualOn = (tokenId, nome, vis) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) if (it.metadata[DOSSIE]) it.metadata[DOSSIE] = setVisual(it.metadata[DOSSIE], nome, vis); });
 export const setUso = (tokenId, fn) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) it.metadata[HAB_USO] = fn(it.metadata[HAB_USO] || {}); });
 
 /** Metros por quadrado da cena. */
@@ -70,9 +72,7 @@ export async function useAbility(tokenId, nome, aim = {}) {
   const counts = (ab.faz || []).reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map());
   const text = ab.faz?.length ? [...counts].map(([n, k]) => `${k}× ${n}${subs[n] ? `: ${numbers(subs[n])}` : ""}`).join(" | ") : numbers(ab);
   await OBR.player.setMetadata({ [HAB_LAST]: { nome: ab.nome, by: itemName(tok), text, caught, forma, at: Date.now() } });
+  // sem aviso de confirmação: o resultado fica no topo do painel (só o de covil repetido avisa)
   if (aviso) OBR.notification.show(`Habilidades: ${aviso}`, "WARNING");
-  if (forma !== "si" && forma !== "movimento" && ab.secao !== "passiva") {
-    OBR.notification.show(`${itemName(tok)} — ${ab.nome}: ${caught.length ? `pegou ${caught.join(", ")}` : "ninguém na área"}${text ? ` · ${text}` : ""}`, "INFO");
-  }
   return { ok: true, caught };
 }

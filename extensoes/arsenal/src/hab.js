@@ -1,9 +1,9 @@
 // Painel das Habilidades (ícone próprio na barra; só o mestre): dossiê do NPC, mira e contadores.
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";
-import { SECOES, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest } from "./abil.js";
-import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, dossieOf, usoOf, useAbility } from "./hab-ops.js";
-import { itemName, isToken, applyTheme } from "./shared.js";
+import { SECOES, VISUAIS, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
+import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { itemName, isToken, applyTheme, url } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -12,7 +12,30 @@ let sel = [];
 let aim = {};
 let last = null;
 let note = ""; // avisos do último dossiê colado
-const typing = () => document.activeElement?.tagName === "TEXTAREA";
+let editing = "";  // "<token>\n<habilidade>" com o seletor de visual aberto
+let preview = "";  // visual mostrado na prévia da lista
+let listOpen = false;
+const typing = () => ["TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+const GROUPS = visualGroups();
+const video = (vis) => { const f = previewFile(vis); return f ? `<video src="${esc(url(`jb2a/${f}`))}" autoplay loop muted playsinline></video>` : ""; };
+
+/** Lista dos visuais (vídeos JB2A) que o dossiê aceita, com prévia. */
+function listHtml() {
+  return `<details id="lista"${listOpen ? " open" : ""}><summary>Visuais disponíveis (${VISUAIS.length})</summary>
+    <p class="hint">Clique num nome para ver a prévia. Com o 🎨 de uma habilidade aberto, o clique troca o visual dela. São os nomes do campo <b>visual</b> do dossiê.</p>
+    ${preview ? `<div class="prev"><b>${esc(preview)}</b>${video(preview)}</div>` : ""}
+    ${GROUPS.map(([t, l]) => `<h4>${esc(t)}</h4><div class="chips">${l.map((v) => `<button type="button" class="chip${v === preview ? " on" : ""}" data-prev="${v}">${v}</button>`).join("")}</div>`).join("")}
+  </details>`;
+}
+function bindList(tok) {
+  $("lista")?.addEventListener("toggle", (e) => { listOpen = e.target.open; });
+  for (const b of document.querySelectorAll("[data-prev]")) b.addEventListener("click", async () => {
+    preview = b.dataset.prev;
+    const [tid, nome] = editing.split("\n");
+    if (tok && tid === tok.id && nome) await setVisualOn(tok.id, nome, preview);
+    render();
+  });
+}
 const HINT = {
   alvo: "Clique no(s) alvo(s) no mapa",
   cone: "Clique no mapa para apontar o cone",
@@ -44,8 +67,10 @@ function render() {
       <p class="hint">Cole aqui o dossiê da ficha (o bloco <b>json</b> da PARTE 2 do prompt). Pode colar o bloco inteiro, com as crases.</p>
       <textarea id="raw" rows="8" placeholder='{ "dossie": 1, "nome": ... }'></textarea>
       <div class="btns"><button type="button" class="primary" id="save">Guardar no token</button></div>
-      ${note ? `<p class="hint warn">${esc(note)}</p>` : ""}`;
+      ${note ? `<p class="hint warn">${esc(note)}</p>` : ""}
+      ${listHtml()}`;
     bindChips();
+    bindList(null);
     $("save").addEventListener("click", () => doSave(tok.id));
     return;
   }
@@ -68,8 +93,21 @@ function render() {
       <div class="btns"><button type="button" id="save">Trocar dossiê</button><button type="button" class="danger" id="del">Tirar dossiê</button></div>
       ${note ? `<p class="hint warn">${esc(note)}</p>` : ""}
     </details>
+    ${listHtml()}
     <small class="keys">Você rola os dados: o painel mostra os números da ficha e quem ficou na área.</small>`;
   bindChips();
+  bindList(tok);
+  for (const b of box.querySelectorAll("[data-vis]")) b.addEventListener("click", () => {
+    const k = `${tok.id}\n${b.dataset.vis}`;
+    editing = editing === k ? "" : k;
+    render();
+  });
+  for (const s of box.querySelectorAll("[data-visset]")) s.addEventListener("change", async () => {
+    const v = s.value;
+    s.blur();
+    if (v) preview = v;
+    await setVisualOn(tok.id, s.dataset.visset, v);
+  });
   $("round").addEventListener("click", () => setUso(tok.id, newRound));
   $("rest").addEventListener("click", () => setUso(tok.id, rest));
   $("save").addEventListener("click", () => doSave(tok.id));
@@ -91,10 +129,13 @@ function row(h, d, uso, tok) {
   const max = h.faz?.length || h.alvos || 1;
   const armedBox = armed ? `<div class="armed">${esc(HINT[h.forma] || "")}${h.forma === "alvo" ? ` (${tgCount}/${max})` : aim.point ? " ✓" : ""}
       <div class="btns"><button type="button" class="primary" id="fire">✔ Usar (Enter)</button><button type="button" id="cancel">✕</button></div></div>` : "";
+  const open = editing === `${tok.id}\n${h.nome}`;
+  const visEdit = open ? `<div class="visedit"><select data-visset="${esc(h.nome)}"><option value="">(sem vídeo)</option>${GROUPS.map(([t, l]) => `<optgroup label="${esc(t)}">${l.map((v) => `<option value="${v}"${v === h.visual ? " selected" : ""}>${v}</option>`).join("")}</optgroup>`).join("")}</select>${h.visual ? video(h.visual) : ""}</div>` : "";
   return `<div class="ab${armed ? " on" : ""}${can.ok ? "" : " off"}">
     <div class="row"><button type="button" class="mini go" data-go="${esc(h.nome)}" ${can.ok ? "" : "disabled"} title="${instant(h) ? "Usar agora" : "Mirar no mapa"}">${instant(h) ? "▶" : "🎯"}</button>
       <span class="grow name" title="${esc(h.texto || "")}">${esc(h.nome)}</span>${use}<span class="tag">${esc(shapeText(h) || "")}${cost}</span></div>
-    ${n ? `<small>${esc(n)}</small>` : ""}${!can.ok ? `<small class="why">${esc(can.why)} ${back}</small>` : ""}${armedBox}</div>`;
+    ${n ? `<small>${esc(n)}</small>` : ""}${!can.ok ? `<small class="why">${esc(can.why)} ${back}</small>` : ""}
+    ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.visual || "sem vídeo")}</button></div>${visEdit}`}${armedBox}</div>`;
 }
 
 function bindChips() {

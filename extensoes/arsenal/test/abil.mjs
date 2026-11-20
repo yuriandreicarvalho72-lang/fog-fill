@@ -53,3 +53,15 @@ const multi = buildAbility({ ab: H("Ataque Múltiplo"), from, aim: { targets: tg
 ok("ataque múltiplo: 2 garras + 2 sangues, em sequência", [multi.videos.length, multi.videos[2].t0 > multi.videos[0].t0], [4, true]);
 const cv = buildAbility({ ab: H("Vômito de Biomassa"), from, aim: { point: { x: 500, y: 0 } }, cell, selfHalf: 50 }, () => true);
 ok("cone: o vídeo sai do atacante na direção certa e com o tamanho da área", [Math.round(cv.videos[0].dpi), cv.videos[0].rotation, cv.videos[0].offset.x, cv.elements.length], [150, 0, 0, 1]);
+
+// trocar o visual de uma habilidade (painel 🎨) e a lista de visuais
+import { visualGroups, previewFile, setVisual } from "../src/abil.js";
+const grupos = visualGroups();
+ok("lista: todo visual está em um grupo, uma vez", grupos.flatMap(([, l]) => l).sort(), [...VISUAIS].sort());
+ok("lista: todo visual tem vídeo de prévia que entra no download", VISUAIS.filter((v) => !allFiles().includes(previewFile(v))), []);
+const d2 = setVisual(d, "Vômito de Biomassa", "cone_fogo");
+ok("trocar visual muda só aquela habilidade", [d2.habilidades.find((h) => h.nome === "Vômito de Biomassa").visual, H("Vômito de Biomassa").visual, d2.habilidades.length], ["cone_fogo", "cone_acido", 15]);
+ok("sem vídeo tira o campo", "visual" in setVisual(d, "Garras do Gânglio", "").habilidades.find((h) => h.nome === "Garras do Gânglio"), false);
+ok("visual inexistente dá erro", (() => { try { setVisual(d, "Garras do Gânglio", "dragao_rosa"); } catch (e) { return e.message; } })(), "visual \"dragao_rosa\" não existe.");
+const trocado = buildAbility({ ab: d2.habilidades.find((h) => h.nome === "Vômito de Biomassa"), from, aim: { point: { x: 500, y: 0 } }, cell, selfHalf: 50 }, () => true);
+ok("o vídeo novo é o que toca", trocado.videos[0].file.includes("Fire01"), true);

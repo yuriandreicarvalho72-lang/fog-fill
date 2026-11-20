@@ -35,9 +35,10 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   stat block. Botão direito no token do NPC → **Habilidades (dossiê)** → cole o dossiê. O painel lista Ações, Ações bônus, Reações,
   Lendárias, Covil e Passivas com os números da ficha (ataque, CD, dano, condição). 🎯 = mirar (clique no alvo ou no ponto; aparece a
   prévia do cone/linha/área) e **Usar** (ou Enter); ▶ = usa na hora (aura, em si, passiva). Todos veem a animação JB2A e o contorno da
-  área; o mestre recebe quem ficou dentro. **Não rola dados**: o mestre rola na mão. Contadores: recarga (marque "recarregou" quando o
+  área; o resultado (quem ficou dentro e os números) fica no topo do painel, sem aviso na tela. **Não rola dados**: o mestre rola na mão. Contadores: recarga (marque "recarregou" quando o
   d6 da ficha sair), 1/descanso, ações lendárias por rodada (com custo), aviso de ação de covil repetida; botões Nova rodada e Descanso.
-  Ataque Múltiplo encadeia os ataques de `faz`. Dados: `metadata["arsenal/dossie"]` e `metadata["arsenal/hab-uso"]` no token;
+  Ataque Múltiplo encadeia os ataques de `faz`. **🎨** em cada habilidade troca o visual (vídeo JB2A), com prévia; a lista **Visuais disponíveis**
+  no painel mostra todos, por grupo (clique = prévia; com o 🎨 aberto, o clique troca). Dados: `metadata["arsenal/dossie"]` e `metadata["arsenal/hab-uso"]` no token;
   canal `arsenal/habilidade` (todos tocam a animação). Os visuais aceitos estão em `src/abil.js` (`VISUAIS`), iguais aos do prompt.
 - **Otimizador**: se o jogador escolher um perfil na extensão Otimizador, o Arsenal obedece neste navegador (Leve e Apresentação
   desligam os vídeos JB2A e as cápsulas e baixam a intensidade do efeito desenhado). "Limpar sobras" apaga efeitos e miras que ficaram.
