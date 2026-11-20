@@ -5,6 +5,7 @@ export const CH_FIRE = `${ID}/disparar`;  // painel -> background do mestre: dis
 export const CH_NOTE = `${ID}/aviso`;     // background do mestre -> todos: mensagem na tela
 export const CH_LOG = `${ID}/log`;        // background do mestre -> painel: o que disparou
 export const CH_INTERACT = `${ID}/interagir`; // jogador -> mestre: { itemId, userId } (clicou num objeto interagível)
+export const CH_DENY = `${ID}/negado`;        // mestre -> todos: { to: userId, title, text, show: "aviso"|"nota" } (faltou o item do restrito)
 export const FLAG = `${ID}/interagivel`;  // metadado do item: é interagível (para o menu de contexto)
 export const CLIMA = "clima/camadas";
 export const CLIMA_FLASH = "clima/relampago";
@@ -62,6 +63,30 @@ export function setDoor(it, op) {
   md[OBR_FOG_DOORS] = obrDoors(it).map((d) => ({ ...d, open }));
   return open;
 }
+// ---------- restrito: só usa quem tem o item preso (attachment) ao personagem ----------
+export const REQ_SHOW = [["aviso", "aviso na tela"], ["nota", "nota para o jogador ler"]];
+export const REQ_DEFAULT = "Acesso negado: é preciso {item}.";
+const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+export const itemLabel = (i) => i?.text?.plainText?.trim() || i?.name || "";
+/** Itens presos a um token (e os presos a eles, até 4 níveis). */
+export function attachmentsOf(tokenId, items) {
+  const out = [], seen = new Set();
+  let frontier = new Set([tokenId]);
+  for (let depth = 0; depth < 4 && frontier.size; depth++) {
+    const next = new Set();
+    for (const it of items) if (it.attachedTo && frontier.has(it.attachedTo) && !seen.has(it.id)) { seen.add(it.id); out.push(it); next.add(it.id); }
+    frontier = next;
+  }
+  return out;
+}
+/** O token tem preso um item cujo nome contém "req" (sem diferença de maiúsculas e acentos)? req vazio = sem restrição. */
+export function hasRequired(tokenId, items, req) {
+  const r = norm(req);
+  if (!r) return true;
+  return attachmentsOf(tokenId, items).some((i) => norm(itemLabel(i)).includes(r) || norm(i.name).includes(r));
+}
+/** Texto da mensagem de acesso negado ({item} e {quem}). */
+export const denyText = (t, who) => (String(t.reqMsg || "").trim() || REQ_DEFAULT).replaceAll("{item}", String(t.reqItem || "").trim()).replaceAll("{quem}", who || "você");
 export const NODE_STATES = [["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"]];
 // conversa com a Régua: ela avisa o caminho que o token vai fazer; o motor responde mandando parar
 export const CH_PATH = "regua/caminho";   // Régua -> todos: { tokenId, points }
@@ -129,6 +154,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
     zones, cause: "enter", radius: 2,
     who: "chars", tokens: [], ignoreHidden: true, halt: false,
     reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d", nodeTo: "",
+    reqItem: "", reqMsg: "", reqShow: "aviso",
     effects: [newEffect("show")],
   };
 }

@@ -1,6 +1,6 @@
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -227,6 +227,11 @@ function card(t) {
         <span class="hint">(0 = de qualquer lugar)</span>
       </div>
       <div class="row"><span class="hint">Quem pode usar:</span><select data-k="canUse">${CAN_USE.map(([v, l]) => `<option value="${v}" ${(t.canUse || "all") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="sub">🔒 Restrito (opcional): só funciona se o personagem tiver preso nele o item</div>
+      <input type="text" data-k="reqItem" value="${esc(t.reqItem || "")}" placeholder="nome do item (ex.: Cartão de acesso)" />
+      ${String(t.reqItem || "").trim() ? `<input type="text" data-k="reqMsg" value="${esc(t.reqMsg || "")}" placeholder="${esc(REQ_DEFAULT)}" />
+      <div class="row"><span class="hint">Sem o item, mostrar como:</span><select data-k="reqShow">${REQ_SHOW.map(([v, l]) => `<option value="${v}" ${(t.reqShow || "aviso") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <span class="hint">Prenda o item (ex.: a imagem do cartão) no token do personagem: selecione o item, botão direito → Attach (prender). Vale se o nome do item contiver esse texto. Só o jogador que tentou vê a mensagem; {item} e {quem} viram o nome do item e do personagem. O mestre usa sem o item.</span>` : ""}
       <div class="row">
         <label class="check"><input type="checkbox" data-k="glow" ${t.glow !== false ? "checked" : ""} /> Destacar com brilho</label>
         <input type="color" data-k="glowColor" value="${esc(t.glowColor || "#ffd34d")}" title="Cor do brilho" />
@@ -254,7 +259,7 @@ function card(t) {
       if (k === "once") v = v === "1";
       t[k] = v;
       save(k === "armed");
-      if (["cause", "who", "armed", "name"].includes(k)) render();
+      if (["cause", "who", "armed", "name", "reqItem"].includes(k)) render();
     });
   }
   for (const btn of div.querySelectorAll("[data-sel]")) {
@@ -367,7 +372,8 @@ async function playerView() {
       const reach = Math.max(...trs.map((t) => (t.reach > 0 ? t.reach : Infinity)));
       const ok = pickReacher(mine, zoneShape(it, dpi), reach === Infinity ? 0 : reach, dpi).ok;
       const door = isFogDoor(it);
-      rows.push({ id, name: it.text?.plainText?.trim() || (door ? `Porta (${doorIsOpen(it) ? "aberta" : "fechada"})` : it.name || "objeto"), ok });
+      const locked = trs.some((t) => String(t.reqItem || "").trim());
+      rows.push({ id, name: `${locked ? "🔒 " : ""}${it.text?.plainText?.trim() || (door ? `Porta (${doorIsOpen(it) ? "aberta" : "fechada"})` : it.name || "objeto")}`, ok });
     }
     rows.sort((a, b) => (b.ok - a.ok) || a.name.localeCompare(b.name, "pt-BR"));
     $("usable").innerHTML = rows.length ? `<div class="mlist">${rows.map((r) => `

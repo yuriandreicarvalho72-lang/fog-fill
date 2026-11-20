@@ -3,7 +3,7 @@
 // Nos jogadores, só mostra as mensagens na tela.
 import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
-import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { ID, LIST, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, hasRequired, denyText, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -283,8 +283,21 @@ async function handleInteract(itemId, userId, senderRole) {
     if ((tr.canUse === "players" && senderRole === "GM") || (tr.canUse === "gm" && senderRole !== "GM")) continue;
     // quem ativou: o token do jogador mais perto do objeto (o mestre: o personagem mais perto, sem limite de alcance)
     const pool = items.filter((i) => isToken(i) && (senderRole === "GM" || i.createdUserId === userId));
-    const r = pickReacher(pool, shape, senderRole === "GM" ? 0 : tr.reach ?? 1, dpi);
+    const reach = senderRole === "GM" ? 0 : tr.reach ?? 1;
+    let r = pickReacher(pool, shape, reach, dpi);
     if (!r.ok) continue;
+    // restrito: só um personagem (ao alcance) com o item preso nele usa; o mestre usa sem o item
+    if (String(tr.reqItem || "").trim() && senderRole !== "GM") {
+      const withItem = pool.filter((t) => hasRequired(t.id, items, tr.reqItem));
+      const r2 = withItem.length ? pickReacher(withItem, shape, reach, dpi) : { ok: false };
+      if (!r2.ok) {
+        const who = r.token ? names(r.token) : "";
+        log(`🔒 ${tr.name}: ${who || "jogador"} sem ${tr.reqItem}`);
+        OBR.broadcast.sendMessage(CH_DENY, { to: userId, title: tr.name, text: denyText(tr, who), show: tr.reqShow || "aviso" }, { destination: "ALL" }).catch(() => {});
+        continue;
+      }
+      r = r2;
+    }
     if (tr.once) tr.armed = false;
     run(tr, { by: r.token || undefined, at: it.position, cause: "interact", on: r.token ? undefined : [] });
   }
@@ -457,6 +470,16 @@ OBR.onReady(async () => {
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show(`"${nm}" agora é interagível. No painel Gatilhos, escolha o que acontece (ex.: Mudar estado → porta abre).`, "SUCCESS");
     },
+  });
+
+  // acesso negado (restrito): só o jogador que tentou vê, como aviso ou como nota para ler
+  OBR.broadcast.onMessage(CH_DENY, (e) => {
+    const d = e.data || {};
+    if (!d.to || d.to !== myId) return;
+    if (d.show === "nota") {
+      const q = new URLSearchParams({ t: d.title || "", m: d.text || "" }).toString();
+      OBR.modal.open({ id: `${ID}/nota`, url: url(`nota.html?${q}`), width: 380, height: 210 }).catch(() => OBR.notification.show(d.text, "WARNING"));
+    } else OBR.notification.show(d.text || "Acesso negado.", "WARNING");
   });
 
   // mensagens na tela (todos os jogadores)

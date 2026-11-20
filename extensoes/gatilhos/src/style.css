@@ -63,3 +63,10 @@ button.danger { color: #ff7a7a; }
 .mrow .mname { flex: 1; }
 .mrow .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; }
 button:disabled { opacity: .45; cursor: default; }
+body.nota { background: transparent; }
+body.nota main { padding: 14px 16px; }
+.nota-card { border: 1px solid var(--line); border-left: 4px solid #ff5a4a; border-radius: 8px; padding: 10px 12px 12px; background: rgba(0,0,0,.18); }
+.nota-head { display: flex; align-items: center; gap: 8px; }
+.nota-head h1 { margin: 0; font-size: 16px; }
+.nota-icon { font-size: 20px; }
+.nota-card p { margin: 10px 0 4px; white-space: pre-wrap; line-height: 1.45; font-size: 14px; }

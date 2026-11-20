@@ -77,3 +77,11 @@ setDoor(p1, 'destrancar');
 t1('destrancar', doorIsLocked(p1), false);
 const fog = { id: 'f', type: 'SHAPE', metadata: { 'rodeo.owlbear.dynamic-fog/doors': [{ start: { distance: 0 }, end: { distance: 50 } }, { start: { distance: 90 }, end: { distance: 120 }, open: false }] } };
 t1('névoa do Owlbear: abre todas as portas do contorno', [isFogDoor(fog), setDoor(fog, 'abrir'), fog.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [true, true, [true, true]]);
+
+// restrito: item preso (attachment) ao personagem
+import { hasRequired, attachmentsOf, denyText } from '../src/shared.js';
+const cena = [{ id: 'rex' }, { id: 'card', name: 'Cartão de Acesso Nível 3', attachedTo: 'rex' }, { id: 'bolsa', name: 'Bolsa', attachedTo: 'lia' }, { id: 'chave', text: { plainText: 'Chave mestra' }, attachedTo: 'bolsa' }, { id: 'lia' }];
+t1('preso ao personagem conta (sem acento/maiúscula)', [hasRequired('rex', cena, 'cartao de acesso'), hasRequired('lia', cena, 'cartão de acesso')], [true, false]);
+t1('item preso a um item preso também conta', [attachmentsOf('lia', cena).map((i) => i.id), hasRequired('lia', cena, 'chave')], [['bolsa', 'chave'], true]);
+t1('sem restrição: qualquer um usa', hasRequired('lia', cena, '  '), true);
+t1('mensagem com {item} e {quem}', [denyText({ reqItem: 'Cartão de acesso' }, 'Rex'), denyText({ reqItem: 'Cartão', reqMsg: '{quem} passa o pulso no leitor: nada. Falta o {item}.' }, 'Rex')], ['Acesso negado: é preciso Cartão de acesso.', 'Rex passa o pulso no leitor: nada. Falta o Cartão.']);
