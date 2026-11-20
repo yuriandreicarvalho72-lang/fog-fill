@@ -22,6 +22,13 @@ O efeito não gira nem cresce com o token (o raio vem da luz do Dynamic Fog).
 - A sombra usa no máximo os trechos de parede mais próximos das luzes (48 por padrão).
 - Cada jogador desenha a cor no próprio computador, como o Dynamic Fog faz com as luzes.
 
+## Otimizador
+Se o jogador escolher um perfil na extensão Otimizador, a Luz Colorida obedece só no computador dele:
+- Equilibrado: até 10 luzes coloridas e 32 trechos de parede.
+- Leve: até 6 luzes, 16 trechos, sem animação (tremular, pulsar).
+- Apresentação: sem luz colorida (a luz branca do Dynamic Fog continua).
+Com mais luzes do que o teto, ficam as mais perto do centro da tela. "Limpar sobras" apaga e redesenha os efeitos.
+
 ## Instalar
 Publicada junto do Balde de Fog, na subpasta `luz-colorida/` do repositório `fog-fill`:
 `https://yuriandreicarvalho72-lang.github.io/fog-fill/luz-colorida/manifest.json`

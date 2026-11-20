@@ -1,6 +1,7 @@
 import OBR, { buildEffect } from "@owlbear-rodeo/sdk";
 import { buildSksl, buildUniforms, MAX_LIGHTS, animId } from "./shader.js";
 import { ID, CFG, SETTINGS, DEFAULT_SETTINGS, DF_LIGHT } from "./shared.js";
+import { readPerf, onPerf, onClean } from "./perf.js";
 
 const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 const rad = (deg) => (deg * Math.PI) / 180;
@@ -8,6 +9,7 @@ const rad = (deg) => (deg * Math.PI) / 180;
 let settings = { ...DEFAULT_SETTINGS };
 let timer = null;
 let warnedMax = false;
+let perf = null; // perfil do Otimizador neste navegador (null = sem perfil): tetos de luzes, trechos e animação
 
 function schedule(delay = 50) {
   if (timer) return;
@@ -61,7 +63,7 @@ async function removeAll() {
 
 /** Trechos de parede dentro do alcance das luzes, os mais próximos primeiro. */
 function wallSegments(local, items, lights) {
-  if (!settings.shadows) return [];
+  if (!settings.shadows || perf?.luz?.shadows === false) return [];
   const walls = [...local, ...items].filter((i) => i.type === "WALL" && i.blocking !== false);
   const all = [];
   for (const wl of walls) {
@@ -78,7 +80,7 @@ function wallSegments(local, items, lights) {
     if (best < Infinity) scored.push([best, s]);
   }
   scored.sort((a, b) => a[0] - b[0]);
-  return scored.slice(0, settings.maxSegments).map(([, s]) => s);
+  return scored.slice(0, Math.min(settings.maxSegments, perf?.luz?.maxSegments ?? Infinity)).map(([, s]) => s);
 }
 
 /** O que cada efeito precisa ter: { key, attach, sksl, uniforms, rect, effectType } */
@@ -104,6 +106,7 @@ async function plan(local, items, lights, mode) {
 }
 
 async function update() {
+  if (perf?.luz?.on === false) return removeAll(); // Otimizador: luz colorida desligada neste navegador
   const [local, items] = await Promise.all([OBR.scene.local.getItems(), OBR.scene.items.getItems()]);
   const byId = new Map(items.map((i) => [i.id, i]));
 
@@ -126,11 +129,20 @@ async function update() {
       dir: rad((l.rotation ?? 0) + settings.dirOffset),
       inner: rad((l.innerAngle ?? 360) / 2),
       outer: rad((l.outerAngle ?? 360) / 2),
-      anim: animId(cfg.anim),
+      anim: perf?.luz?.anim === false ? 0 : animId(cfg.anim),
       speed: cfg.speed ?? 1,
     });
   }
   const cap = Math.max(1, Math.min(MAX_LIGHTS, settings.maxLights || 16));
+  const pcap = perf?.luz?.maxLights ?? Infinity; // teto do Otimizador: as mais perto do centro da tela ficam
+  if (lights.length > pcap) {
+    const [vp, w, h, sc] = await Promise.all([OBR.viewport.getPosition(), OBR.viewport.getWidth(), OBR.viewport.getHeight(), OBR.viewport.getScale()]).catch(() => [null]);
+    if (vp) {
+      const c = { x: (w / 2 - vp.x) / sc, y: (h / 2 - vp.y) / sc };
+      lights.sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y));
+    }
+    lights.length = Math.max(0, pcap);
+  }
   if (lights.length > cap) {
     if (!warnedMax && (await OBR.player.getRole()) === "GM") {
       warnedMax = true;
@@ -218,6 +230,9 @@ OBR.onReady(async () => {
     await loadSettings();
     schedule(0);
   };
+  perf = readPerf();
+  onPerf((p) => { perf = p; schedule(0); });
+  onClean(() => start());
   if (await OBR.scene.isReady()) await start();
   OBR.scene.onReadyChange((ready) => { if (ready) start(); else effects.clear(); });
   OBR.scene.onMetadataChange((md) => { settings = { ...DEFAULT_SETTINGS, ...(md[SETTINGS] || {}) }; schedule(); });
