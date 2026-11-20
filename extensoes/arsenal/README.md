@@ -45,8 +45,21 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   `em-si`, `projetil`, `linha`, `cone`; arquivo solto = `area`). O build gera `meus-efeitos/lista.json` e cada arquivo vira o visual
   `meu_<nome do arquivo>` (grupo "Meus efeitos" no 🎨 e na lista). (2) Link direto para um .webm no 🎨 da habilidade ("Usar um vídeo
   próprio"), com o tipo; fica em `video: { url, tipo }` na habilidade e vence o visual. Largura, altura e duração são lidas do próprio vídeo
-  no navegador antes de tocar (`src/meus.js`). Projétil: horizontal, ~200 px de margem em cada ponta; linha/cone: começa na borda esquerda.
-  Ver `public/meus-efeitos/LEIA-ME.txt`.
+  no navegador antes de tocar (`src/meus.js`). Projétil, linha e cone próprios: o vídeo inteiro vai do NPC até o alvo/fim da área,
+  começando na borda de onde ele "sai"; "O vídeo aponta para" (→ ↓ ← ↑, campo `video.giro` 0/90/180/270) diz para onde o efeito vai dentro
+  do vídeo. Ver `public/meus-efeitos/LEIA-ME.txt`.
+- **Direção e linha** (1.7): cone e linha giram para onde o NPC aponta com qualquer visual (visual de ponto num cone fica um só, no meio do
+  cone, virado; numa linha é **lançado** do NPC até o ponto). A linha vai até o ponto clicado (no máximo o comprimento da ficha) e quem
+  ficou dentro é contado nesse trecho. Visual de linha/cone numa habilidade de alvo sai do NPC e chega no alvo.
+- **Duração** (1.7): no 🎨 de cada habilidade, **uma vez**, **por N segundos** (em loop) ou **em loop até eu encerrar** (campo
+  `duracao` no dossiê: número de segundos ou `"fim"`). O vídeo principal fica no mapa para todos (inclusive quem entra depois); a lista
+  **Efeitos no mapa** no topo do painel mostra o tempo que falta, ✕ em cada um e **Encerrar todos**. Fica no metadado da cena
+  `arsenal/efeitos-ativos` (máximo 12; os mais antigos saem); cada navegador desenha com itens locais; o mestre líder tira os vencidos.
+  O "Limpar" do Arsenal não apaga esses efeitos.
+- **Pedidos do Gatilhos** (1.7; destino ALL, só o mestre líder executa): `arsenal/efeito` { visual? | video: { url, tipo, giro? }, from?
+  (token de onde sai), targets: [ids], dur (0 | segundos | "fim"), tamanho? (quadrados), tag (nome para encerrar), origem } ·
+  `arsenal/efeito-fim` { tag ("" = todos) } · `arsenal/habilidade-usar` { token (NPC com dossiê), nome, targets } (os alvos dão a direção
+  de cone/linha/área; usa os contadores). O build gera `visuais.json` (todos os visuais por grupo), que o painel do Gatilhos usa para sugerir nomes.
 - **Otimizador**: se o jogador escolher um perfil na extensão Otimizador, o Arsenal obedece neste navegador (Leve e Apresentação
   desligam os vídeos JB2A e as cápsulas e baixam a intensidade do efeito desenhado). "Limpar sobras" apaga efeitos e miras que ficaram.
 - Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.

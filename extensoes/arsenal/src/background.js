@@ -417,8 +417,9 @@ OBR.onReady(async () => {
     },
   });
   // habilidades dos NPCs (dossiê da ficha): ícone próprio na barra, só o mestre
-  const hab = await setupHabilities({ play, base: JB2A_BASE, has: hasVideo });
-  onClean(() => hab.clearPreview().then(() => hab.drawPreview()));
+  const hab = await setupHabilities({ play, base: JB2A_BASE, has: hasVideo, isLeader });
+  onClean(() => { hab.clearPreview().then(() => hab.drawPreview()); hab.ativos.resync(); });
+  onPerf(() => hab.ativos.resync()); // vídeos ligados/desligados pelo Otimizador
 
   await OBR.contextMenu.create({
     id: `${ID}/atirador`,

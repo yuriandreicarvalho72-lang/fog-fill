@@ -6,6 +6,10 @@ import { V } from "./fx.js";
 export const DOSSIE = "arsenal/dossie";   // metadado do token: dossiê normalizado
 export const HAB_USO = "arsenal/hab-uso"; // metadado do token: { used: { nome: true }, leg: N, covil: "nome" }
 export const CH_HAB = "arsenal/habilidade"; // todos: { token, at, ab, aim, seed, cell } -> cada um toca a animação
+// pedidos de outras extensões (Gatilhos) -> o mestre líder executa
+export const CH_FX = "arsenal/efeito";            // { visual? | video: { url, tipo, giro? }, from?, targets: [ids], dur, tamanho?, tag?, origem? }
+export const CH_FX_END = "arsenal/efeito-fim";    // { tag? ("" = todos os efeitos que ficaram), origem? }
+export const CH_HAB_USE = "arsenal/habilidade-usar"; // { token (NPC com dossiê), nome, targets: [ids], origem? }
 
 // Segunda fonte de vídeos: Boss Loot FX (pacote gratuito), arquivos com o prefixo "BLFX/" (baixados para public/jb2a/BLFX/).
 export const BLFX_REPO = "boss-loot/boss-loot-assets-free";
@@ -206,10 +210,32 @@ export function setVideo(dossie, nome, video) {
     habilidades: dossie.habilidades.map((h) => {
       if (h.nome !== nome) return h;
       const n = { ...h };
-      if (video) n.video = { url: video.url.trim(), tipo: video.tipo }; else delete n.video;
+      if (video) { n.video = { url: video.url.trim(), tipo: video.tipo }; const g = giroOf(video.giro); if (g) n.video.giro = g; } else delete n.video;
       return n;
     }),
   };
+}
+
+/** Para onde o vídeo próprio aponta (graus, sentido horário a partir da direita): 0 → , 90 ↓ , 180 ← , 270 ↑. */
+export const GIROS = [[0, "→ direita (padrão)"], [90, "↓ para baixo"], [180, "← esquerda"], [270, "↑ para cima"]];
+export const giroOf = (g) => { const n = ((Math.round(Number(g) / 90) * 90) % 360 + 360) % 360; return Number.isFinite(n) ? n : 0; };
+
+// ---------------- duração do efeito ----------------
+// sem duracao = toca uma vez; número = fica N segundos (em loop); "fim" = fica em loop até o mestre encerrar.
+export function parseDuracao(v) {
+  if (v == null || v === "" || v === 0 || v === false) return null;
+  if (Number.isFinite(Number(v))) { const n = Number(v); return n > 0 ? Math.min(3600, Math.round(n * 10) / 10) : null; }
+  const s = String(v).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  if (/^(fim|loop|sempre|ate (eu )?encerrar|encerrar|ate o fim|permanente)$/.test(s)) return "fim";
+  const m = s.match(/^(\d+(?:[.,]\d+)?)\s*(s|seg|segundos?|min|minutos?)?$/);
+  if (m) { const n = Number(m[1].replace(",", ".")) * (/^min/.test(m[2] || "") ? 60 : 1); return n > 0 ? Math.min(3600, n) : null; }
+  return null;
+}
+export const duracaoText = (d) => (!d ? "uma vez" : d === "fim" ? "até encerrar" : `${String(d).replace(".", ",")} s`);
+/** Troca a duração de uma habilidade (null = uma vez). Devolve o dossiê novo. */
+export function setDuracao(dossie, nome, dur) {
+  const d = parseDuracao(dur);
+  return { ...dossie, habilidades: dossie.habilidades.map((h) => { if (h.nome !== nome) return h; const n = { ...h }; if (d) n.duracao = d; else delete n.duracao; return n; }) };
 }
 
 const GRUPOS = [["target", "No alvo"], ["melee", "Corpo a corpo"], ["ranged", "Projétil e raio"], ["cone", "Cone"], ["line", "Linha"], ["area", "Área"], ["self", "Em si"], ["move", "Movimento"]];
@@ -274,7 +300,13 @@ export function normalize(input) {
       cor: sem(h.cor), texto: txt(h.texto),
     };
     if (Array.isArray(h.faz) && h.faz.length) out.faz = h.faz.map(txt);
-    if (h.video?.url && registerLink(txt(h.video.url), sem(h.video.tipo).replace(/\s+/g, "-"))) out.video = { url: txt(h.video.url), tipo: sem(h.video.tipo).replace(/\s+/g, "-") };
+    if (h.video?.url && registerLink(txt(h.video.url), sem(h.video.tipo).replace(/\s+/g, "-"))) {
+      out.video = { url: txt(h.video.url), tipo: sem(h.video.tipo).replace(/\s+/g, "-") };
+      const g = giroOf(h.video.giro ?? { direita: 0, baixo: 90, esquerda: 180, cima: 270 }[sem(h.video.aponta)] ?? 0);
+      if (g) out.video.giro = g;
+    }
+    const dur = parseDuracao(h.duracao);
+    if (dur) out.duracao = dur;
     for (const k of Object.keys(out)) if (out[k] === "" || out[k] === null || out[k] === false) delete out[k];
     return out;
   });
@@ -348,8 +380,11 @@ export function shapeOf(h, from, aim, cell, mpc, selfHalf = 0) {
     const p = V.perp(dir);
     const a = V.add(from, V.mul(dir, selfHalf));
     if (h.forma === "cone") return { kind: "poly", pts: [a, V.add(V.add(a, V.mul(dir, L)), V.mul(p, L / 2)), V.add(V.add(a, V.mul(dir, L)), V.mul(p, -L / 2))], dir, from: a, len: L };
+    // a linha vai até o ponto clicado (no máximo o comprimento da ficha)
+    const Ll = aim?.point ? Math.min(L, Math.max(cell * 0.5, V.len(V.sub(aim.point, a)))) : L;
     const w = cell / 2;
-    return { kind: "poly", pts: [V.add(a, V.mul(p, w)), V.add(V.add(a, V.mul(dir, L)), V.mul(p, w)), V.add(V.add(a, V.mul(dir, L)), V.mul(p, -w)), V.add(a, V.mul(p, -w))], dir, from: a, len: L };
+    const e = V.add(a, V.mul(dir, Ll));
+    return { kind: "poly", pts: [V.add(a, V.mul(p, w)), V.add(e, V.mul(p, w)), V.add(e, V.mul(p, -w)), V.add(a, V.mul(p, -w))], dir, from: a, len: Ll };
   }
   if (h.forma === "area") return { kind: "circle", c: aim?.point || from, r: L };
   if (h.forma === "aura") return { kind: "circle", c: from, r: L + selfHalf };
@@ -394,8 +429,23 @@ function outline(shape, color, t0 = 0, life = 1.6) {
 const COLOR = { vermelho: "#e0453a", laranja: "#ff8a1f", amarelo: "#f5d742", verde: "#7bd23a", azul: "#4fa8ff", roxo: "#a36bff", branco: "#e8eef5", preto: "#555b66" };
 
 /**
- * Coreografia de uma habilidade. ev = { ab, from, aim: { targets: [{ id, at, half }], point }, cell, mpc, selfHalf }.
- * has(file) = o vídeo está disponível. Devolve { elements, videos, duration }.
+ * Vídeo esticado de A até B (cone, linha, projétil próprio): o começo do efeito fica em A e o fim em B.
+ * Vídeos do JB2A usam ox/span da ficha; vídeos próprios usam o vídeo inteiro, girado conforme para onde ele aponta (giro).
+ */
+function stretch(A, a, b, cell, t0, giro = 0) {
+  const d = dimsOf(A);
+  const g = A.custom ? giro : 0;
+  const span = A.custom ? (g % 180 ? d.h : d.w) : A.span;
+  const o = !A.custom ? { x: A.ox || 0, y: d.h / 2 } : g === 90 ? { x: d.w / 2, y: 0 } : g === 180 ? { x: d.w, y: d.h / 2 } : g === 270 ? { x: d.w / 2, y: d.h } : { x: 0, y: d.h / 2 };
+  const len = Math.max(0.25, V.len(V.sub(b, a)) / cell);
+  return { file: d.file, w: d.w, h: d.h, dpi: span / len, offset: o, position: a, rotation: ang(V.sub(b, a)) - g, t0, dur: d.dur / 1000 };
+}
+const STRETCH = new Set(["cone", "line"]);
+
+/**
+ * Coreografia de uma habilidade. ev = { ab, from, aim: { targets: [{ id, at, half }], point }, cell, mpc, selfHalf, semOrigem? }.
+ * has(file) = o vídeo está disponível. Devolve { elements, videos, duration, persist }.
+ * persist = vídeos principais que ficam no mapa (habilidade com duração); eles saem de "videos" e o Arsenal os guarda à parte.
  */
 export function buildAbility(ev, has = () => true, byName = null) {
   const { ab, from, aim = {}, cell = 150, mpc = 1.5, selfHalf = cell / 2 } = ev;
@@ -404,28 +454,42 @@ export function buildAbility(ev, has = () => true, byName = null) {
   const key = keyOf(ab);
   const asset = key ? LIB[key] : null;
   const targets = aim.targets || [];
+  const giro = (h) => (LIB[keyOf(h)]?.custom ? giroOf(h?.video?.giro) : 0);
+  const main = (v, g = 0) => { v.main = true; if (g && !v.stretched) v.rotation = (v.rotation || 0) - g; return v; };
   const impact = (t, at, dir) => { const k = IMPACT[ab.impacto]; if (k) vids.push(pointVideo(k, at, k === "blood" ? 1.7 : 1.2, t, cell, k === "sparkO" ? null : dir)); };
+  const near = (a, b) => V.len(V.sub(b, a)) < cell * 0.25;
 
   const one = (a, t0, tgList) => {
-    const A = a ? LIB[keyOf(a)] : null;
+    const k = a ? keyOf(a) : null;
+    const A = k ? LIB[k] : null;
     if (!A) return 0;
+    const g = giro(a);
     let end = t0;
     for (const tg of tgList) {
-      const dir = V.norm(V.sub(tg.at, from));
-      if (A.type === "ranged") {
-        const v = rangedVideo(keyOf(a), V.add(from, V.mul(dir, cell * 0.3)), tg.at, cell, t0);
-        vids.push(v); impact(v.hitAt, tg.at, dir); end = Math.max(end, v.t0 + v.dur);
+      const src = ev.semOrigem ? tg.at : from;
+      const dir = near(src, tg.at) ? { x: 1, y: 0 } : V.norm(V.sub(tg.at, src));
+      const pointAt = () => {
+        const size = a.tamanho || (A.size || 1.4) * Math.max(1, (tg.half * 2) / cell);
+        const pv = pointVideo(k, tg.at, size, t0, cell, A.side ? dir : null);
+        if (A.side) pv.offset = { x: A.w * A.side, y: A.h / 2 }; // jorro de sangue: sai do alvo na direção do golpe
+        vids.push(main(pv, g));
+        impact(t0 + 0.3, tg.at, dir); end = Math.max(end, t0 + pv.dur);
+      };
+      if (near(src, tg.at) && (A.type === "ranged" || A.type === "melee" || STRETCH.has(A.type))) pointAt(); // sem origem: o efeito fica no alvo
+      else if (A.type === "ranged") {
+        const s0 = V.add(src, V.mul(dir, cell * 0.3));
+        const v = A.custom ? { ...stretch(A, s0, tg.at, cell, t0, g), stretched: true } : rangedVideo(k, s0, tg.at, cell, t0);
+        if (A.custom) v.hitAt = t0 + v.dur * (A.hit || 0.7);
+        vids.push(main(v)); impact(v.hitAt, tg.at, dir); end = Math.max(end, v.t0 + v.dur);
+      } else if (STRETCH.has(A.type)) {
+        // cone ou linha num alvo: o efeito inteiro sai do NPC e chega no alvo
+        const v = { ...stretch(A, V.add(src, V.mul(dir, cell * 0.3)), tg.at, cell, t0, g), stretched: true };
+        vids.push(main(v)); impact(t0 + v.dur * 0.4, tg.at, dir); end = Math.max(end, t0 + v.dur);
       } else if (A.type === "melee") {
         const anchor = V.sub(tg.at, V.mul(dir, cell));
-        vids.push({ file: A.file, w: A.w, h: A.h, dpi: A.span, offset: { x: A.ox, y: A.h / 2 }, position: anchor, rotation: ang(dir), t0, dur: A.dur / 1000 });
+        vids.push(main({ file: A.file, w: A.w, h: A.h, dpi: A.span, offset: { x: A.ox, y: A.h / 2 }, position: anchor, rotation: ang(dir), t0, dur: A.dur / 1000 }, g));
         impact(t0 + (A.dur / 1000) * 0.35, tg.at, dir); end = Math.max(end, t0 + A.dur / 1000);
-      } else {
-        const size = (A.size || 1.4) * Math.max(1, (tg.half * 2) / cell);
-        const pv = pointVideo(keyOf(a), tg.at, size, t0, cell, A.side ? dir : null);
-        if (A.side) pv.offset = { x: A.w * A.side, y: A.h / 2 }; // jorro de sangue: sai do alvo na direção do golpe
-        vids.push(pv);
-        impact(t0 + 0.3, tg.at, dir); end = Math.max(end, t0 + A.dur / 1000);
-      }
+      } else pointAt();
     }
     return end;
   };
@@ -443,35 +507,62 @@ export function buildAbility(ev, has = () => true, byName = null) {
   } else if (ab.forma === "cone" || ab.forma === "linha" || ab.forma === "area" || ab.forma === "aura") {
     const shape = shapeOf(ab, from, aim, cell, mpc, selfHalf);
     if (shape) els.push(outline(shape, color, 0.1));
-    if (asset && shape) {
-      if ((asset.type === "cone" || asset.type === "line") && shape.kind === "poly") {
-        vids.push({ file: asset.file, w: asset.w, h: asset.h, dpi: asset.span / (shape.len / cell), offset: { x: asset.ox, y: asset.h / 2 }, position: shape.from, rotation: ang(shape.dir), t0: 0, dur: asset.dur / 1000 });
-      } else if (asset.type === "ranged" && shape.kind === "poly") {
-        vids.push(rangedVideo(key, shape.from, V.add(shape.from, V.mul(shape.dir, shape.len)), cell, 0));
+    const g = giro(ab);
+    if (asset && shape && shape.kind === "poly") {
+      const end = V.add(shape.from, V.mul(shape.dir, shape.len));
+      const lenCells = shape.len / cell;
+      if (STRETCH.has(asset.type) || (asset.type === "ranged" && asset.custom)) {
+        // cone/linha: o efeito inteiro, girado na direção da mira, do NPC até o fim da área
+        vids.push(main({ ...stretch(asset, shape.from, end, cell, 0, g), stretched: true }));
+      } else if (asset.type === "ranged") {
+        vids.push(main(rangedVideo(key, shape.from, end, cell, 0)));
+      } else if (ab.forma === "linha") {
+        // efeito de ponto numa linha: é lançado (um só) do NPC até o ponto escolhido
+        const travel = Math.min(1.4, Math.max(0.35, lenCells * 0.09));
+        const size = ab.tamanho || Math.max(1.2, Math.min(2.2, asset.size || 1.6));
+        const v = pointVideo(key, shape.from, size, 0, cell, shape.dir);
+        v.move = { to: end, t: travel };
+        v.dur = Math.max(v.dur, travel + 0.4);
+        vids.push(main(v, g));
       } else {
-        const c = shape.kind === "circle" ? shape.c : V.add(shape.from, V.mul(shape.dir, shape.len / 2));
-        const diam = shape.kind === "circle" ? (shape.r * 2) / cell : shape.len / cell;
-        if (asset.type === "ranged") vids.push(rangedVideo(key, from, c, cell, 0));
-        else vids.push(pointVideo(key, c, Math.max(1, diam), asset.type === "ranged" ? 0.5 : 0, cell));
+        // efeito de ponto num cone: um só, no meio do cone, virado para onde o cone aponta
+        const v = pointVideo(key, V.add(shape.from, V.mul(shape.dir, shape.len * 0.55)), ab.tamanho || Math.max(1, lenCells * 0.85), 0, cell, shape.dir);
+        vids.push(main(v, g));
       }
+    } else if (asset && shape) {
+      const c = shape.c;
+      const diam = (shape.r * 2) / cell;
+      if (!near(from, c) && (asset.type === "ranged" || STRETCH.has(asset.type))) {
+        // projétil, cone ou linha numa área: sai do NPC até o centro
+        vids.push(main(asset.custom || STRETCH.has(asset.type) ? { ...stretch(asset, from, c, cell, 0, g), stretched: true } : rangedVideo(key, from, c, cell, 0)));
+      } else vids.push(main(pointVideo(key, c, ab.tamanho || Math.max(1, diam), 0, cell), g));
     }
   } else if (ab.forma === "si") {
-    if (asset) vids.push(pointVideo(key, from, (asset.size || 1.6) * Math.max(1, (selfHalf * 2) / cell), 0, cell));
+    if (asset) vids.push(main(pointVideo(key, from, ab.tamanho || (asset.size || 1.6) * Math.max(1, (selfHalf * 2) / cell), 0, cell), giro(ab)));
   } else if (ab.forma === "movimento") {
     const to = aim.point || from;
     const d = V.sub(to, from), len = V.len(d), dir = V.norm(d);
+    const g = giro(ab);
     if (ab.visual === "rastro" && asset) {
       const n = Math.max(1, Math.floor(len / (cell * 0.7)));
-      for (let i = 0; i <= n; i++) vids.push({ ...pointVideo(key, V.add(from, V.mul(dir, (len * i) / n)), 0.6, i * 0.08, cell), rotation: ang(dir) + 90 });
+      for (let i = 0; i <= n; i++) vids.push(main({ ...pointVideo(key, V.add(from, V.mul(dir, (len * i) / n)), 0.6, i * 0.08, cell), rotation: ang(dir) + 90 }));
     } else if (asset) {
-      if (ab.visual === "investida") vids.push({ ...pointVideo(key, V.add(from, V.mul(d, 0.5)), Math.max(1.5, len / cell), 0, cell), rotation: ang(dir) });
-      else vids.push(pointVideo(key, from, 1.8, 0, cell));
+      if (ab.visual === "investida") vids.push(main({ ...pointVideo(key, V.add(from, V.mul(d, 0.5)), Math.max(1.5, len / cell), 0, cell), rotation: ang(dir) }));
+      else vids.push(main(pointVideo(key, from, 1.8, 0, cell), g));
       vids.push(pointVideo("puff", to, 1.8, 0.35, cell));
     }
     els.push({ kind: "line", t0: 0, t1: 1.2, tag: "move", frame: (t) => ({ a: from, b: to, color, width: Math.max(2, cell / 30), opacity: 0.8 * (1 - t / 1.2) }) });
   }
+  for (const v of vids) delete v.stretched;
   // vídeos próprios (link ou pasta meus-efeitos) não estão no ok.json; só tocam depois de ter tamanho e duração
   const ok = has ? vids.filter((v) => v.w > 0 && v.dur > 0 && (has(v.file) || /^(https?:|\.\.\/)/.test(v.file))) : []; // has = null: vídeos desligados
-  const duration = Math.max(0.5, ...els.map((e) => e.t1), ...ok.map((v) => v.t0 + v.dur));
-  return { elements: els, videos: ok, duration };
+  let videos = ok, persist = [];
+  if (ab.duracao) {
+    // com duração: os vídeos principais ficam (em loop) e saem desta animação; quem é lançado ainda faz o caminho aqui
+    const kept = ok.filter((v) => v.main);
+    persist = kept.slice(0, 6).map((v) => { const p = { ...v, loop: true }; if (v.move) { p.position = v.move.to; p.t0 = v.t0 + v.move.t; delete p.move; } return p; });
+    videos = [...ok.filter((v) => !v.main), ...kept.filter((v) => v.move).map((v) => ({ ...v, dur: v.move.t + 0.05 }))];
+  }
+  const duration = Math.max(0.5, ...els.map((e) => e.t1), ...videos.map((v) => v.t0 + v.dur));
+  return { elements: els, videos, duration, persist };
 }

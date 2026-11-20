@@ -1,8 +1,9 @@
 // Painel das Habilidades (ícone próprio na barra; só o mestre): dossiê do NPC, mira e contadores.
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";
-import { SECOES, VISUAIS, BLFX_LICENSE, TIPOS_PROPRIOS, meusVisuais, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
-import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { SECOES, VISUAIS, BLFX_LICENSE, TIPOS_PROPRIOS, GIROS, duracaoText, meusVisuais, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
+import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, setDuracaoOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { listOf, endAtivos } from "./ativos.js";
 import { loadMeus, probeVideo, videoSrc } from "./meus.js";
 import { itemName, isToken, applyTheme, url } from "./shared.js";
 
@@ -21,6 +22,27 @@ let GROUPS = visualGroups(); // refeito quando a lista de efeitos próprios cheg
 const videoTag = (src) => `<video src="${esc(src)}" autoplay loop muted playsinline></video>`;
 const video = (vis) => { const f = previewFile(vis); return f ? videoTag(videoSrc(f)) : ""; };
 let linkNote = ""; // resultado da última checagem de link
+let ativos = [];   // efeitos que ficaram no mapa (metadado da cena)
+
+const leftText = (e) => (e.until ? `${Math.max(0, Math.ceil((e.until - Date.now()) / 1000))} s` : "até encerrar");
+/** Efeitos que ficaram no mapa, com ✕ para encerrar. */
+function ativosHtml() {
+  if (!ativos.length) return "";
+  return `<div class="ativos"><div class="row"><h3 class="grow">Efeitos no mapa (${ativos.length})</h3><button type="button" class="mini danger" id="endall">Encerrar todos</button></div>
+    <div class="mlist">${ativos.map((e) => `<div class="mrow"><span class="mname" title="${esc(e.nome)}">${esc(e.nome)}${e.by ? ` <small>· ${esc(e.by)}</small>` : ""}</span><span class="tag" data-left="${e.id}">${leftText(e)}</span><button type="button" class="mini" data-end="${e.id}" title="Encerrar este efeito">✕</button></div>`).join("")}</div></div>`;
+}
+function bindAtivos() {
+  $("endall")?.addEventListener("click", () => endAtivos(() => true));
+  for (const b of document.querySelectorAll("[data-end]")) b.addEventListener("click", () => endAtivos((e) => e.id === b.dataset.end));
+}
+/** Duração do efeito: uma vez, por N segundos ou até encerrar. */
+function durHtml(h) {
+  const d = h.duracao;
+  const mode = !d ? "" : d === "fim" ? "fim" : "s";
+  return `<div class="row durrow"><span class="hint">Duração:</span><select data-durmode="${esc(h.nome)}">
+      <option value=""${mode === "" ? " selected" : ""}>uma vez</option><option value="s"${mode === "s" ? " selected" : ""}>por segundos (em loop)</option><option value="fim"${mode === "fim" ? " selected" : ""}>em loop até eu encerrar</option></select>
+      ${mode === "s" ? `<input type="number" data-dursec="${esc(h.nome)}" min="1" max="3600" step="1" value="${d}"> s` : ""}</div>`;
+}
 
 /** Lista dos visuais (vídeos JB2A) que o dossiê aceita, com prévia. */
 function listHtml() {
@@ -62,19 +84,21 @@ function render() {
   const npcs = items.filter((i) => dossieOf(i));
   const chips = npcs.length ? `<div class="chips">${npcs.map((n) => `<button type="button" class="chip${n.id === tok?.id ? " on" : ""}" data-tok="${n.id}">${esc(itemName(n))}</button>`).join("")}</div>` : "";
   if (!tok) {
-    box.innerHTML = `${chips}<p class="hint">Selecione o token de um NPC (ou botão direito nele → <b>Habilidades (dossiê)</b>) e cole o dossiê da ficha.</p>`;
+    box.innerHTML = `${ativosHtml()}${chips}<p class="hint">Selecione o token de um NPC (ou botão direito nele → <b>Habilidades (dossiê)</b>) e cole o dossiê da ficha.</p>`;
     bindChips();
+    bindAtivos();
     return;
   }
   const d = dossieOf(tok);
   if (!d) {
-    box.innerHTML = `${chips}<h2>${esc(itemName(tok))}</h2>
+    box.innerHTML = `${ativosHtml()}${chips}<h2>${esc(itemName(tok))}</h2>
       <p class="hint">Cole aqui o dossiê da ficha (o bloco <b>json</b> da PARTE 2 do prompt). Pode colar o bloco inteiro, com as crases.</p>
       <textarea id="raw" rows="8" placeholder='{ "dossie": 1, "nome": ... }'></textarea>
       <div class="btns"><button type="button" class="primary" id="save">Guardar no token</button></div>
       ${note ? `<p class="hint warn">${esc(note)}</p>` : ""}
       ${listHtml()}`;
     bindChips();
+    bindAtivos();
     bindList(null);
     $("save").addEventListener("click", () => doSave(tok.id));
     return;
@@ -88,7 +112,7 @@ function render() {
     return `<h3>${head}</h3>${list.map((h) => row(h, d, uso, tok)).join("")}`;
   }).join("");
   const lastBox = last && last.by === itemName(tok) ? `<div class="last"><b>${esc(last.nome)}</b>${last.forma !== "si" && last.forma !== "movimento" ? ` — ${last.caught?.length ? `pegou <b>${esc(last.caught.join(", "))}</b>` : "ninguém na área"}` : ""}${last.text ? `<small>${esc(last.text)}</small>` : ""}</div>` : "";
-  box.innerHTML = `${chips}
+  box.innerHTML = `${ativosHtml()}${chips}
     <div class="row"><h2 class="grow">${esc(d.nome)}</h2><span class="tag">ND ${esc(d.nd ?? "?")} · CA ${esc(d.ca ?? "?")} · PV ${esc(d.pv ?? "?")}</span></div>
     <div class="btns"><button type="button" id="round" title="Devolve as ações lendárias">↻ Nova rodada</button><button type="button" id="rest" title="Devolve recargas, 1/descanso e lendárias">☾ Descanso</button></div>
     ${lastBox}
@@ -101,7 +125,23 @@ function render() {
     ${listHtml()}
     <small class="keys">Você rola os dados: o painel mostra os números da ficha e quem ficou na área.</small>`;
   bindChips();
+  bindAtivos();
   bindList(tok);
+  for (const s of box.querySelectorAll("[data-durmode]")) s.addEventListener("change", async () => {
+    const v = s.value;
+    s.blur();
+    await setDuracaoOn(tok.id, s.dataset.durmode, v === "s" ? 10 : v || null);
+  });
+  for (const n of box.querySelectorAll("[data-dursec]")) n.addEventListener("change", async () => {
+    const v = Number(n.value);
+    n.blur();
+    await setDuracaoOn(tok.id, n.dataset.dursec, v > 0 ? v : 10);
+  });
+  for (const s of box.querySelectorAll("[data-giro]")) s.addEventListener("change", async () => {
+    const h = d.habilidades.find((x) => x.nome === s.dataset.giro);
+    s.blur();
+    if (h?.video?.url) await setVideoOn(tok.id, h.nome, { ...h.video, giro: Number(s.value) });
+  });
   for (const b of box.querySelectorAll("[data-vis]")) b.addEventListener("click", () => {
     const k = `${tok.id}\n${b.dataset.vis}`;
     editing = editing === k ? "" : k;
@@ -116,7 +156,7 @@ function render() {
     linkNote = "Conferindo o vídeo…"; b.blur(); render();
     try {
       const m = await probeVideo(u);
-      await setVideoOn(tok.id, nome, { url: u, tipo });
+      await setVideoOn(tok.id, nome, { url: u, tipo, giro: Number($("linkgiro")?.value || 0) });
       linkNote = `Link guardado (${m.w}×${m.h}, ${(m.dur / 1000).toFixed(1).replace(".", ",")} s).`;
     } catch (e) { linkNote = `Não guardei: ${e.message}.`; }
     render();
@@ -152,16 +192,18 @@ function row(h, d, uso, tok) {
   const open = editing === `${tok.id}\n${h.nome}`;
   const link = h.video?.url ? `<div class="linkbox"><small>Vídeo próprio (${esc(TIPOS_PROPRIOS.find(([k]) => k === h.video.tipo)?.[1] || h.video.tipo)}): <a href="${esc(h.video.url)}" target="_blank" rel="noopener">${esc(h.video.url.split("/").pop())}</a> — ele vence o visual da lista.</small>${videoTag(h.video.url)}<div class="btns"><button type="button" class="danger" data-linkdel="${esc(h.nome)}">Tirar link</button></div></div>` : "";
   const visEdit = open ? `<div class="visedit">${link}<select data-visset="${esc(h.nome)}"><option value="">(sem vídeo)</option>${GROUPS.map(([t, l]) => `<optgroup label="${esc(t)}">${l.map((v) => `<option value="${v}"${v === h.visual ? " selected" : ""}>${v}</option>`).join("")}</optgroup>`).join("")}</select>${h.visual && !h.video?.url ? video(h.visual) : ""}
+      ${durHtml(h)}
       <details class="linkform"><summary>Usar um vídeo próprio (link)</summary>
         <input type="text" id="linkurl" placeholder="https://…/meu-efeito.webm" value="${esc(h.video?.url || "")}">
         <div class="row"><select id="linktipo">${TIPOS_PROPRIOS.map(([k, t]) => `<option value="${k}"${(h.video?.tipo || "area") === k ? " selected" : ""}>${t}</option>`).join("")}</select><button type="button" class="primary" data-linkset="${esc(h.nome)}">Usar link</button></div>
-        <small>Link direto para um .webm (de preferência com fundo transparente). O tipo diz como ele é posto no mapa.</small>
+        <div class="row"><span class="hint">O vídeo aponta para:</span><select id="linkgiro" ${h.video?.url ? `data-giro="${esc(h.nome)}"` : ""}>${GIROS.map(([g, t]) => `<option value="${g}"${(h.video?.giro || 0) === g ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+        <small>Link direto para um .webm (de preferência com fundo transparente). O tipo diz como ele é posto no mapa. "Aponta para" é para onde o efeito vai dentro do vídeo (cone, linha e projétil giram a partir disso).</small>
       </details>${linkNote ? `<small class="${/^Não|Cole/.test(linkNote) ? "why" : ""}">${esc(linkNote)}</small>` : ""}</div>` : "";
   return `<div class="ab${armed ? " on" : ""}${can.ok ? "" : " off"}">
     <div class="row"><button type="button" class="mini go" data-go="${esc(h.nome)}" ${can.ok ? "" : "disabled"} title="${instant(h) ? "Usar agora" : "Mirar no mapa"}">${instant(h) ? "▶" : "🎯"}</button>
       <span class="grow name" title="${esc(h.texto || "")}">${esc(h.nome)}</span>${use}<span class="tag">${esc(shapeText(h) || "")}${cost}</span></div>
     ${n ? `<small>${esc(n)}</small>` : ""}${!can.ok ? `<small class="why">${esc(can.why)} ${back}</small>` : ""}
-    ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.video?.url ? "link próprio" : h.visual || "sem vídeo")}</button></div>${visEdit}`}${armedBox}</div>`;
+    ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.video?.url ? "link próprio" : h.visual || "sem vídeo")}${h.duracao ? ` · ⏱ ${esc(duracaoText(h.duracao))}` : ""}</button></div>${visEdit}`}${armedBox}</div>`;
 }
 
 function bindChips() {
@@ -208,10 +250,17 @@ OBR.onReady(async () => {
     const md = await OBR.player.getMetadata();
     aim = md[HAB_AIM] || {};
     last = md[HAB_LAST] || null;
+    ativos = listOf(await OBR.scene.getMetadata());
     render();
   };
   if (await OBR.scene.isReady()) await load();
   OBR.scene.onReadyChange((r) => r && load());
+  OBR.scene.onMetadataChange((md) => {
+    const n = listOf(md);
+    if (JSON.stringify(n) !== JSON.stringify(ativos)) { ativos = n; render(); }
+  });
+  // contagem regressiva dos efeitos com duração (só o texto, sem redesenhar o painel)
+  setInterval(() => { for (const el of document.querySelectorAll("[data-left]")) { const e = ativos.find((x) => x.id === el.dataset.left); if (e) el.textContent = leftText(e); } }, 1000);
   let tm = null;
   OBR.scene.items.onChange((its) => { items = its.filter((i) => i.type === "IMAGE"); clearTimeout(tm); tm = setTimeout(render, 80); });
   OBR.player.onChange((p) => {

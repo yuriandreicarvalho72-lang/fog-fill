@@ -1,9 +1,10 @@
 // Gera public/meus-efeitos/lista.json com os efeitos próprios do mestre (arquivos .webm na pasta meus-efeitos).
 // Pastas = tipo: alvo, area, em-si, projetil, linha, cone (arquivo solto na raiz = area). Nome do visual = "meu_" + nome do arquivo.
+// Gera também public/visuais.json (todos os visuais por grupo), que o painel dos Gatilhos lê para sugerir os nomes.
 import { readdir, writeFile, mkdir } from "fs/promises";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { meuNome, TIPOS_PROPRIOS } from "../src/abil.js";
+import { meuNome, TIPOS_PROPRIOS, registerMeus, visualGroups } from "../src/abil.js";
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "meus-efeitos");
 const tipos = TIPOS_PROPRIOS.map(([k]) => k);
@@ -29,3 +30,5 @@ try {
 } catch (e) {
   console.warn("[meus-efeitos] sem lista:", e.message);
 }
+registerMeus(lista);
+await writeFile(join(DIR, "..", "visuais.json"), JSON.stringify({ grupos: visualGroups() }));

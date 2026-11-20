@@ -1,13 +1,14 @@
 // Habilidades em segundo plano: ferramenta própria (ícone na barra), mira, prévia e animação para todos.
 import OBR, { buildShape, buildPath, buildLabel } from "@owlbear-rodeo/sdk";
-import { CH_HAB, DOSSIE, buildAbility, shapeOf } from "./abil.js";
+import { CH_HAB, CH_FX, CH_FX_END, CH_HAB_USE, DOSSIE, buildAbility, shapeOf } from "./abil.js";
+import { setupAtivos, endByTag } from "./ativos.js";
 import { halfSize } from "./cover.js";
 import { loadMeus, prepareCustom } from "./meus.js";
 import { url, isToken, itemName } from "./shared.js";
-import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell } from "./hab-ops.js";
+import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger } from "./hab-ops.js";
 
-/** play(anim, base), base = pasta dos vídeos, has() = função "o vídeo está disponível" (ou null). */
-export async function setupHabilities({ play, base, has }) {
+/** play(anim, base), base = pasta dos vídeos, has() = função "o vídeo está disponível" (ou null), isLeader() = este é o mestre que executa pedidos. */
+export async function setupHabilities({ play, base, has, isLeader }) {
   let role = await OBR.player.getRole();
   OBR.player.onChange((p) => { role = p.role; });
 
@@ -20,6 +21,26 @@ export async function setupHabilities({ play, base, has }) {
     if (h) await prepareCustom(ev.ab, ev.subs); // vídeos próprios: tamanho e duração lidos do arquivo
     const anim = buildAbility(ev, h, (n) => ev.subs?.[n]);
     play(anim, base).catch(() => {});
+  });
+
+  // ---------- efeitos que ficam (duração) ----------
+  const ativos = await setupAtivos({ base, has, isLeader });
+
+  // ---------- pedidos do Gatilhos (só o mestre líder executa) ----------
+  const warn = (d, msg) => OBR.notification.show(`Arsenal${d?.origem ? ` (${d.origem})` : ""}: ${msg}`, "WARNING");
+  OBR.broadcast.onMessage(CH_FX, async (e) => {
+    if (!(await isLeader())) return;
+    const r = await playFx(e.data || {}).catch((err) => ({ error: err.message }));
+    if (r.error) warn(e.data, r.error);
+  });
+  OBR.broadcast.onMessage(CH_FX_END, async (e) => {
+    if (!(await isLeader())) return;
+    await endByTag(e.data?.tag || "").catch(() => {});
+  });
+  OBR.broadcast.onMessage(CH_HAB_USE, async (e) => {
+    if (!(await isLeader())) return;
+    const r = await useFromTrigger(e.data || {}).catch((err) => ({ error: err.message }));
+    if (r.error) warn(e.data, r.error);
   });
 
   // ---------- painel ----------
@@ -141,5 +162,5 @@ export async function setupHabilities({ play, base, has }) {
   });
   // o painel pede para usar (aura, si, passiva) pelo canal local
   OBR.broadcast.onMessage(`${HAB_TOOL}/usar`, () => fireNow());
-  return { fireNow, drawPreview, clearPreview: async () => { const ids = prevIds; prevIds = []; if (ids.length) await OBR.scene.local.deleteItems(ids).catch(() => {}); } };
+  return { ativos, fireNow, drawPreview, clearPreview: async () => { const ids = prevIds; prevIds = []; if (ids.length) await OBR.scene.local.deleteItems(ids).catch(() => {}); } };
 }

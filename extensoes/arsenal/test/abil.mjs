@@ -95,7 +95,7 @@ ok("com tamanho: toca no ponto, arquivo da pasta do site, mesmo fora do ok.json"
 ok("vídeos desligados (has = null): nada toca", buildAbility({ ab: cz, from, aim: { point: { x: 400, y: 0 } }, cell }, null).videos.length, 0);
 setDims("meu:meu_dardo", { w: 1600, h: 400, dur: 1000 });
 const dd = buildAbility({ ab: { ...H("Garras do Gânglio"), visual: "meu_dardo", impacto: "nenhum" }, from, aim: { targets: tg }, cell }, () => false).videos[0];
-ok("projétil próprio vai do NPC ao alvo", [dd.file, dd.rotation, Math.round(dd.dpi)], ["../meus-efeitos/projetil/dardo.webm", 0, Math.round(1200 / 1.7)]);
+ok("projétil próprio: o vídeo inteiro vai do NPC ao alvo (começo no NPC)", [dd.file, dd.rotation, Math.round(dd.dpi), dd.offset.x], ["../meus-efeitos/projetil/dardo.webm", 0, Math.round(1600 / 1.7), 0]);
 // link direto
 const L = "https://exemplo.com/efeitos/Fogo%20Azul.webm";
 const d3 = setVideo(d, "Vômito de Biomassa", { url: L, tipo: "cone" });
@@ -108,3 +108,40 @@ ok("cone com link: sai do NPC com o tamanho do cone", [cvl.file.startsWith("http
 ok("tirar o link", "video" in setVideo(d3, "Vômito de Biomassa", null).habilidades.find((h) => h.nome === "Vômito de Biomassa"), false);
 ok("link inválido dá erro", (() => { try { setVideo(d, "Vômito de Biomassa", { url: "c:/x.webm", tipo: "area" }); } catch (e) { return e.message.slice(0, 20); } })(), "o link precisa começ");
 ok("dossiê colado com video.url é aceito", normalize({ habilidades: [{ nome: "X", forma: "alvo", video: { url: L, tipo: "alvo" } }] }).dossie.habilidades[0].video, { url: L, tipo: "alvo" });
+
+// 1.7.0: direção, linha até o ponto, duração
+import { parseDuracao, setDuracao, duracaoText, giroOf } from "../src/abil.js";
+const coneAb = (vis, pt) => buildAbility({ ab: { nome: "C", forma: "cone", area: 6, visual: vis }, from, aim: { point: pt }, cell, selfHalf: 50 }, () => true);
+const down = { x: 0, y: 500 };
+const cf = coneAb("cone_fogo", down).videos[0], cn = coneAb("nuvem_veneno", down).videos[0], cr = coneAb("raio_energia", down).videos[0];
+ok("cone gira para onde aponta (cone, nuvem e raio)", [cf.rotation, cn.rotation, cr.rotation], [90, 90, 90]);
+ok("cone com visual de ponto: um só, no meio do cone", [coneAb("nuvem_veneno", down).videos.filter((v) => v.main).length, cn.position.x, Math.round(cn.position.y)], [1, 0, 50 + Math.round(400 * 0.55)]);
+const lin = (vis, pt) => buildAbility({ ab: { nome: "L", forma: "linha", area: 15, visual: vis }, from, aim: { point: pt }, cell, selfHalf: 50 }, () => true);
+const lp = lin("laminas", { x: 450, y: 0 });
+ok("linha com visual de ponto: um só, lançado até o ponto escolhido", [lp.videos.filter((v) => v.main).length, lp.videos[0].position, lp.videos[0].move.to, lp.videos[0].rotation], [1, { x: 50, y: 0 }, { x: 450, y: 0 }, 0]);
+const le = lin("linha_eletrica", { x: 450, y: 0 }).videos[0];
+ok("linha termina no ponto (não passa dele): 4 quadrados", [Math.round(le.dpi), le.rotation], [300, 0]);
+ok("linha não passa do comprimento da ficha (15 m = 10 quadrados)", Math.round(lin("linha_eletrica", { x: 5000, y: 0 }).videos[0].dpi), 120);
+ok("prévia/área da linha = até o ponto", Math.round(shapeOf({ forma: "linha", area: 15 }, from, { point: { x: 450, y: 0 } }, cell, 1.5, 50).len), 400);
+// vídeo próprio que aponta para cima
+const LU = "https://exemplo.com/cone-cima.webm";
+const up = { nome: "U", forma: "cone", area: 6, video: { url: LU, tipo: "cone", giro: 270 } };
+setDims(keyOf(up), { w: 400, h: 800, dur: 2000 });
+const uv = buildAbility({ ab: up, from, aim: { point: { x: 500, y: 0 } }, cell, selfHalf: 50 }, () => false).videos[0];
+ok("vídeo próprio que aponta para cima: gira e começa embaixo", [uv.rotation, uv.offset, Math.round(uv.dpi)], [-270, { x: 200, y: 800 }, 200]);
+ok("giro aceita só 0/90/180/270", [giroOf(-90), giroOf(450), giroOf("x")], [270, 90, 0]);
+ok("dossiê: aponta \"cima\" vira giro 270", normalize({ habilidades: [{ nome: "X", forma: "cone", video: { url: LU, tipo: "cone", aponta: "cima" } }] }).dossie.habilidades[0].video.giro, 270);
+// duração
+ok("duração: texto e números", [parseDuracao("até encerrar"), parseDuracao("30 s"), parseDuracao("2 min"), parseDuracao("uma vez"), parseDuracao(0), parseDuracao(12)], ["fim", 30, 120, null, null, 12]);
+ok("duração no dossiê e no texto", [normalize({ habilidades: [{ nome: "X", forma: "area", area: 3, duracao: "loop" }] }).dossie.habilidades[0].duracao, duracaoText("fim"), duracaoText(7.5)], ["fim", "até encerrar", "7,5 s"]);
+const dz = setDuracao({ habilidades: [{ nome: "N", forma: "area", area: 3, visual: "nuvem_veneno" }] }, "N", 20);
+const na = buildAbility({ ab: dz.habilidades[0], from, aim: { point: { x: 300, y: 0 } }, cell }, () => true);
+ok("com duração: o vídeo principal fica (persist) e sai da animação", [na.videos.length, na.persist.length, na.persist[0].loop, na.persist[0].position], [0, 1, true, { x: 300, y: 0 }]);
+ok("tirar a duração", "duracao" in setDuracao(dz, "N", null).habilidades[0], false);
+const lf = buildAbility({ ab: { nome: "L", forma: "linha", area: 15, visual: "laminas", duracao: "fim" }, from, aim: { point: { x: 450, y: 0 } }, cell, selfHalf: 50 }, () => true);
+ok("lançado com duração: faz o caminho e fica no ponto", [lf.videos.length, lf.videos[0].move.to, lf.persist[0].position, lf.persist[0].move], [1, { x: 450, y: 0 }, { x: 450, y: 0 }, undefined]);
+// efeito do Gatilhos (sem origem): fica em cima de cada alvo
+const fxg = buildAbility({ ab: { nome: "G", forma: "alvo", visual: "linha_fogo", tamanho: 2 }, semOrigem: true, from: { x: 300, y: 300 }, aim: { targets: [{ id: "a", at: { x: 300, y: 300 }, half: 50 }, { id: "b", at: { x: 600, y: 0 }, half: 50 }] }, cell }, () => true);
+ok("efeito sem origem: um em cada alvo, no tamanho pedido", [fxg.videos.length, fxg.videos.map((v) => v.position), Math.round(fxg.videos[0].dpi)], [2, [{ x: 300, y: 300 }, { x: 600, y: 0 }], 600]);
+const fxs = buildAbility({ ab: { nome: "G", forma: "alvo", visual: "linha_fogo" }, from: { x: 0, y: 0 }, aim: { targets: [{ id: "b", at: { x: 0, y: 600 }, half: 50 }] }, cell }, () => true).videos[0];
+ok("linha num alvo: o efeito inteiro sai do NPC e chega no alvo", [fxs.rotation, Math.round(fxs.dpi)], [90, Math.round(1200 / 5.7)]);

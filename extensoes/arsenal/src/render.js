@@ -95,6 +95,17 @@ export async function play(anim, baseUrl) {
       for (const x of del) { x.off = true; live.delete(x.item.id); }
       if (add.length) OBR.scene.local.addItems(add.map((x) => x.item)).catch(() => {});
       if (del.length) OBR.scene.local.deleteItems(del.map((x) => x.item.id)).catch(() => {});
+      // vídeos lançados (move): andam do começo até o ponto
+      const mv = vids.filter((x) => x.v.move && x.on && !x.off && !add.includes(x) && !x.arrived);
+      if (mv.length) {
+        const pos = new Map(mv.map((x) => {
+          const u = Math.min(1, Math.max(0, (t - x.v.t0) / x.v.move.t));
+          if (u >= 1) x.arrived = true;
+          const a = x.v.position, b = x.v.move.to;
+          return [x.item.id, { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }];
+        }));
+        OBR.scene.local.updateItems([...pos.keys()], (d) => { for (const it of d) it.position = pos.get(it.id); }).catch(() => {});
+      }
       // elementos desenhados
       const changed = [];
       els.forEach((el, i) => {
