@@ -7,6 +7,12 @@ export const DOSSIE = "arsenal/dossie";   // metadado do token: dossiê normaliz
 export const HAB_USO = "arsenal/hab-uso"; // metadado do token: { used: { nome: true }, leg: N, covil: "nome" }
 export const CH_HAB = "arsenal/habilidade"; // todos: { token, at, ab, aim, seed, cell } -> cada um toca a animação
 
+// Segunda fonte de vídeos: Boss Loot FX (pacote gratuito), arquivos com o prefixo "BLFX/" (baixados para public/jb2a/BLFX/).
+export const BLFX_REPO = "boss-loot/boss-loot-assets-free";
+export const BLFX_COMMIT = "ce4f413b4ee62e019433005b29bd860c7e77a678";
+export const BLFX_CREDIT = "Animações: Boss Loot FX Assets (Boss Loot Team), licença própria com atribuição";
+export const BLFX_LICENSE = `https://github.com/${BLFX_REPO}/blob/${BLFX_COMMIT}/LICENSE`;
+
 export const SECOES = [["acao", "Ações"], ["bonus", "Ações bônus"], ["reacao", "Reações"], ["lendaria", "Ações lendárias"], ["covil", "Ações de covil"], ["passiva", "Passivas"]];
 const FORMAS = ["alvo", "cone", "linha", "area", "aura", "si", "movimento"];
 
@@ -114,6 +120,27 @@ export const ABIL_LIB = {
   respingo_agua: { type: "target", file: "Generic/Liquid/LiquidSplash01_Regular_Blue_400x400.webm", w: 400, h: 400, dur: 3542, size: 1.6 },
   cartas: { type: "ranged", hit: 0.6, v: { 15: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_15ft_1000x400.webm", w: 1000, h: 400, dur: 2200 }, 30: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_30ft_1600x400.webm", w: 1600, h: 400, dur: 2200 }, 60: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_60ft_2800x400.webm", w: 2800, h: 400, dur: 2700 }, 90: { file: "Generic/RangedSpell/Card/ProjectileCard01_01_Regular_Blue_90ft_4000x400.webm", w: 4000, h: 400, dur: 3233 } } },
   bola_neve: { type: "ranged", hit: 0.6, v: { 5: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_05ft_600x500.webm", w: 600, h: 500, dur: 2867 }, 15: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_15ft_1000x500.webm", w: 1000, h: 500, dur: 2867 }, 30: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_30ft_1600x500.webm", w: 1600, h: 500, dur: 2867 }, 60: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_60ft_2800x500.webm", w: 2800, h: 500, dur: 3367 }, 90: { file: "Generic/Weapon_Attacks/Ranged/SnowballToss_01_Regular_White_90ft_4000x500.webm", w: 4000, h: 500, dur: 3567 } } },
+  // Boss Loot FX (BLFX, pacote gratuito; licença em BLFX_LICENSE) — 1.5.3
+  flecha_sangue: { type: "ranged", hit: 0.8, v: { 5: { file: "BLFX/01-weapon/arrow/Blood_Arrow_1_05ft_600x400.webm", w: 600, h: 400, dur: 533 }, 15: { file: "BLFX/01-weapon/arrow/Blood_Arrow_1_15ft_1000x400.webm", w: 1000, h: 400, dur: 533 }, 30: { file: "BLFX/01-weapon/arrow/Blood_Arrow_1_30ft_1600x400.webm", w: 1600, h: 400, dur: 700 }, 60: { file: "BLFX/01-weapon/arrow/Blood_Arrow_1_60ft_2800x400.webm", w: 2800, h: 400, dur: 867 }, 90: { file: "BLFX/01-weapon/arrow/Blood_Arrow_1_90ft_4000x400.webm", w: 4000, h: 400, dur: 1033 } } },
+  flecha_arcana: { type: "ranged", hit: 0.8, v: { 5: { file: "BLFX/05-spell/homebrew/arcane/arrow/Arrow_Arcane_Shot_Blue_1_05ft_600x400.webm", w: 600, h: 400, dur: 533 }, 15: { file: "BLFX/05-spell/homebrew/arcane/arrow/Arrow_Arcane_Shot_Blue_1_15ft_1000x400.webm", w: 1000, h: 400, dur: 533 }, 30: { file: "BLFX/05-spell/homebrew/arcane/arrow/Arrow_Arcane_Shot_Blue_1_30ft_1600x400.webm", w: 1600, h: 400, dur: 700 }, 60: { file: "BLFX/05-spell/homebrew/arcane/arrow/Arrow_Arcane_Shot_Blue_1_60ft_2800x400.webm", w: 2800, h: 400, dur: 867 }, 90: { file: "BLFX/05-spell/homebrew/arcane/arrow/Arrow_Arcane_Shot_Blue_1_90ft_4000x400.webm", w: 4000, h: 400, dur: 1033 } } },
+  lanca: { type: "ranged", hit: 0.45, v: { 15: { file: "BLFX/01-weapon/spear/Flintfang_Spear_RANGE_15ft_1000x400.webm", w: 1000, h: 400, dur: 2133 }, 30: { file: "BLFX/01-weapon/spear/Flintfang_Spear_RANGE_30ft_1600x400.webm", w: 1600, h: 400, dur: 2133 }, 60: { file: "BLFX/01-weapon/spear/Flintfang_Spear_RANGE_60ft_2800x400.webm", w: 2800, h: 400, dur: 2133 }, 90: { file: "BLFX/01-weapon/spear/Flintfang_Spear_RANGE_90ft_4000x400.webm", w: 4000, h: 400, dur: 2267 } } },
+  rajada_ar: { type: "ranged", hit: 0.5, v: { 5: { file: "BLFX/05-spell/homebrew/air/Dust_1_Burst_1_Snipe_1_WHITE_RANGE_05ft_600x400.webm", w: 600, h: 400, dur: 1400 }, 15: { file: "BLFX/05-spell/homebrew/air/Dust_1_Burst_1_Snipe_1_WHITE_RANGE_15ft_1000x400.webm", w: 1000, h: 400, dur: 1400 }, 30: { file: "BLFX/05-spell/homebrew/air/Dust_1_Burst_1_Snipe_1_WHITE_RANGE_30ft_1600x400.webm", w: 1600, h: 400, dur: 1400 }, 60: { file: "BLFX/05-spell/homebrew/air/Dust_1_Burst_1_Snipe_1_WHITE_RANGE_60ft_2800x400.webm", w: 2800, h: 400, dur: 1400 }, 90: { file: "BLFX/05-spell/homebrew/air/Dust_1_Burst_1_Snipe_1_WHITE_RANGE_90ft_4000x400.webm", w: 4000, h: 400, dur: 1400 } } },
+  raio_hipnotico: { type: "ranged", hit: 0.6, v: { 5: { file: "BLFX/05-spell/homebrew/hypnotic/Range_Intro_Beam_Hypnotic_Purple_01_05ft_600x400.webm", w: 600, h: 400, dur: 1000 }, 15: { file: "BLFX/05-spell/homebrew/hypnotic/Range_Intro_Beam_Hypnotic_Purple_01_15ft_1000x400.webm", w: 1000, h: 400, dur: 1000 }, 30: { file: "BLFX/05-spell/homebrew/hypnotic/Range_Intro_Beam_Hypnotic_Purple_01_30ft_1600x400.webm", w: 1600, h: 400, dur: 1000 }, 60: { file: "BLFX/05-spell/homebrew/hypnotic/Range_Intro_Beam_Hypnotic_Purple_01_60ft_2800x400.webm", w: 2800, h: 400, dur: 1000 }, 90: { file: "BLFX/05-spell/homebrew/hypnotic/Range_Intro_Beam_Hypnotic_Purple_01_90ft_4000x400.webm", w: 4000, h: 400, dur: 1000 } } },
+  espiral_hipnotica: { type: "area", file: "BLFX/05-spell/homebrew/hypnotic/Spiral_Hypnotic_Purple_01_1200x1200.webm", w: 1200, h: 1200, dur: 3000 },
+  tornado_fogo: { type: "area", file: "BLFX/05-spell/homebrew/fire/Tornado_1_Fire_Spin_Clockwise_CARTOON_LOOP_1200x1200.webm", w: 1200, h: 1200, dur: 2500 },
+  chao_chamas: { type: "area", file: "BLFX/05-spell/homebrew/fire/GroundFlames_1_ORANGE_LOOP_1200x1200.webm", w: 1200, h: 1200, dur: 3033 },
+  explosao_arcana: { type: "area", file: "BLFX/05-spell/homebrew/impact/Explosion_2_Radial_PURPLE_1200x1200.webm", w: 1200, h: 1200, dur: 1000 },
+  explosao_sangue: { type: "area", file: "BLFX/05-spell/homebrew/shock/Blood_1_Splatter_1_1200x1200.webm", w: 1200, h: 1200, dur: 1867 },
+  cratera: { type: "area", file: "BLFX/05-spell/homebrew/shock/Hole_1_Dust_1_1200x1200.webm", w: 1200, h: 1200, dur: 3033 },
+  sinalizador: { type: "area", file: "BLFX/08-misc/flare/Flare_1_RED_1_1200x1200.webm", w: 1200, h: 1200, dur: 1000 },
+  laminas_mecanicas: { type: "area", file: "BLFX/07-steampunk/clock/Clockwork_Blades_1_1200x1200.webm", w: 1200, h: 1200, dur: 2042 },
+  mao_arcana: { type: "target", file: "BLFX/05-spell/homebrew/arcane/arm/Hand_1_Push_1_BLUE_1200x1200.webm", w: 1200, h: 1200, dur: 1700, size: 2.2 },
+  moeda: { type: "target", file: "BLFX/02-equipment/coin/Coin_1_Flip_Front_GOLD_1200x1200.webm", w: 1200, h: 1200, dur: 5033, size: 3 },
+  escudo_fogo: { type: "self", file: "BLFX/05-spell/homebrew/fire/FlameShield_1_ORANGE_LOOP_1200x1200.webm", w: 1200, h: 1200, dur: 633, size: 2.4 },
+  engrenagens: { type: "self", file: "BLFX/07-steampunk/clock/Clockwork_Gears_1_1200x1200.webm", w: 1200, h: 1200, dur: 2042, size: 2.4 },
+  corrente_puxao: { type: "line", file: "BLFX/02-equipment/chain/Chain_1_Line_1_METAL_1200x100.webm", w: 1020, h: 85, dur: 4000, ox: 0, span: 1020 },
+  fenda_linha: { type: "line", file: "BLFX/05-spell/homebrew/shock/Crack_1_LINE_1_ORANGE_1200x800.webm", w: 1200, h: 800, dur: 4033, ox: 0, span: 1200 },
+  muro_fogo: { type: "line", file: "BLFX/05-spell/level4/wallOfFire/Firewall_1_CARTOON_ORANGE_LOOP_1200x600.webm", w: 1200, h: 600, dur: 2800, ox: 0, span: 1200 },
 };
 Object.assign(LIB, Object.fromEntries(Object.entries(ABIL_LIB).map(([k, v]) => [`hab_${k}`, v])));
 // visuais que já existiam no Arsenal
