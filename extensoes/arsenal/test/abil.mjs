@@ -5,7 +5,7 @@ const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "
 const raw = readFileSync(new URL("./saciado.json", import.meta.url), "utf8");
 
 // a lista de visuais do prompt (PARTE 2) é exatamente a da extensão
-const PROMPT = "garra mordida soco arma_corte arma_impacto arma_perfuracao pinca bala flecha projetil_fogo raio_gelo raio_energia raio_eletrico raio_luz raio_sombra misseis esfera arremesso cone_fogo cone_gelo cone_acido cone_veneno cone_eletrico cone_vento linha_eletrica linha_fogo linha_energia explosao_fogo explosao onda_choque estilhaco tempestade_raios chuva_gelo nevoa escuridao teia vinhas lodo laminas coluna_luz fenda_chao aura_espiritos aura_tentaculos aura_sombra aura_fogo aura_eletrica rugido giro cura escudo bencao marca_alvo golpe_divino teleporte fumaca transformacao regeneracao morcegos investida salto rastro borboletas revoada_borboletas borboletas_laranja petalas folhas rajada_folhas penas fadas vagalumes plantas espinhos sangue jorro_sangue sangramento chuva_sangue coracoes encanto caveira caveiras medo marca_veneno nuvem_veneno atordoado correntes musica notas_musicais olhos vortice portal circulo_magico runas poder bolha fogos_artificio lava espinhos_gelo respingo_agua cartas bola_neve".split(" ");
+const PROMPT = "garra mordida soco arma_corte arma_impacto arma_perfuracao pinca bala flecha projetil_fogo raio_gelo raio_energia raio_eletrico raio_luz raio_sombra misseis esfera arremesso cone_fogo cone_gelo cone_acido cone_veneno cone_eletrico cone_vento linha_eletrica linha_fogo linha_energia explosao_fogo explosao onda_choque estilhaco tempestade_raios chuva_gelo nevoa escuridao teia vinhas lodo laminas coluna_luz fenda_chao aura_espiritos aura_tentaculos aura_sombra aura_fogo aura_eletrica rugido giro cura escudo bencao marca_alvo golpe_divino teleporte fumaca transformacao regeneracao morcegos investida salto rastro borboletas revoada_borboletas borboletas_laranja petalas folhas rajada_folhas penas fadas vagalumes plantas espinhos sangue jorro_sangue sangramento chuva_sangue coracoes encanto caveira caveiras medo marca_veneno nuvem_veneno atordoado correntes musica notas_musicais olhos vortice portal circulo_magico runas poder bolha fogos_artificio lava espinhos_gelo respingo_agua cartas bola_neve flecha_sangue flecha_arcana lanca rajada_ar raio_hipnotico espiral_hipnotica tornado_fogo chao_chamas explosao_arcana explosao_sangue cratera sinalizador laminas_mecanicas mao_arcana moeda escudo_fogo engrenagens corrente_puxao fenda_linha muro_fogo".split(" ");
 ok("visuais do prompt = visuais da extensão", [PROMPT.filter((v) => !VISUAIS.includes(v)), VISUAIS.filter((v) => !PROMPT.includes(v))], [[], []]);
 ok("vídeos das habilidades entram no download", abilFiles().every((f) => allFiles().includes(f)), true);
 
@@ -67,10 +67,16 @@ const trocado = buildAbility({ ab: d2.habilidades.find((h) => h.nome === "Vômit
 ok("o vídeo novo é o que toca", trocado.videos[0].file.includes("Fire01"), true);
 
 // 1.5.2: visuais novos (borboletas, pétalas, sangue...)
-ok("100 visuais", VISUAIS.length, 100);
+ok("100 visuais (+20 do BLFX)", VISUAIS.length, 120);
 const jorro = buildAbility({ ab: { ...H("Garras do Gânglio"), visual: "jorro_sangue", impacto: "nenhum" }, from, aim: { targets: tg }, cell }, () => true);
 ok("jorro de sangue sai do alvo na direção do golpe", [jorro.videos[0].rotation, jorro.videos[0].offset.x, jorro.videos[0].position], [0, 72, { x: 200, y: 0 }]);
 const pet = buildAbility({ ab: { nome: "P", forma: "area", area: 3, alcance: 9, visual: "petalas" }, from, aim: { point: { x: 400, y: 0 } }, cell }, () => true);
 ok("pétalas numa área de 3 m (raio 2 quadrados)", [pet.videos[0].file.includes("Pink"), pet.videos[0].position, Math.round(pet.videos[0].dpi)], [true, { x: 400, y: 0 }, 100]);
 const cartas = buildAbility({ ab: { ...H("Garras do Gânglio"), visual: "cartas", impacto: "nenhum" }, from, aim: { targets: [{ id: "x", at: { x: 600, y: 0 }, half: 50 }] }, cell }, () => true);
 ok("cartas: projétil de 6 quadrados usa o vídeo de 30 ft", cartas.videos[0].file.includes("_30ft_"), true);
+
+// 1.5.3: Boss Loot FX (BLFX): segunda fonte de vídeos, baixada para jb2a/BLFX/
+const blfx = abilFiles().filter((f) => f.startsWith("BLFX/"));
+ok("BLFX: 39 vídeos, todos com caminho da pasta artwork", [blfx.length, blfx.every((f) => /^BLFX\/0\d-/.test(f))], [39, true]);
+const muro = buildAbility({ ab: { nome: "M", forma: "linha", area: 9, visual: "muro_fogo" }, from, aim: { point: { x: 0, y: 900 } }, cell, selfHalf: 50 }, () => true);
+ok("muro de fogo estica na linha (9 m = 6 quadrados, para baixo)", [muro.videos[0].rotation, Math.round(muro.videos[0].dpi), muro.videos[0].position], [90, 200, { x: 0, y: 50 }]);

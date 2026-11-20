@@ -1,7 +1,7 @@
 // Painel das Habilidades (ícone próprio na barra; só o mestre): dossiê do NPC, mira e contadores.
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";
-import { SECOES, VISUAIS, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
+import { SECOES, VISUAIS, BLFX_LICENSE, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
 import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
 import { itemName, isToken, applyTheme, url } from "./shared.js";
 
@@ -25,6 +25,7 @@ function listHtml() {
     <p class="hint">Clique num nome para ver a prévia. Com o 🎨 de uma habilidade aberto, o clique troca o visual dela. São os nomes do campo <b>visual</b> do dossiê.</p>
     ${preview ? `<div class="prev"><b>${esc(preview)}</b>${video(preview)}</div>` : ""}
     ${GROUPS.map(([t, l]) => `<h4>${esc(t)}</h4><div class="chips">${l.map((v) => `<button type="button" class="chip${v === preview ? " on" : ""}" data-prev="${v}">${v}</button>`).join("")}</div>`).join("")}
+    <p class="credit">Animações: JB2A (jb2a.com), <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a> · Boss Loot FX Assets, Boss Loot Team (<a href="${esc(BLFX_LICENSE)}" target="_blank" rel="noopener">licença</a>)</p>
   </details>`;
 }
 function bindList(tok) {

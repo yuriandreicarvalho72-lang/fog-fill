@@ -39,7 +39,8 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
   d6 da ficha sair), 1/descanso, ações lendárias por rodada (com custo), aviso de ação de covil repetida; botões Nova rodada e Descanso.
   Ataque Múltiplo encadeia os ataques de `faz`. **🎨** em cada habilidade troca o visual (vídeo JB2A), com prévia; a lista **Visuais disponíveis**
   no painel mostra todos, por grupo (clique = prévia; com o 🎨 aberto, o clique troca). Dados: `metadata["arsenal/dossie"]` e `metadata["arsenal/hab-uso"]` no token;
-  canal `arsenal/habilidade` (todos tocam a animação). Os 100 visuais aceitos estão em `src/abil.js` (`VISUAIS`), iguais aos do prompt (borboletas, pétalas, sangue, corações, correntes, vórtice...).
+  canal `arsenal/habilidade` (todos tocam a animação). Os 120 visuais aceitos estão em `src/abil.js` (`VISUAIS`), iguais aos do prompt (borboletas, pétalas, sangue, corações, correntes, vórtice...;
+  20 deles vêm do Boss Loot FX: flecha de sangue, lança, tornado de fogo, muro de fogo, engrenagens, sinalizador...).
 - **Otimizador**: se o jogador escolher um perfil na extensão Otimizador, o Arsenal obedece neste navegador (Leve e Apresentação
   desligam os vídeos JB2A e as cápsulas e baixam a intensidade do efeito desenhado). "Limpar sobras" apaga efeitos e miras que ficaram.
 - Jogadores: o mestre dá armas ao token e escolhe "Jogador que usa este token". O jogador vê só os tokens dele.
@@ -60,7 +61,12 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 Animações: **JB2A** — https://jb2a.com — pacote gratuito, licença
 [Creative Commons Atribuição-NãoComercial-CompartilhaIgual 4.0 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
-Os vídeos não estão neste repositório: o build (`npm run build`) baixa os 202 arquivos usados (armas e habilidades), sem alteração, do
-repositório oficial (https://github.com/Jules-Bens-Aa/JB2A_DnD5e, commit fixo em `src/jb2a.js`) para `public/jb2a/`,
+Animações das habilidades com o prefixo `BLFX/`: **Boss Loot FX Assets** (Boss Loot Team) — pacote gratuito
+https://github.com/boss-loot/boss-loot-assets-free — [licença](https://github.com/boss-loot/boss-loot-assets-free/blob/ce4f413b4ee62e019433005b29bd860c7e77a678/LICENSE)
+(uso, cópia e distribuição com crédito). Os vídeos não foram alterados.
+
+Os vídeos não estão neste repositório: o build (`npm run build`) baixa os 241 arquivos usados (armas e habilidades), sem alteração, dos
+repositórios oficiais (JB2A: https://github.com/Jules-Bens-Aa/JB2A_DnD5e, commit fixo em `src/jb2a.js`; Boss Loot FX: commit fixo em `src/abil.js`)
+para `public/jb2a/`,
 e eles são publicados junto com a extensão. Uso não comercial; o crédito aparece no painel da extensão.
 Se o download falhar, o build continua e o Arsenal usa os efeitos desenhados.
