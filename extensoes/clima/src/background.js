@@ -2,11 +2,15 @@
 import OBR, { buildEffect } from "@owlbear-rodeo/sdk";
 import { buildSksl, buildUniforms } from "./shaders.js";
 import { ID, LAYERS, FLASH, EFFECT_META, url } from "./shared.js";
+import { readPerf, onPerf, onClean } from "./perf.js";
 
 let cell = 150;
 const live = new Map(); // chave "itemId/camadaId" -> { effectId, sig, type }
 let busy = false, again = false;
 let flash = 0;
+let perf = null; // perfil do Otimizador neste navegador (null = sem perfil)
+/** A camada como este navegador desenha: o Otimizador pode baixar a densidade. */
+const view = (layer) => (perf?.clima ? { ...layer, density: (layer.density ?? 1) * perf.clima.density } : layer);
 
 const key = (item, layer) => `${item.id}/${layer.id}`;
 function placement(item, layer) {
@@ -14,7 +18,7 @@ function placement(item, layer) {
   if (item.layer === "FOG") return { layer: "FOG", z: item.zIndex + 1 };
   return layer.above === false ? { layer: "DRAWING", z: 0 } : { layer: "RULER", z: 0 };
 }
-const sigOf = (item, layer) => JSON.stringify([layer, item.visible, item.layer, item.zIndex, cell]);
+const sigOf = (item, layer) => JSON.stringify([view(layer), item.visible, item.layer, item.zIndex, cell]);
 
 function buildFor(item, layer) {
   const pl = placement(item, layer);
@@ -24,7 +28,7 @@ function buildFor(item, layer) {
     .position(item.position)
     .rotation(item.rotation)
     .sksl(buildSksl(layer.type))
-    .uniforms(buildUniforms(layer, cell, layer.type === "storm" ? flash : 0))
+    .uniforms(buildUniforms(view(layer), cell, layer.type === "storm" ? flash : 0))
     .layer(pl.layer)
     .zIndex(pl.z)
     .visible(item.visible !== false && layer.on !== false)
@@ -45,7 +49,16 @@ async function reconcile() {
       again = false;
       const items = await OBR.scene.items.getItems((i) => Array.isArray(i.metadata?.[LAYERS]) && i.metadata[LAYERS].length);
       const wanted = new Map();
-      for (const it of items) for (const l of it.metadata[LAYERS]) wanted.set(key(it, l), { it, l });
+      // Otimizador: clima desligado, ou só as primeiras N camadas ligadas de cada mapa/zona
+      const max = perf?.clima ? (perf.clima.on === false ? 0 : perf.clima.maxLayers) : Infinity;
+      for (const it of items) {
+        let n = 0;
+        for (const l of it.metadata[LAYERS]) {
+          if (l.on !== false && n++ >= max) continue;
+          if (l.on === false && max === 0) continue;
+          wanted.set(key(it, l), { it, l });
+        }
+      }
       const add = [], del = [], upd = new Map();
       for (const [k, v] of live) if (!wanted.has(k)) { del.push(v.effectId); live.delete(k); }
       for (const [k, { it, l }] of wanted) {
@@ -68,7 +81,7 @@ async function reconcile() {
             const { it, l, typeChanged } = upd.get(e.id);
             const pl = placement(it, l);
             if (typeChanged) e.sksl = buildSksl(l.type);
-            e.uniforms = buildUniforms(l, cell, l.type === "storm" ? flash : 0);
+            e.uniforms = buildUniforms(view(l), cell, l.type === "storm" ? flash : 0);
             e.layer = pl.layer;
             e.zIndex = pl.z;
             e.visible = it.visible !== false && l.on !== false;
@@ -92,6 +105,7 @@ async function clearAll() {
 // relâmpago: um clarão forte, uma piscada e o apagar, em todos os efeitos de tempestade deste jogador
 let flashTimer = null;
 function lightning() {
+  if (perf?.clima?.lightning === false) return;
   const t0 = performance.now();
   const curve = (ms) => {
     if (ms < 90) return 1;
@@ -139,6 +153,9 @@ OBR.onReady(async () => {
     await clearAll();
     await reconcile();
   };
+  perf = readPerf();
+  onPerf((p) => { perf = p; reconcile(); });
+  onClean(() => start());
   if (await OBR.scene.isReady()) await start();
   OBR.scene.onReadyChange((r) => { if (r) start(); else live.clear(); });
   OBR.scene.items.onChange(() => reconcile());
