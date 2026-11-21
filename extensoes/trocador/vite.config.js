@@ -11,7 +11,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Trocador",
-        version: "1.0.1",
+        version: "1.0.2",
         manifest_version: 1,
         author: "Yuri",
         description: "Troca a arte de tokens e objetos entre imagens guardadas neles. Integra com Gatilhos e Estados.",

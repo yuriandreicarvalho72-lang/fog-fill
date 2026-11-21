@@ -1,3 +1,4 @@
+import "./compact.js";
 // Painel dos Estados (mestre): grupos, estados, membros e botões no mapa.
 import OBR from "@owlbear-rodeo/sdk";
 import { PROPS, capture, FLOOR, isBuilding, floorName } from "./core.js";

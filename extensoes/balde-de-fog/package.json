@@ -1,6 +1,6 @@
 {
   "name": "fog-fill",
-  "version": "1.2.0",
+  "version": "1.4.2",
   "description": "Balde de Fog: extensão do Owlbear Rodeo que preenche áreas do mapa com fog por cor.",
   "type": "module",
   "scripts": {

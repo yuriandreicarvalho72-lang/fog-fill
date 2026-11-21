@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Régua",
-        version: "1.5.0",
+        version: "1.5.1",
         manifest_version: 1,
         author: "Yuri",
         description: "Régua no estilo Roll20: mover token por pontos, medir, áreas de D&D, terreno difícil, visão e cobertura.",

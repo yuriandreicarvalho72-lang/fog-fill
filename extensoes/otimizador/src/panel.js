@@ -1,3 +1,4 @@
+import "./compact.js";
 // Painel do Otimizador: perfil de desempenho deste navegador, limpar sobras e diagnóstico da cena.
 import OBR from "@owlbear-rodeo/sdk";
 import { LEVELS, LEVEL_LIST, CH_CLEAN, readRaw, readPerf, writePerf, onPerf } from "./perf.js";

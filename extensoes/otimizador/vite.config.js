@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Otimizador",
-        version: "1.0.0",
+        version: "1.0.1",
         manifest_version: 1,
         author: "Yuri",
         description: "Deixa as nossas extensões mais leves no seu computador (perfis Leve/Equilibrado/Máximo) e mostra o que pesa na cena.",

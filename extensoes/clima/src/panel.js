@@ -1,3 +1,4 @@
+import "./compact.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { TYPES } from "./shaders.js";
 import { LAYERS, FLASH, applyTheme } from "./shared.js";

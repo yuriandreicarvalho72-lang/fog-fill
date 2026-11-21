@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Vigilância",
-        version: "1.1.1",
+        version: "1.1.2",
         manifest_version: 1,
         author: "Yuri",
         description: "Câmeras com cone de visão que as paredes bloqueiam e a camada RA da Matriz: deckers hackeiam, o mestre aprova.",

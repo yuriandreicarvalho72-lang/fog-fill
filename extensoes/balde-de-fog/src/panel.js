@@ -1,3 +1,4 @@
+import "./compact.js";
 import OBR, { isImage } from "@owlbear-rodeo/sdk";
 import { TOOL_ID, META, DEFAULTS, putMapFile, getMapFile, templateFromItem, loadSettings, saveSettings, cleanupLegacy, UNDO_CHANNEL } from "./shared.js";
 
