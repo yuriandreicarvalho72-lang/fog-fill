@@ -9,11 +9,11 @@
   <body>
     <main>
       <h1>Arsenal</h1>
-      <div id="shooter"></div>
-      <section id="destr" hidden></section>
-      <section id="weapons"></section>
-      <section id="fire"></section>
-      <section id="charges"></section>
+      <div id="shooter" data-pg="*"></div>
+      <section id="destr" data-pg="Principal" hidden></section>
+      <section id="weapons" data-pg="Principal"></section>
+      <section id="fire" data-pg="Principal"></section>
+      <section id="charges" data-pg="Principal"></section>
       <section>
         <h2>Adicionar arma</h2>
         <input type="text" id="q" placeholder="Buscar no catálogo (nome, categoria, apelido…)" />
@@ -23,7 +23,7 @@
           <div id="custom"></div>
         </details>
       </section>
-      <section>
+      <section data-pg="Aparência">
         <details>
           <summary>Aparência</summary>
           <div id="config"></div>

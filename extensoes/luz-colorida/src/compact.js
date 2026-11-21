@@ -36,19 +36,23 @@ const PRINCIPAL = "Principal";
 let active = null;
 const titleOf = (s) => (s.querySelector(":scope > h2:first-child")?.textContent || "").trim().slice(0, 40);
 const skip = (el, main) => el.tagName === "H1" || el.tagName === "SCRIPT" || el.tagName === "STYLE" || el.classList.contains("cdrawer") || el.classList.contains("cbg") || el === main.querySelector(":scope > h1 + .hint");
-const pageOf = (el) => (el.tagName === "SECTION" && titleOf(el)) || PRINCIPAL;
+// data-pg="Nome" no elemento força a página (ex.: listas dinâmicas que devem ficar juntas na Principal)
+const pageOf = (el) => el.dataset.pg || (el.tagName === "SECTION" && titleOf(el)) || PRINCIPAL;
 
 function enhance() {
   const main = document.querySelector("main");
   if (!main) return;
   const kids = [...main.children].filter((el) => !skip(el, main));
+  const fixos = kids.filter((el) => el.dataset.pg === "*"); // aparecem em todas as páginas
+  for (const el of fixos) el.classList.remove("pgoff");
   // páginas na ordem do documento; "Principal" só existe se tiver algo visível
   const pages = [];
   const vis = (el) => !el.hidden;
   for (const el of kids) {
+    if (el.dataset.pg === "*") continue;
     const p = pageOf(el);
     if (p === PRINCIPAL && !vis(el)) continue;
-    if (el.tagName === "SECTION" && p !== PRINCIPAL) el.classList.add("cz");
+    if (el.tagName === "SECTION" && p !== PRINCIPAL) el.classList.add("cz"); // (esconde o h2 repetido)
     if (!pages.includes(p)) pages.push(p);
   }
   if (!pages.length) return;
@@ -57,7 +61,7 @@ function enhance() {
     const saved = get("pagina");
     active = pages.includes(saved) ? saved : pages[0];
   }
-  for (const el of kids) el.classList.toggle("pgoff", pageOf(el) !== active);
+  for (const el of kids) if (el.dataset.pg !== "*") el.classList.toggle("pgoff", pageOf(el) !== active);
 
   const h1 = main.querySelector(":scope > h1");
   if (h1) {
@@ -103,6 +107,9 @@ function enhance() {
     list.appendChild(b);
   }
 }
+
+// outras partes do painel pedem uma página: document.dispatchEvent(new CustomEvent("menu:ir", { detail: "Principal" }))
+document.addEventListener("menu:ir", (e) => { if (e.detail) { active = e.detail; set("pagina", active); enhance(); } });
 
 const start = () => {
   enhance();

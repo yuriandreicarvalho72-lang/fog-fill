@@ -163,6 +163,7 @@ function renderSearch() {
     const w = weaponFrom(found[Number(b.dataset.add)]);
     await saveWeapons((l) => [...l, w]);
     await setActive({ weapon: w.id, mode: w.mode });
+    document.dispatchEvent(new CustomEvent("menu:ir", { detail: "Principal" })); // mostra a arma na lista
   });
 }
 
@@ -181,6 +182,7 @@ function renderCustom() {
     const w = weaponFrom({ n: $("cName").value.trim() || "Arma própria", c: "Própria", fx: $("cFx").value, m: m.length ? m : ["single"], mag, r: [Number($("cR1").value) || null, Number($("cR2").value) || null] });
     await saveWeapons((l) => [...l, w]);
     await setActive({ weapon: w.id, mode: w.mode });
+    document.dispatchEvent(new CustomEvent("menu:ir", { detail: "Principal" })); // mostra a arma na lista
   });
 }
 
