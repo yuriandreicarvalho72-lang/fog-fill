@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Clima",
-        version: "1.0.2",
+        version: "1.0.3",
         manifest_version: 1,
         author: "Yuri",
         description: "Climas animados em mapas e zonas: chuva, tempestade, neve, brasas, fumaça, gás, Matrix, pulso do chefe e mais.",

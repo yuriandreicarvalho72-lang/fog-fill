@@ -12,7 +12,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Balde de Fog",
-        version: "1.4.2",
+        version: "1.4.3",
         manifest_version: 1,
         author: "Yuri",
         description: "Clique numa área do mapa e ela é coberta de fog: um balde de tinta por cor, com paredes opcionais.",

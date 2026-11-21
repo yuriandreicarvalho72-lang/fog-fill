@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Tetos",
-        version: "1.0.2",
+        version: "1.0.3",
         manifest_version: 1,
         author: "Yuri",
         description: "Tetos que somem só para quem entra, sem usar a fog: a fog e a visão do Smoke & Spectre continuam por cima.",
