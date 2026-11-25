@@ -3,6 +3,19 @@
 <nav class="tipos" aria-label="Tipo de peça"><button data-type="PROP" aria-pressed="true">Props</button><button data-type="ATTACHMENT" aria-pressed="false">Attachments</button></nav>
 <section class="sources" aria-label="Adicionar peças"><button id="import" disabled>Da minha coleção</button><button id="upload" disabled>Do dispositivo</button><button id="scene-import" disabled>Da cena</button><input id="files" type="file" accept="image/*" multiple hidden></section>
 <label>Categoria <select id="filter"><option value="">Todas</option></select></label><ul id="list"></ul><button id="more" hidden>Mostrar mais</button><p id="empty"></p></section>
+<section><h2>Compêndio da campanha</h2>
+<label>Buscar <input id="entry-query" type="search" placeholder="Nome, categoria ou dono"></label>
+<button hidden id="entry-new">Novo item</button>
+<form hidden id="entry-form">
+<label>Arte do inventário <select name="art"></select></label>
+<label>Nome <input name="name" required maxlength="80"></label>
+<label>Tipo <select name="type"><option value="PROP">Prop</option><option value="ATTACHMENT">Attachment</option></select></label>
+<label>Categoria <select name="category"></select></label>
+<label>Descrição <textarea name="description" maxlength="1200"></textarea></label>
+<label>Propriedades <textarea name="properties" maxlength="600"></textarea></label>
+<label>Dono <input name="owner" maxlength="80"></label>
+<button type="button" id="entry-save">Salvar item</button> <button id="entry-cancel" type="button">Cancelar</button>
+</form><ul id="entries"></ul><p id="entry-empty"></p></section>
 <section><h2>Manipular peças</h2>
 <p>Selecione um Prop ou Attachment no mapa. Use as setas para ajustar a posição.</p>
 <label>Movimento <select id="step"><option value="grid">Encaixar na grade</option><option value="fine">Livre · ajuste fino</option></select></label>
@@ -13,4 +26,4 @@
 </section>
 <section><h2>Decorar em camadas</h2><p>Selecione uma peça no mapa e ajuste sua ordem entre as peças do mesmo tipo. Um tapete pode ficar atrás da mesa e uma caneca à frente.</p>
 <div class="actions"><button data-edit="back">Enviar para trás</button><button data-edit="front">Trazer para frente</button></div><button data-edit="undo">Desfazer última ação da cena</button>
-</section><p data-pg="*" id="status" role="status">Conectando ao Owlbear…</p></main><script type="module" src="./app.js?v=1.2.4"></script></html>
+</section><p data-pg="*" id="status" role="status">Conectando ao Owlbear…</p></main><script type="module" src="./app.js?v=1.3.0"></script></html>

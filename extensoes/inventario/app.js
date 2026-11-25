@@ -1,5 +1,6 @@
 import "./visibility.js";
 import "./compact.js";
+import {deleteButton, setupCompendium} from "./compendium.js";
 import {reason} from "./errors.js";
 import { setupEditing } from "./editing.js";
 import OBR, { buildImage, buildImageUpload } from "@owlbear-rodeo/sdk";
@@ -69,6 +70,7 @@ async function place(piece) {
   const position = await OBR.viewport.inverseTransformPoint({x:width/2, y:height/2});
   const builder = buildImage(piece.image,piece.grid).name(piece.name).layer(piece.type)
     .position(position).scale(piece.scale).rotation(piece.rotation);
+  if (piece.campaignId) builder.metadata({"fog-fill.inventario/origem":piece.campaignId});
   if (piece.type === "ATTACHMENT") {
     const selection = await OBR.player.getSelection();
     if (selection?.length !== 1) return status("Selecione um único objeto na cena para receber o Attachment.");
@@ -98,6 +100,17 @@ function render() {
     info.append(title,select);
     const add = document.createElement("button"); add.textContent = piece.type === "PROP" ? "Colocar" : "Anexar";
     action(add, () => place(piece));
+    if (piece.description) info.append(document.createTextNode(piece.description));
+    if (piece.properties) info.append(document.createTextNode("Propriedades: "+piece.properties));
+    if (piece.owner) info.append(document.createTextNode("Dono: "+piece.owner));
+    if (!piece.local && !piece.image?.url) add.hidden = true;
+    info.append(deleteButton(piece.name+" do inventário", action, async () => {
+      await transaction("readwrite",(pieces,tx) => {
+        pieces.delete(piece.key);
+        tx.objectStore("files").delete(piece.key);
+      },["pieces","files"]);
+      await reload(); status("Item excluído do inventário pessoal.");
+    }));
     li.append(img, info, add); list.append(li);
   }
   $("#empty").textContent = filtered.length ? "" : category ? "Nenhuma peça nesta categoria." : "Adicione peças da sua coleção ou do dispositivo.";
@@ -204,4 +217,12 @@ OBR.onReady(async () => {
     database = await openInventory(await OBR.player.getId());
     await reload(); $("#scene-import").disabled = false; $("#import").disabled = false; $("#upload").disabled = false; status("");
   } catch { status("O navegador não permitiu abrir o inventário local."); }
+  try {
+    await setupCompendium(OBR,{categories,action,status,inventory:()=>rows,take:async entry => {
+      const {asset,id,...details}=entry;
+      const key="campanha/"+OBR.room.id+"/"+id;
+      await transaction("readwrite",store=>store.put({...details,...asset,key,campaignId:id}));
+      await reload();
+    }});
+  } catch (error) { status("Falha ao carregar o compêndio. "+reason(error)); }
 });

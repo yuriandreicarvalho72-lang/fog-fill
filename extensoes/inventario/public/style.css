@@ -3,3 +3,5 @@
 .sources{display:flex;gap:8px;margin:0 0 12px}
 
 :root{--accent:#b99aff;--muted:#bbb5c7;background:#191920}h1{font-family:system-ui}.actions{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.cdrawer{margin:0}section p{line-height:1.45;color:var(--muted)}
+
+#entry-form label{display:grid;gap:3px;margin:7px 0}#entry-form textarea,#entry-form input,#entry-query{min-width:0;padding:6px;font:inherit}#entries p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}#entry-new{margin-top:8px}[hidden]{display:none!important}
