@@ -1,6 +1,6 @@
 {
   "name": "inventario",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "",
   "scripts": {
     "build": "mkdir -p dist && cp public/* dist/ && esbuild app.js --bundle --minify --outfile=dist/app.js"
