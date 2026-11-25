@@ -10,12 +10,13 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Clima",
-        version: "1.0.4",
+        version: "1.0.5",
         manifest_version: 1,
         author: "Yuri",
         description: "Climas animados em mapas e zonas: chuva, tempestade, neve, brasas, fumaça, gás, Matrix, pulso do chefe e mais.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
+        action: { title: "Clima", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 420, width: 320 },
       };
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });
     },

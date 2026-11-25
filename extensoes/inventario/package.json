@@ -1,9 +1,9 @@
 {
   "name": "inventario",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "",
   "scripts": {
-    "build": "mkdir -p dist && cp public/* dist/ && esbuild app.js background.js --bundle --minify --outdir=dist"
+    "build": "mkdir -p dist && cp public/* dist/ && esbuild app.js --bundle --minify --outfile=dist/app.js"
   },
   "keywords": [],
   "author": "",

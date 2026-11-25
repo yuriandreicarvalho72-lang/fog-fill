@@ -89,12 +89,7 @@ export function controlsFor(obr, id) {
   const action = registry(obr.tool,"createAction","removeAction");
   const context = registry(obr.contextMenu,"create","remove","context");
   const popover = windowApi(obr.popover);
-  const [name,width,height] = extensions[id];
-  const panelURL = new URL("index.html", location.href).href;
-  const openPanel = element => popover.open({
-    id:"fog-fill/"+id+"/painel", url:panelURL, width, height,
-    ...(element ? {anchorElementId:element} : {})
-  });
+  const openPanel = async () => { if (visible) await obr.action.open(); };
   const controls = {tool:{create:tool.add,createMode:mode.add,createAction:action.add},
     contextMenu:{create:context.add,remove:context.drop},popover,modal:windowApi(obr.modal),openPanel};
   instances.set(obr,controls);
@@ -102,6 +97,9 @@ export function controlsFor(obr, id) {
     observe(obr,(role,m) => {
       const next = role === "GM" || m[keyFor(id)] !== true;
       panelAccess(next);
+      if (!next && location.pathname.endsWith("/index.html") && extensions[id].length > 1) {
+        obr.action.close().catch(console.error);
+      }
       if (visible === next) return;
       visible = next;
       enqueue(async () => {
@@ -117,10 +115,7 @@ export function controlsFor(obr, id) {
         }
       });
     }).catch(console.error);
-    if (width && background) tool.add({
-      id:"fog-fill/"+id+"/abrir", icons:[{icon:new URL("icon.svg",panelURL).href,label:name}],
-      onClick:(_ctx,element) => { openPanel(element).catch(console.error); return false; }
-    });
+
   });
   return controls;
 }

@@ -10,14 +10,15 @@ const obr = {
   onReady:fn => fn(),
   player:{getRole:async () => role,onChange:fn => { roleChanged = fn; }},
   room:{getMetadata:async () => settings,onMetadataChange:fn => { roomChanged = fn; }},
-  tool:api(tools), contextMenu:api(menus),
+  action:{open:async () => {}}, tool:api(tools), contextMenu:api(menus),
   popover:{open:async spec => panels.set(spec.id,spec),close:async id => panels.delete(id)}
 };
 const controls = controlsFor(obr,"clima");
 await controls.contextMenu.create({id:"area",icons:[]});
 await settle();
-assert.equal(tools.size,1);
-await controls.openPanel();
+assert.equal(tools.size,0);
+await controls.tool.create({id:"original",icons:[]});
+await controls.popover.open({id:"contexto"});
 assert.equal(panels.size,1);
 roomChanged(settings = {[keyFor("clima")]:true});
 await settle();

@@ -12,12 +12,19 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Balde de Fog",
-        version: "1.4.4",
+        version: "1.4.5",
         manifest_version: 1,
         author: "Yuri",
         description: "Clique numa área do mapa e ela é coberta de fog: um balde de tinta por cor, com paredes opcionais.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
+        action: {
+          title: "Balde de Fog",
+          icon: `${BASE}icon.svg`,
+          popover: `${BASE}index.html`,
+          height: 640,
+          width: 320,
+        },
       };
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });
     },

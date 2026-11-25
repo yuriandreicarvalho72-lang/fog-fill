@@ -1,8 +1,14 @@
 {
   "name": "Inventário de mesa",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "manifest_version": 1,
   "description": "Props e Attachments organizados por categoria.",
-  "icon": "/fog-fill/inventario/icon.svg",
-  "background_url": "/fog-fill/inventario/background.html"
+  "action": {
+    "title": "Inventário de mesa",
+    "icon": "/fog-fill/inventario/icon.svg",
+    "popover": "/fog-fill/inventario/index.html",
+    "height": 510,
+    "width": 390
+  },
+  "icon": "/fog-fill/inventario/icon.svg"
 }

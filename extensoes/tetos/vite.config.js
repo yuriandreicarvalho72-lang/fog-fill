@@ -10,12 +10,13 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Tetos",
-        version: "1.0.4",
+        version: "1.0.5",
         manifest_version: 1,
         author: "Yuri",
         description: "Tetos que somem só para quem entra, sem usar a fog: a fog e a visão do Smoke & Spectre continuam por cima.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
+        action: { title: "Tetos", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 380, width: 320 },
       };
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });
     },
