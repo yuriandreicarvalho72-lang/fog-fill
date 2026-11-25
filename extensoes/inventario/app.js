@@ -1,3 +1,5 @@
+import "./compact.js";
+import { setupEditing } from "./editing.js";
 import OBR, { buildImage, buildImageUpload } from "@owlbear-rodeo/sdk";
 
 const $ = selector => document.querySelector(selector);
@@ -90,6 +92,10 @@ $("#more").onclick = () => { limit += pageSize; render(); };
 async function choosePieces(selectedLayer, search = "") {
   const assets = await OBR.assets.downloadImages(true, search, selectedLayer);
   if (!assets?.length) return status("Seleção encerrada. Use Da minha coleção para escolher peças.");
+  const count = await savePieces(assets);
+  status(count ? "Seleção salva. Cada peça aparece na aba do seu tipo." : "Escolha Props ou Attachments.");
+}
+async function savePieces(assets) {
   let count = 0;
   await transaction("readwrite", store => {
     for (const asset of assets) {
@@ -104,7 +110,7 @@ async function choosePieces(selectedLayer, search = "") {
     }
   });
   await reload();
-  status(count ? "Seleção salva. Cada peça aparece na aba do seu tipo." : "Escolha Props ou Attachments.");
+  return count;
 }
 action($("#import"), () => choosePieces(layer));
 
@@ -140,6 +146,7 @@ filesInput.onchange = async () => {
 };
 OBR.onReady(async () => {
   try {
+    setupEditing(OBR, savePieces, status);
     database = await openInventory(await OBR.player.getId());
     await reload(); $("#import").disabled = false; $("#upload").disabled = false; status("");
   } catch { status("O navegador não permitiu abrir o inventário local."); }
