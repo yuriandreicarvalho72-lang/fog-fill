@@ -1,7 +1,7 @@
 <!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventário de mesa</title><link rel="stylesheet" href="./style.css">
 <main><h1>Inventário de mesa</h1><section><h2>Inventário</h2>
 <nav class="tipos" aria-label="Tipo de peça"><button data-type="PROP" aria-pressed="true">Props</button><button data-type="ATTACHMENT" aria-pressed="false">Attachments</button></nav>
-<section class="sources" aria-label="Adicionar peças"><button id="import" disabled>Da minha coleção</button><button id="upload" disabled>Do dispositivo</button><input id="files" type="file" accept="image/*" multiple hidden></section>
+<section class="sources" aria-label="Adicionar peças"><button id="import" disabled>Da minha coleção</button><button id="upload" disabled>Do dispositivo</button><button id="scene-import" disabled>Da cena</button><input id="files" type="file" accept="image/*" multiple hidden></section>
 <label>Categoria <select id="filter"><option value="">Todas</option></select></label><ul id="list"></ul><button id="more" hidden>Mostrar mais</button><p id="empty"></p></section>
 <section><h2>Manipular peças</h2>
 <p>Selecione um Prop ou Attachment no mapa. Use as setas para ajustar a posição.</p>
@@ -13,4 +13,4 @@
 </section>
 <section><h2>Decorar em camadas</h2><p>Selecione uma peça no mapa e ajuste sua ordem entre as peças do mesmo tipo. Um tapete pode ficar atrás da mesa e uma caneca à frente.</p>
 <div class="actions"><button data-edit="back">Enviar para trás</button><button data-edit="front">Trazer para frente</button></div><button data-edit="undo">Desfazer última ação da cena</button>
-</section><p data-pg="*" id="status" role="status">Conectando ao Owlbear…</p></main><script type="module" src="./app.js"></script></html>
+</section><p data-pg="*" id="status" role="status">Conectando ao Owlbear…</p></main><script type="module" src="./app.js?v=1.2.3"></script></html>

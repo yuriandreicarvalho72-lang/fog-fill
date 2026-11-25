@@ -1,3 +1,4 @@
+import {reason} from "./errors.js";
 const direction = {left:[-1,0], right:[1,0], up:[0,-1], down:[0,1]};
 const supported = item => item.type === "IMAGE" && ["PROP","ATTACHMENT"].includes(item.layer);
 
@@ -19,7 +20,7 @@ export async function editPiece(obr, command, fine, savePieces) {
     throw Error("Você precisa da permissão do mestre para essa ação.");
   }
   if (command === "store") {
-    if ((await scene.items.getItemAttachments(ids)).length) throw Error("Separe os itens anexados antes de guardar a peça.");
+    if ((await scene.items.getItems(child => child.attachedTo === item.id)).length) throw Error("Separe os itens anexados antes de guardar a peça.");
     await savePieces([{...item, type:item.layer}]);
     await scene.items.deleteItems(ids);
     return item.name + " guardado no inventário.";
@@ -57,7 +58,7 @@ export function setupEditing(obr, savePieces, status) {
   for (const button of buttons) button.onclick = async () => {
     buttons.forEach(b => { b.disabled = true; });
     try { status(await editPiece(obr,button.dataset.edit,document.querySelector("#step").value === "fine",savePieces)); }
-    catch (e) { status(e.message || "Não foi possível editar a peça."); }
+    catch (e) { status(reason(e)); }
     finally { buttons.forEach(b => { b.disabled = false; }); }
   };
 }

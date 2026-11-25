@@ -1,4 +1,5 @@
 import "./compact.js";
+import {reason} from "./errors.js";
 import { setupEditing } from "./editing.js";
 import OBR, { buildImage, buildImageUpload } from "@owlbear-rodeo/sdk";
 
@@ -15,16 +16,19 @@ options($("#filter"));
 
 function openInventory(player) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("inventario-obr-" + player, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("pieces", {keyPath:"key"});
+    const request = indexedDB.open("inventario-obr-" + player, 2);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("pieces")) request.result.createObjectStore("pieces", {keyPath:"key"});
+      request.result.createObjectStore("files");
+    };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
-function transaction(mode, operation) {
+function transaction(mode, operation, stores = ["pieces"]) {
   return new Promise((resolve, reject) => {
-    const tx = database.transaction("pieces", mode);
-    const request = operation(tx.objectStore("pieces"));
+    const tx = database.transaction(stores, mode);
+    const request = operation(tx.objectStore(stores[0]), tx);
     tx.oncomplete = () => resolve(request?.result);
     tx.onabort = () => reject(tx.error);
   });
@@ -38,11 +42,27 @@ function action(button, callback) {
   button.onclick = async () => {
     button.disabled = true;
     try { await callback(); }
-    catch (e) { status("Não foi possível concluir. " + (e.message || "Tente novamente.")); }
+    catch (e) { status("Não foi possível concluir. " + reason(e)); }
     finally { button.disabled = false; }
   };
 }
 async function place(piece) {
+  if (piece.local) {
+    const file = await transaction("readonly", files => files.get(piece.key), ["files"]);
+    if (!file) throw Error("Arquivo local indisponível. Importe a imagem novamente.");
+    status("Escolha a pasta do Owlbear e depois selecione a mesma imagem para vinculá-la à peça.");
+    await OBR.assets.uploadImages([buildImageUpload(new File([await file.arrayBuffer()], file.name, {type:file.type})).build()], piece.type);
+    const [asset] = await OBR.assets.downloadImages(false, undefined, piece.type);
+    if (!asset) return status("A peça continua guardada. Você pode vinculá-la depois.");
+    if (asset.type !== piece.type || !asset.image?.url) throw Error("Escolha uma imagem do mesmo tipo da peça.");
+    const linked = {...piece, ...asset, local:false};
+    await transaction("readwrite", (pieces, tx) => {
+      pieces.put(linked);
+      tx.objectStore("files").delete(piece.key);
+    }, ["pieces","files"]);
+    await reload();
+    piece = linked;
+  }
   if (!await OBR.scene.isReady()) return status("Abra uma cena para colocar a peça.");
   const [width,height] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
   const position = await OBR.viewport.inverseTransformPoint({x:width/2, y:height/2});
@@ -64,7 +84,7 @@ function render() {
   const list = $("#list"); list.replaceChildren();
   for (const piece of filtered.slice(0,limit)) {
     const li = document.createElement("li");
-    const img = document.createElement("img"); img.alt = ""; img.loading = "lazy"; img.src = piece.image.url;
+    const img = document.createElement("img"); img.alt = ""; img.loading = "lazy"; if (piece.image?.url) img.src = piece.image.url; else img.hidden = true;
     const info = document.createElement("article"), title = document.createElement("strong");
     title.textContent = piece.name;
     const select = document.createElement("select"); options(select); select.value = piece.category;
@@ -89,18 +109,30 @@ for (const tab of document.querySelectorAll("[data-type]")) tab.onclick = () => 
 };
 $("#filter").onchange = () => { limit = pageSize; render(); };
 $("#more").onclick = () => { limit += pageSize; render(); };
-async function choosePieces(selectedLayer, search = "") {
-  const assets = await OBR.assets.downloadImages(true, search, selectedLayer);
+async function choosePieces(selectedLayer) {
+  let assets;
+  try {
+    assets = await OBR.assets.downloadImages(true, undefined, selectedLayer);
+  } catch (error) {
+    return status("O seletor da coleção não abriu. " + reason(error) + " Você pode selecionar a peça no mapa e usar Da cena.");
+  }
   if (!assets?.length) return status("Seleção encerrada. Use Da minha coleção para escolher peças.");
-  const count = await savePieces(assets);
+  const count = await savePieces(assets.map(asset => ({...asset,type:asset.type || selectedLayer})));
+  if (count) {
+    $("#filter").value = "";
+    const first = assets.find(asset => !asset.type || ["PROP","ATTACHMENT"].includes(asset.type));
+    document.querySelector('[data-type="' + (first?.type || selectedLayer) + '"]').click();
+  }
   status(count ? "Seleção salva. Cada peça aparece na aba do seu tipo." : "Escolha Props ou Attachments.");
 }
 async function savePieces(assets) {
+  const supported = assets.filter(asset => ["PROP","ATTACHMENT"].includes(asset.type));
+  if (supported.some(asset => !asset.image?.url)) throw Error("A imagem selecionada não contém um endereço de arte.");
   let count = 0;
   await transaction("readwrite", store => {
-    for (const asset of assets) {
-      if (!["PROP","ATTACHMENT"].includes(asset.type)) continue;
-      const {image, grid, name, scale, rotation, type} = asset;
+    for (const asset of supported) {
+      const {image, grid, scale, rotation, type} = asset;
+      const name = asset.name || "Peça sem nome";
       const key = JSON.stringify([type,name,image.url]);
       const lookup = store.get(key);
       lookup.onsuccess = () => {
@@ -128,26 +160,47 @@ filesInput.onchange = async () => {
   $("#upload").disabled = true;
   $("#import").disabled = true;
   try {
-    status("Escolha a pasta de destino no Owlbear. Depois, selecione as peças para o inventário.");
-    const uploads = [];
-    for (const file of files) {
-      const copy = new File([await file.arrayBuffer()], file.name, {type:file.type});
-      uploads.push(buildImageUpload(copy).build());
-    }
-    await OBR.assets.uploadImages(uploads, type);
-    status("Selecione as peças da sua coleção para concluir.");
-    await choosePieces(type);
+    const records = await Promise.all(files.map(async file => {
+      const bytes = await file.arrayBuffer();
+      const hash = await crypto.subtle.digest("SHA-256", bytes);
+      const digest = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2,"0")).join("");
+      return {file:new File([bytes],file.name,{type:file.type}), key:JSON.stringify([type,file.name,digest])};
+    }));
+    await transaction("readwrite", (pieces, tx) => {
+      for (const {file,key} of records) {
+        const lookup = pieces.get(key);
+        lookup.onsuccess = () => {
+          if (lookup.result) return;
+          pieces.put({key, name:file.name, type, category:"unset", local:true});
+          tx.objectStore("files").put(file,key);
+        };
+      }
+    }, ["pieces","files"]);
+    $("#filter").value = "";
+    await reload();
+    status("Arquivos guardados no inventário deste navegador.");
   } catch (error) {
-    status("Importação interrompida. Se o arquivo já estiver no Owlbear, use Da minha coleção. " + (error.message || ""));
+    status("Falha ao guardar o arquivo no navegador. " + reason(error));
   } finally {
     $("#upload").disabled = false;
     $("#import").disabled = false;
   }
 };
+action($("#scene-import"), async () => {
+  const ids = await OBR.player.getSelection();
+  if (!ids?.length) return status("Selecione no mapa os Props ou Attachments que deseja guardar.");
+  const items = await OBR.scene.items.getItems(ids);
+  const pieces = items.filter(i => i.type === "IMAGE" && ["PROP","ATTACHMENT"].includes(i.layer));
+  if (!pieces.length) return status("A seleção precisa incluir um Prop ou Attachment.");
+  await savePieces(pieces.map(item => ({...item,type:item.layer})));
+  $("#filter").value = "";
+  document.querySelector('[data-type="' + pieces[0].layer + '"]').click();
+  status("Seleção guardada. As peças continuam no mapa.");
+});
 OBR.onReady(async () => {
   try {
     setupEditing(OBR, savePieces, status);
     database = await openInventory(await OBR.player.getId());
-    await reload(); $("#import").disabled = false; $("#upload").disabled = false; status("");
+    await reload(); $("#scene-import").disabled = false; $("#import").disabled = false; $("#upload").disabled = false; status("");
   } catch { status("O navegador não permitiu abrir o inventário local."); }
 });
