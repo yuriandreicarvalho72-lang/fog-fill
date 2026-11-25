@@ -1,0 +1,1 @@
+{"name":"painel-mestre","version":"1.0.0","private":true,"type":"module","scripts":{"build":"mkdir -p dist && cp public/* dist/ && esbuild background.js panel.js --bundle --minify --outdir=dist"},"dependencies":{"@owlbear-rodeo/sdk":"3.1.0"},"devDependencies":{"esbuild":"0.28.2"}}

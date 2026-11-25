@@ -1,3 +1,4 @@
+import "./visibility.js";
 // Painel das Habilidades (ícone próprio na barra; só o mestre): dossiê do NPC, mira e contadores.
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";

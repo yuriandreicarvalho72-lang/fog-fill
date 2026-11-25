@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 import OBR, { buildEffect } from "@owlbear-rodeo/sdk";
 import { buildSksl, buildUniforms, MAX_LIGHTS, animId } from "./shader.js";
 import { ID, CFG, SETTINGS, DEFAULT_SETTINGS, DF_LIGHT } from "./shared.js";
@@ -212,7 +213,7 @@ async function loadSettings() {
 
 OBR.onReady(async () => {
   // menu de contexto: só aparece em tokens que já têm luz do Dynamic Fog
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/menu`,
     icons: [{
       icon: url("icon.svg"),

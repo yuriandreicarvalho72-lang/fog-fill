@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 import OBR, { buildPath, buildWall, buildCurve, buildLine, isImage, Command } from "@owlbear-rodeo/sdk";
 import { fogFill, sweepAuto, simplifyLoop } from "./core.js";
 import { itemPolylines, fillFromWalls } from "./walls.js";
@@ -247,7 +248,7 @@ async function onWallClick(context, event) {
 }
 
 OBR.onReady(async () => {
-  await OBR.tool.create({
+  await controls.tool.create({
     id: TOOL_ID,
     icons: [{ icon: icon("icon.svg"), label: "Balde de Fog", filter: { roles: ["GM"] } }],
     shortcut: "Shift+F",
@@ -261,7 +262,7 @@ OBR.onReady(async () => {
     lastIds = [];
     OBR.notification.show("Balde de Fog: último preenchimento apagado.");
   });
-  await OBR.tool.createMode({
+  await controls.tool.createMode({
     id: MODE_WALL_ID,
     icons: [{ icon: icon("icon-wall.svg"), label: "Balde por obstrução", filter: { activeTools: [TOOL_ID] } }],
     cursors: [{ cursor: "crosshair" }],
@@ -273,7 +274,7 @@ OBR.onReady(async () => {
       return false;
     },
   });
-  await OBR.tool.createMode({
+  await controls.tool.createMode({
     id: MODE_ID,
     icons: [{ icon: icon("icon.svg"), label: "Balde por cor do mapa", filter: { activeTools: [TOOL_ID] } }],
     cursors: [{ cursor: "crosshair" }],
@@ -285,7 +286,7 @@ OBR.onReady(async () => {
       return false;
     },
   });
-  await OBR.tool.createMode({
+  await controls.tool.createMode({
     id: MODE_SWEEP_ID,
     icons: [{ icon: icon("icon-sweep.svg"), label: "Varrer: tudo fora do mapa vira fog (um clique)", filter: { activeTools: [TOOL_ID] } }],
     cursors: [{ cursor: "crosshair" }],

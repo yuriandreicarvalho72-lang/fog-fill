@@ -10,13 +10,12 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Arsenal",
-        version: "1.7.3",
+        version: "1.7.4",
         manifest_version: 1,
         author: "Yuri",
         description: "Armas de fogo animadas (vídeos JB2A): monte o repertório do token pelo catálogo de Metrópole, mire e atire.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
-        action: { title: "Arsenal", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 680, width: 400 },
       };
       if (m.description.length > 128) throw new Error("descrição do manifest passa de 128 caracteres");
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });

@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 // Painel do Otimizador: perfil de desempenho deste navegador, limpar sobras e diagnóstico da cena.
 import OBR from "@owlbear-rodeo/sdk";

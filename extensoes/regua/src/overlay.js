@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Camada transparente sobre o mapa durante um movimento/medição.
 // Existe só para receber o botão direito (o Owlbear não diz às extensões qual botão foi usado).
 // Esquerdo = novo ponto · Direito = confirmar · Esc = cancelar · Backspace = desfazer ponto
@@ -28,7 +29,7 @@ const toWorld = (cx, cy) => ({ x: (cx - view.ox) / view.k, y: (cy - view.oy) / v
 async function close() {
   if (closing) return;
   closing = true;
-  try { await OBR.modal.close(MODAL_ID); } catch { /* já fechada */ }
+  try { await controls.modal.close(MODAL_ID); } catch { /* já fechada */ }
 }
 
 async function finish(confirm) {

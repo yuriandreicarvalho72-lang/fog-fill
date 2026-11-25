@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Vigilância em segundo plano (todos os navegadores):
 // - desenha os cones das câmeras e a camada RA da Matriz como itens LOCAIS (cada um vê o que pode ver);
 // - no mestre líder: vê quem entrou nos cones, avisa e manda o evento para o Gatilhos; aplica pedidos de hack.
@@ -206,7 +207,7 @@ function watchNodes() {
 // ---------- pedidos de hack ----------
 async function openApproval() {
   const w = await OBR.viewport.getWidth().catch(() => 1200);
-  OBR.popover.open({ id: APPROVE, url: url("aprovar.html"), width: 340, height: 230, anchorReference: "POSITION", anchorPosition: { left: Math.round(w / 2), top: 70 }, anchorOrigin: { horizontal: "CENTER", vertical: "TOP" }, transformOrigin: { horizontal: "CENTER", vertical: "TOP" }, disableClickAway: true }).catch(() => {});
+  controls.popover.open({ id: APPROVE, url: url("aprovar.html"), width: 340, height: 230, anchorReference: "POSITION", anchorPosition: { left: Math.round(w / 2), top: 70 }, anchorOrigin: { horizontal: "CENTER", vertical: "TOP" }, transformOrigin: { horizontal: "CENTER", vertical: "TOP" }, disableClickAway: true }).catch(() => {});
 }
 
 async function onRequest(e) {
@@ -295,17 +296,17 @@ OBR.onReady(async () => {
 
   // ----- menus do botão direito -----
   const GM = { roles: ["GM"] };
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/camera`,
     icons: [{ icon: url("camera.svg"), label: "Virar câmera (Vigilância)", filter: { ...GM, every: [{ key: ["metadata", CAM], value: undefined }] } }],
-    onClick: async (ctx) => { await makeCamera(ctx.items.map((i) => i.id)); OBR.action.open().catch(() => {}); },
+    onClick: async (ctx) => { await makeCamera(ctx.items.map((i) => i.id)); controls.openPanel().catch(() => {}); },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/no`,
     icons: [{ icon: url("node.svg"), label: "Virar nó da Matriz", filter: { ...GM, every: [{ key: ["metadata", NODE], value: undefined }] } }],
-    onClick: async (ctx) => { await makeNode(ctx.items.map((i) => i.id)); OBR.action.open().catch(() => {}); },
+    onClick: async (ctx) => { await makeNode(ctx.items.map((i) => i.id)); controls.openPanel().catch(() => {}); },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/deck`,
     icons: [
       { icon: url("deck.svg"), label: "Dar commlink/cyberdeck (vê a Matriz)", filter: { ...GM, every: [{ key: "layer", value: "CHARACTER" }, { key: ["metadata", DECK], value: undefined }] } },
@@ -316,7 +317,7 @@ OBR.onReady(async () => {
       OBR.scene.items.updateItems(ctx.items.map((i) => i.id), (d) => { for (const it of d) { if (give) it.metadata[DECK] = true; else delete it.metadata[DECK]; } });
     },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/hackear`,
     icons: [{ icon: url("node.svg"), label: "Hackear (Matriz)", filter: { roles: ["PLAYER"], max: 1, every: [{ key: ["metadata", NODE], value: undefined, operator: "!=" }] } }],
     onClick: (ctx) => {

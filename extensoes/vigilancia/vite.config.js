@@ -10,13 +10,12 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Vigilância",
-        version: "1.1.3",
+        version: "1.1.4",
         manifest_version: 1,
         author: "Yuri",
         description: "Câmeras com cone de visão que as paredes bloqueiam e a camada RA da Matriz: deckers hackeiam, o mestre aprova.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
-        action: { title: "Vigilância", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 620, width: 380 },
       };
       if (m.description.length > 128) throw new Error("descrição do manifest passa de 128 caracteres");
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });

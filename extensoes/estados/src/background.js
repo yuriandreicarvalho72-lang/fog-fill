@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Motor dos Estados.
 // No MESTRE: grava sozinho o que você muda no estado atual (modo Editando) e troca os estados.
 // Em TODOS: percebe quando alguém clica num item-botão e pede a troca ao mestre.
@@ -205,7 +206,7 @@ OBR.onReady(async () => {
     change(e.data?.group, e.data?.to ?? "next", Array.isArray(e.data?.carry) ? e.data.carry : []);
   });
 
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/proximo`,
     icons: [{
       icon: url("icon.svg"), label: "Estados: próximo estado",
@@ -221,17 +222,17 @@ OBR.onReady(async () => {
   // ----- prédios: ver outro andar / levar itens de andar -----
   const inBuilding = { roles: ["GM"], every: [{ key: ["metadata", FLOOR], value: undefined, operator: "!=" }] };
   const buildingOf = (ctx) => [...new Set(ctx.items.map((i) => i.metadata?.[FLOOR]?.g).filter(Boolean))];
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/andar-cima`,
     icons: [{ icon: url("up.svg"), label: "Prédio: mostrar o andar de cima", filter: inBuilding }],
     onClick: (ctx) => { for (const gid of buildingOf(ctx)) change(gid, "next"); },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/andar-baixo`,
     icons: [{ icon: url("down.svg"), label: "Prédio: mostrar o andar de baixo", filter: inBuilding }],
     onClick: (ctx) => { for (const gid of buildingOf(ctx)) change(gid, "prev"); },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/levar-cima`,
     icons: [{ icon: url("up.svg"), label: "Prédio: levar para o andar de cima", filter: inBuilding }],
     onClick: async (ctx) => {
@@ -239,7 +240,7 @@ OBR.onReady(async () => {
       OBR.notification.show(n ? `Estados: ${n} item(ns) no andar de cima.` : "Estados: já está no último andar.", n ? "INFO" : "WARNING");
     },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/levar-baixo`,
     icons: [{ icon: url("down.svg"), label: "Prédio: levar para o andar de baixo", filter: inBuilding }],
     onClick: async (ctx) => {

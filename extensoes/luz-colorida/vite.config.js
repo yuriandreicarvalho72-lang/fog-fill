@@ -10,13 +10,12 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Luz Colorida",
-        version: "1.2.3",
+        version: "1.2.4",
         manifest_version: 1,
         author: "Yuri",
         description: "Dá cor às luzes do Dynamic Fog, respeitando as paredes.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
-        action: { title: "Luz Colorida", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 560, width: 320 },
       };
       this.emitFile({ type: "asset", fileName: "manifest.json", source: JSON.stringify(m, null, 2) });
     },

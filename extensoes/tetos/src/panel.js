@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { META, MODOS, applyTheme } from "./shared.js";

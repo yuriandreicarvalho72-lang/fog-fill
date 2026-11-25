@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Trocador em segundo plano: menu do botão direito (com as miniaturas embutidas) e pedidos de outras extensões.
 import OBR from "@owlbear-rodeo/sdk";
 import { KEY } from "./core.js";
@@ -19,7 +20,7 @@ OBR.onReady(async () => {
   OBR.player.onChange((p) => { role = p.role; });
 
   // botão direito numa imagem: miniaturas para trocar (quem pode editar o item)
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/menu`,
     icons: [{
       icon: url("icon.svg"), label: "Trocar imagem",
@@ -28,7 +29,7 @@ OBR.onReady(async () => {
     embed: { url: url("menu.html"), height: 96 },
   });
   // atalho: próxima imagem (só aparece em itens que já têm imagens no Trocador)
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/proxima`,
     icons: [{
       icon: url("next.svg"), label: "Próxima imagem",

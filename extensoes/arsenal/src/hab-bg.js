@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Habilidades em segundo plano: ferramenta própria (ícone na barra), mira, prévia e animação para todos.
 import OBR, { buildShape, buildPath, buildLabel } from "@owlbear-rodeo/sdk";
 import { CH_HAB, CH_FX, CH_FX_END, CH_HAB_USE, DOSSIE, buildAbility, shapeOf } from "./abil.js";
@@ -46,7 +47,7 @@ export async function setupHabilities({ play, base, has, isLeader }) {
   // ---------- painel ----------
   const openPanel = async () => {
     const vh = await OBR.viewport.getHeight().catch(() => 800);
-    await OBR.popover.open({
+    await controls.popover.open({
       id: HAB_PANEL, url: url("hab.html"), width: 340, height: Math.max(360, Math.min(640, vh - 96)),
       anchorReference: "POSITION", anchorPosition: { left: 72, top: 64 },
       anchorOrigin: { horizontal: "LEFT", vertical: "TOP" }, transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
@@ -109,13 +110,13 @@ export async function setupHabilities({ play, base, has, isLeader }) {
   };
 
   // ---------- ferramenta (ícone próprio, só o mestre) ----------
-  await OBR.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs)", filter: { roles: ["GM"] } }], defaultMode: HAB_MODE });
-  await OBR.tool.createMode({
+  await controls.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs)", filter: { roles: ["GM"] } }], defaultMode: HAB_MODE });
+  await controls.tool.createMode({
     id: HAB_MODE,
     icons: [{ icon: url("hab.svg"), label: "Mirar a habilidade (clique: alvo ou ponto · Enter: usar · Esc: cancelar)", filter: { activeTools: [HAB_TOOL] } }],
     cursors: [{ cursor: "crosshair" }],
     onActivate: () => openPanel(),
-    onDeactivate: async () => { OBR.popover.close(HAB_PANEL).catch(() => {}); const a = await getAim(); if (a.armed) await setAim({ token: a.token }, true); },
+    onDeactivate: async () => { controls.popover.close(HAB_PANEL).catch(() => {}); const a = await getAim(); if (a.armed) await setAim({ token: a.token }, true); },
     onToolClick: async (_ctx, ev) => {
       const aim = await getAim();
       const it = ev.target;
@@ -144,13 +145,13 @@ export async function setupHabilities({ play, base, has, isLeader }) {
       else if (ev.key === "Escape") { const a = await getAim(); await setAim({ token: a.token }, true); }
     },
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${HAB_TOOL}/usar`,
     icons: [{ icon: url("fire.svg"), label: "Usar a habilidade (Enter)", filter: { activeTools: [HAB_TOOL] } }],
     onClick: () => fireNow(),
   });
   // botão direito num NPC: abre as habilidades dele
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${HAB_TOOL}/menu`,
     icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê)", filter: { roles: ["GM"], max: 1, every: [{ key: "type", value: "IMAGE" }] } }],
     onClick: async (ctx) => {

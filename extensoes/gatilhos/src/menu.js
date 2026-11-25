@@ -1,3 +1,4 @@
+import "./visibility.js";
 // Lista dentro do menu do botão direito: os gatilhos de que o item selecionado faz parte, com armar/desarmar e ativar.
 import OBR from "@owlbear-rodeo/sdk";
 import { LIST, CH_FIRE, CAUSES, involvedIds, isToken, applyTheme } from "./shared.js";

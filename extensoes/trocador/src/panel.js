@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 // Painel do Trocador: organiza as imagens do item selecionado (nome, ordem, remover), copia a lista para
 // outros itens e explica a integração com Gatilhos e Estados.

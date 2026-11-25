@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { ID, META_AREA, TOOL_ID, MODES, MODAL_ID, TRAIL_CHANNEL, url, loadGrid, loadSettings, saveSettings, shouldPin } from "./shared.js";
 import { RulerSession, movableToken, showTrail } from "./session.js";
@@ -33,7 +34,7 @@ async function startRuler(kind, event) {
     const q = new URLSearchParams({ kind: k, sx: start.x, sy: start.y, px: event.pointerPosition.x, py: event.pointerPosition.y });
     if (token) q.set("token", token.id);
     try {
-      await OBR.modal.open({ id: MODAL_ID, url: url(`overlay.html?${q}`), fullScreen: true, hideBackdrop: true, hidePaper: true });
+      await controls.modal.open({ id: MODAL_ID, url: url(`overlay.html?${q}`), fullScreen: true, hideBackdrop: true, hidePaper: true });
       return;
     } catch (e) {
       console.warn(`[${ID}] camada indisponível, usando o modo nativo`, e);
@@ -159,7 +160,7 @@ OBR.onReady(async () => {
   role = await OBR.player.getRole();
   OBR.player.onChange((p) => { role = p.role; });
 
-  await OBR.tool.create({
+  await controls.tool.create({
     id: TOOL_ID,
     icons: [{ icon: url("icon.svg"), label: "Régua (mover e medir)" }],
     shortcut: "Q",
@@ -168,17 +169,17 @@ OBR.onReady(async () => {
   });
 
   await Promise.all([
-    OBR.tool.createMode(rulerMode("move", "mode-move.svg", "Mover personagem")),
-    OBR.tool.createMode(rulerMode("measure", "mode-measure.svg", "Medir distância")),
-    OBR.tool.createMode(visionMode),
-    OBR.tool.createMode(areaMode("circle", "mode-circle.svg", "Área: círculo / esfera (raio)")),
-    OBR.tool.createMode(areaMode("cone", "mode-cone.svg", "Área: cone")),
-    OBR.tool.createMode(areaMode("square", "mode-square.svg", "Área: quadrado centrado (aura)")),
-    OBR.tool.createMode(areaMode("cube", "mode-cube.svg", "Área: cubo (a partir de uma quina)")),
-    OBR.tool.createMode(areaMode("line", "mode-line.svg", "Área: linha")),
+    controls.tool.createMode(rulerMode("move", "mode-move.svg", "Mover personagem")),
+    controls.tool.createMode(rulerMode("measure", "mode-measure.svg", "Medir distância")),
+    controls.tool.createMode(visionMode),
+    controls.tool.createMode(areaMode("circle", "mode-circle.svg", "Área: círculo / esfera (raio)")),
+    controls.tool.createMode(areaMode("cone", "mode-cone.svg", "Área: cone")),
+    controls.tool.createMode(areaMode("square", "mode-square.svg", "Área: quadrado centrado (aura)")),
+    controls.tool.createMode(areaMode("cube", "mode-cube.svg", "Área: cubo (a partir de uma quina)")),
+    controls.tool.createMode(areaMode("line", "mode-line.svg", "Área: linha")),
   ]);
 
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/clear-mine`,
     icons: [{ icon: url("act-clear.svg"), label: "Apagar minhas medidas e áreas", filter: { activeTools: [TOOL_ID] } }],
     onClick: async () => {
@@ -186,7 +187,7 @@ OBR.onReady(async () => {
       OBR.notification.show(n ? `Régua: ${n} item(ns) apagado(s).` : "Régua: você não tem áreas no mapa.");
     },
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/clear-all`,
     icons: [{ icon: url("act-clear-all.svg"), label: "Apagar todas as medidas e áreas (mestre)", filter: { activeTools: [TOOL_ID], roles: ["GM"] } }],
     onClick: async () => {
@@ -199,20 +200,20 @@ OBR.onReady(async () => {
     const st = loadSettings(); st.pin = !st.pin; saveSettings(st); syncPin();
     OBR.notification.show(st.pin ? "Régua: medidas ficam no mapa, com as dimensões." : "Régua: medidas somem ao terminar.");
   };
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/pin-on`,
     icons: [{ icon: url("act-pin-on.svg"), label: "Manter no mapa: LIGADO (clique para desligar)", filter: { activeTools: [TOOL_ID], metadata: [{ key: "pin", value: true }] } }],
     onClick: togglePin,
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/pin-off`,
     icons: [{ icon: url("act-pin-off.svg"), label: "Manter no mapa: DESLIGADO (clique para ligar)", filter: { activeTools: [TOOL_ID], metadata: [{ key: "pin", value: true, operator: "!=" }] } }],
     onClick: togglePin,
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/help`,
     icons: [{ icon: url("act-help.svg"), label: "Ajustes e atalhos da Régua", filter: { activeTools: [TOOL_ID] } }],
-    onClick: (_ctx, elementId) => OBR.popover.open({
+    onClick: (_ctx, elementId) => controls.popover.open({
       id: `${ID}/popover`, url: url("index.html"), width: 330, height: 640,
       anchorElementId: elementId,
       anchorOrigin: { horizontal: "CENTER", vertical: "BOTTOM" },
@@ -235,12 +236,12 @@ OBR.onReady(async () => {
       { key: ["metadata", META_AREA, "difficult"], value: true, operator: on ? "!=" : "==" },
     ],
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/difficult-on`,
     icons: [{ icon: url("ctx-difficult.svg"), label: "Virar terreno difícil", filter: areaFilter(true) }],
     onClick: (ctx) => toggleDifficult(ctx.items.map((i) => i.id), true),
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/difficult-off`,
     icons: [{ icon: url("ctx-difficult-off.svg"), label: "Tirar terreno difícil", filter: areaFilter(false) }],
     onClick: (ctx) => toggleDifficult(ctx.items.map((i) => i.id), false),
@@ -258,13 +259,13 @@ OBR.onReady(async () => {
   };
   const noCover = [{ key: ["metadata", COVER_KEY], value: undefined }, { key: ["metadata", PEEKABOO_KEY], value: undefined }];
   for (const [v, lbl, ic] of [[0.5, "Virar meia cobertura (50%)", "ctx-cover-half.svg"], [0.75, "Virar cobertura ¾ (75%)", "ctx-cover-34.svg"]]) {
-    await OBR.contextMenu.create({
+    await controls.contextMenu.create({
       id: `${ID}/cover-${v}`,
       icons: [{ icon: url(ic), label: lbl, filter: { roles: ["GM"], every: [...["IMAGE", "LABEL", "TEXT", "WALL", "RULER", "LIGHT", "EFFECT"].map((t) => ({ key: "type", value: t, operator: "!=" })), notOurs, ...noCover] } }],
       onClick: setCover(v),
     });
   }
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/cover-off`,
     icons: [
       { icon: url("ctx-cover-off.svg"), label: "Tirar cobertura parcial", filter: { roles: ["GM"], every: [{ key: ["metadata", COVER_KEY], value: undefined, operator: "!=" }] } },

@@ -1,3 +1,4 @@
+import "./visibility.js";
 // Painel do menu de contexto "Clima": camadas do item selecionado, receitas prontas e relâmpago.
 import OBR from "@owlbear-rodeo/sdk";
 import { TYPES } from "./shaders.js";

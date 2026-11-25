@@ -1,3 +1,4 @@
+import "./visibility.js";
 // Painel de mira (abre no canto da tela enquanto a ferramenta Arsenal está ativa):
 // atirador (troca rápida), arma, munição, modo, alvos com distância, faixa de alcance e cobertura, atirar.
 import OBR from "@owlbear-rodeo/sdk";

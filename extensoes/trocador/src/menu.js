@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Miniaturas dentro do menu do botão direito: clique troca a imagem de todos os itens selecionados.
 import OBR from "@owlbear-rodeo/sdk";
 import { variantsOf, currentIndex, isImageItem } from "./core.js";
@@ -36,7 +37,7 @@ async function render() {
   $("add")?.addEventListener("click", () => pickAndAdd(ids).then(render));
   $("save")?.addEventListener("click", () => saveCurrent(ids).then(render));
   // painel completo (sem ícone na barra de cima): abre como janela flutuante
-  $("full")?.addEventListener("click", () => OBR.popover.open({ id: "trocador/painel", url: url("index.html"), height: 560, width: 360 }).catch(() => {}));
+  $("full")?.addEventListener("click", () => controls.popover.open({ id: "trocador/painel", url: url("index.html"), height: 560, width: 360 }).catch(() => {}));
 }
 
 OBR.onReady(async () => {

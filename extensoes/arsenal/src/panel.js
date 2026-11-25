@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 // Painel do Arsenal: escolher o atirador, montar o repertório, escolher modo e alvo, atirar.
 import OBR from "@owlbear-rodeo/sdk";

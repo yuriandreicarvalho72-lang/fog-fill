@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Tetos: cada navegador desenha uma CÓPIA LOCAL de cada teto e a esconde quando o seu personagem está dentro.
 // O item original fica escondido (invisível para os jogadores); a fog e a visão do Smoke & Spectre continuam por cima,
 // porque a cópia fica na camada ATTACHMENT, abaixo da camada de fog.
@@ -89,7 +90,7 @@ async function desmarcar(items) {
   });
 }
 function menus() {
-  OBR.contextMenu.create({
+  controls.contextMenu.create({
     id: `${ID}/teto`,
     icons: [
       { icon, label: "Tetos: marcar como teto (some quando o personagem entra)",
@@ -102,7 +103,7 @@ function menus() {
       (todos ? desmarcar : marcar)(ctx.items.filter((i) => (i.metadata?.[META] != null) === todos).map((i) => i.id));
     },
   });
-  OBR.contextMenu.create({
+  controls.contextMenu.create({
     id: `${ID}/abre`,
     icons: [
       { icon, label: "Tetos: este token revela tetos", filter: { roles: ["GM"], every: [{ key: "layer", value: "CHARACTER" }, { key: ["metadata", ABRE], value: true, operator: "!=" }] } },

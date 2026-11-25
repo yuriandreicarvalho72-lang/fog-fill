@@ -8,3 +8,9 @@
 
 O site é gerado pelo GitHub Actions (`.github/workflows/publicar.yml`) a cada mudança em `extensoes/`.
 Os arquivos compilados antigos na raiz do repositório não são mais usados e podem ser apagados.
+
+## Visibilidade por sala
+
+Adicione `https://yuriandreicarvalho72-lang.github.io/fog-fill/painel-mestre/manifest.json` à sala e abra **Painel do mestre** na barra de ferramentas. Cada seletor controla uma extensão do repositório. **Todos** é o padrão. **Só o mestre** retira dos jogadores os comandos daquela extensão, inclusive os do menu de contexto. A configuração é própria da sala e passa a valer nas extensões atualizadas. A lista também inclui as extensões do repositório que ainda não foram habilitadas naquela sala.
+
+Os painéis que tinham ícone na barra superior agora abrem pela barra de ferramentas. A Régua e o Trocador conservam suas entradas existentes. O controle vale para a interface dos jogadores. Os efeitos compartilhados, como chuva e iluminação, continuam executando.

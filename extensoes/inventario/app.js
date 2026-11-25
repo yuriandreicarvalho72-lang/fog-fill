@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 import {reason} from "./errors.js";
 import { setupEditing } from "./editing.js";

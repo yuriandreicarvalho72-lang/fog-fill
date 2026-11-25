@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Arsenal em segundo plano (todos os navegadores):
 // - desenha os disparos que chegam (de qualquer jogador) com itens locais;
 // - ferramenta de mira: clique em tokens ou no chão marca alvos; Enter atira, R recarrega, Esc limpa;
@@ -154,7 +155,7 @@ async function tickCharges() {
 // ---------- painel de mira (canto inferior esquerdo, enquanto a ferramenta está ativa) ----------
 async function openHud() {
   const h = await OBR.viewport.getHeight().catch(() => 800);
-  await OBR.popover.open({
+  await controls.popover.open({
     id: HUD, url: url("hud.html"), width: 300, height: 282,
     anchorReference: "POSITION", anchorPosition: { left: 72, top: h - 16 },
     anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" }, transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
@@ -289,17 +290,17 @@ OBR.onReady(async () => {
   OBR.scene.items.onChange(() => { if (aimIds.length) drawAims(); });
 
   // ---------- ferramenta de mira ----------
-  await OBR.tool.create({
+  await controls.tool.create({
     id: TOOL,
     icons: [{ icon: url("icon.svg"), label: "Arsenal: mirar e atirar" }],
     defaultMode: MODE_AIM,
   });
-  await OBR.tool.createMode({
+  await controls.tool.createMode({
     id: MODE_AIM,
     icons: [{ icon: url("aim.svg"), label: "Mirar (clique: marca/desmarca o alvo · Enter: atirar · R: recarregar · Esc: limpar)", filter: { activeTools: [TOOL] } }],
     cursors: [{ cursor: "crosshair" }],
     onActivate: () => { if (config.hud !== false) openHud(); },
-    onDeactivate: () => { OBR.popover.close(HUD).catch(() => {}); },
+    onDeactivate: () => { controls.popover.close(HUD).catch(() => {}); },
     onToolClick: async (_ctx, ev) => {
       const it = ev.target;
       const { active } = await getPlayerMeta();
@@ -328,7 +329,7 @@ OBR.onReady(async () => {
       else if (k === "Tab") await cycleShooter(myShooters(await OBR.scene.items.getItems(), me), ev.shiftKey ? -1 : 1);
     },
   });
-  await OBR.tool.createMode({
+  await controls.tool.createMode({
     id: MODE_PLANT,
     icons: [{ icon: url("charge.svg"), label: "Plantar carga (clique no chão, ou num objeto para colar nele)", filter: { activeTools: [TOOL] } }],
     cursors: [{ cursor: "crosshair" }],
@@ -344,24 +345,24 @@ OBR.onReady(async () => {
       return false;
     },
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/acao-atirar`,
     icons: [{ icon: url("fire.svg"), label: "Atirar nos alvos marcados (Enter)", filter: { activeTools: [TOOL] } }],
     onClick: () => fire(),
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/acao-recarregar`,
     icons: [{ icon: url("reload.svg"), label: "Recarregar a arma (R)", filter: { activeTools: [TOOL] } }],
     onClick: () => reload(),
   });
-  await OBR.tool.createAction({
+  await controls.tool.createAction({
     id: `${ID}/acao-limpar`,
     icons: [{ icon: url("clear.svg"), label: "Limpar alvos (Esc)", filter: { activeTools: [TOOL] } }],
     onClick: () => setTargets([]),
   });
 
   // ---------- botão direito ----------
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/atirar-aqui`,
     icons: [{ icon: url("fire.svg"), label: "Arsenal: atirar aqui", filter: { every: [{ key: "layer", value: "MAP", operator: "!=" }] } }],
     onClick: async (ctx) => {
@@ -374,7 +375,7 @@ OBR.onReady(async () => {
   // mestre marca o que serve de cobertura (caixote, carro, mureta): meia -> três quartos -> total -> nada
   const NEXT = { meia: "tres", tres: "total", total: undefined };
   const notMap = { key: "layer", value: "MAP", operator: "!=" };
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/cobertura`,
     icons: [
       { icon: url("cover.svg"), label: "Arsenal: é cobertura (meia)", filter: { roles: ["GM"], every: [notMap, { key: ["metadata", COVER], value: undefined }] } },
@@ -391,24 +392,24 @@ OBR.onReady(async () => {
     },
   });
   // cenário destrutível (mestre)
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/destrutivel`,
     icons: [{ icon: url("destr.svg"), label: "Arsenal: tornar destrutível", filter: { roles: ["GM"], every: [{ key: ["metadata", DESTR], value: undefined }, { key: ["metadata", CHARGE], value: undefined }] } }],
-    onClick: async (ctx) => { await markDestructible(ctx.items.map((i) => i.id)); OBR.action.open().catch(() => {}); },
+    onClick: async (ctx) => { await markDestructible(ctx.items.map((i) => i.id)); controls.openPanel().catch(() => {}); },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/quebrar`,
     icons: [{ icon: url("destr.svg"), label: "Arsenal: quebrar agora", filter: { roles: ["GM"], every: [{ key: ["metadata", DESTR], value: undefined, operator: "!=" }] } }],
     onClick: async (ctx) => { for (const it of ctx.items) await breakNow(it.id); },
   });
   // cargas: quem plantou (ou o mestre) detona; desarmar de outro jogador vai para o mestre aprovar
   const isCharge = { every: [{ key: ["metadata", CHARGE], value: undefined, operator: "!=" }] };
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/detonar`,
     icons: [{ icon: url("charge.svg"), label: "Arsenal: detonar carga", filter: isCharge }],
     onClick: (ctx) => requestCharges(ctx.items.map((i) => i.id), "detonar"),
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/desarmar`,
     icons: [{ icon: url("defuse.svg"), label: "Arsenal: desarmar carga", filter: isCharge }],
     onClick: async (ctx) => {
@@ -421,13 +422,13 @@ OBR.onReady(async () => {
   onClean(() => { hab.clearPreview().then(() => hab.drawPreview()); hab.ativos.resync(); });
   onPerf(() => hab.ativos.resync()); // vídeos ligados/desligados pelo Otimizador
 
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/atirador`,
     icons: [{ icon: url("icon.svg"), label: "Arsenal: usar como atirador", filter: { max: 1, every: [{ key: "type", value: "IMAGE" }] } }],
     onClick: async (ctx) => {
       const it = ctx.items[0];
       await setActive({ shooter: it.id, weapon: it.metadata?.[WEAPONS]?.[0]?.id });
-      OBR.action.open();
+      controls.openPanel();
     },
   });
 });

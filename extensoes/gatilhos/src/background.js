@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Motor dos Gatilhos. Roda no navegador do MESTRE e vê qualquer movimento da cena,
 // inclusive os que os jogadores fazem com os próprios tokens, sem depender de ferramenta especial.
 // Nos jogadores, só mostra as mensagens na tela.
@@ -155,8 +156,8 @@ async function syncMenu() {
       const height = Math.max(70, Math.min(340, Math.max(0, ...per.values()) * 38 + 54));
       const sig = JSON.stringify([ids, height]);
       if (sig === menuSig) continue;
-      if (!ids.length) await OBR.contextMenu.remove(`${ID}/lista`).catch(() => {});
-      else await OBR.contextMenu.create({
+      if (!ids.length) await controls.contextMenu.remove(`${ID}/lista`).catch(() => {});
+      else await controls.contextMenu.create({
         id: `${ID}/lista`,
         icons: [{ icon: url("icon.svg"), label: "Gatilhos deste item", filter: { roles: ["GM"], every: ids.map((x, i) => (i < ids.length - 1 ? { key: "id", value: x, coordinator: "||" } : { key: "id", value: x })) } }],
         embed: { url: url("menu.html"), height },
@@ -604,7 +605,7 @@ OBR.onReady(async () => {
     if (!sender || sender.role === "GM" || !(await isLeader())) return;
     handleGive(e.data?.itemId, e.data?.toId, sender.id);
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/interagir`,
     icons: [{
       icon: url("icon.svg"), label: "Interagir",
@@ -613,7 +614,7 @@ OBR.onReady(async () => {
     onClick: (ctx) => { if (ctx.items[0]) tryInteract(ctx.items[0].id, gmUse); },
   });
   // porta do Smoke & Spectre: um clique cria o gatilho "jogadores abrem e fecham esta porta"
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/porta-jogadores`,
     icons: [{
       icon: url("icon.svg"), label: "Gatilhos: jogadores abrem e fecham esta porta",
@@ -631,7 +632,7 @@ OBR.onReady(async () => {
     },
   });
   // porta animada: linha da porta (Smoke & Spectre ou névoa) + imagem da porta → gatilho "Interagir" pronto
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/porta-animada`,
     icons: [{
       icon: url("icon.svg"), label: "Gatilhos: criar porta animada (VFX + imagem + porta)",
@@ -651,7 +652,7 @@ OBR.onReady(async () => {
     },
   });
   // item que o personagem pega ao chegar perto (cartão de acesso, chave): vira um gatilho pronto
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/pegar-item`,
     icons: [{
       icon: url("icon.svg"), label: "Gatilhos: o personagem pega este item ao chegar perto",
@@ -670,7 +671,7 @@ OBR.onReady(async () => {
       OBR.notification.show(`Pronto: o primeiro personagem que chegar a 1 quadrado de "${nm}" pega o item (fica preso no token). Para pegar só clicando, mude a causa para Interagir.`, "SUCCESS");
     },
   });
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/tornar-interagivel`,
     icons: [{
       icon: url("icon.svg"), label: "Tornar interagível (alavanca, porta…)",
@@ -694,7 +695,7 @@ OBR.onReady(async () => {
     if (!d.to || d.to !== myId) return;
     if (d.show === "nota") {
       const q = new URLSearchParams({ t: d.title || "", m: d.text || "" }).toString();
-      OBR.modal.open({ id: `${ID}/nota`, url: url(`nota.html?${q}`), width: 380, height: 210 }).catch(() => OBR.notification.show(d.text, "WARNING"));
+      controls.modal.open({ id: `${ID}/nota`, url: url(`nota.html?${q}`), width: 380, height: 210 }).catch(() => OBR.notification.show(d.text, "WARNING"));
     } else OBR.notification.show(d.text || "Acesso negado.", "WARNING");
   });
 
@@ -706,7 +707,7 @@ OBR.onReady(async () => {
   });
 
   // menu de contexto do mestre: criar gatilho com os itens selecionados como zona
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/criar`,
     icons: [{ icon: url("icon.svg"), label: "Criar gatilho com esta zona", filter: { roles: ["GM"] } }],
     onClick: async (ctx) => {
@@ -814,7 +815,7 @@ OBR.onReady(async () => {
   }
 
   // câmera que sobe o alerta: um clique cria o gatilho "a câmera viu alguém → alerta +1"
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/camera-alerta`,
     icons: [{
       icon: url("icon.svg"), label: "Gatilhos: esta câmera sobe o alerta",

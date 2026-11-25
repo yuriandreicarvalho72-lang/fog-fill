@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";

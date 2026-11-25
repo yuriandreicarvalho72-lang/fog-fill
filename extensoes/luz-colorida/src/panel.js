@@ -1,3 +1,4 @@
+import "./visibility.js";
 import "./compact.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { CFG, SETTINGS, DEFAULT_SETTINGS, DF_LIGHT, BLENDS, applyTheme } from "./shared.js";

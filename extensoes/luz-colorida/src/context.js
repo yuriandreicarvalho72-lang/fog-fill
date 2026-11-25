@@ -1,3 +1,4 @@
+import "./visibility.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { ANIMS } from "./shader.js";
 import { CFG, PRESETS, applyTheme } from "./shared.js";

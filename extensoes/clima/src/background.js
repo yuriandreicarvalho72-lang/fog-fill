@@ -1,3 +1,4 @@
+import { controls } from "./visibility.js";
 // Mantém um efeito LOCAL (cada jogador desenha o seu) para cada camada de clima de cada item da cena.
 import OBR, { buildEffect } from "@owlbear-rodeo/sdk";
 import { buildSksl, buildUniforms } from "./shaders.js";
@@ -129,7 +130,7 @@ function lightning() {
 
 OBR.onReady(async () => {
   // menu de contexto: mapas e formas (zonas de clima). Só o mestre mexe.
-  await OBR.contextMenu.create({
+  await controls.contextMenu.create({
     id: `${ID}/menu`,
     icons: [{
       icon: url("icon.svg"),
