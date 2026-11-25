@@ -1,0 +1,5 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventário de mesa</title><link rel="stylesheet" href="./style.css">
+<main><header><h1>Inventário</h1></header>
+<nav aria-label="Tipo de peça"><button data-type="PROP" aria-pressed="true">Props</button><button data-type="ATTACHMENT" aria-pressed="false">Attachments</button></nav>
+<section class="sources" aria-label="Adicionar peças"><button id="import" disabled>Da minha coleção</button><button id="upload" disabled>Do dispositivo</button><input id="files" type="file" accept="image/*" multiple hidden></section>
+<label>Categoria <select id="filter"><option value="">Todas</option></select></label><ul id="list"></ul><button id="more" hidden>Mostrar mais</button><p id="empty"></p><p id="status" role="status">Conectando ao Owlbear…</p></main><script type="module" src="./app.js"></script></html>
