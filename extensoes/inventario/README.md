@@ -9,3 +9,5 @@ O inventário é pessoal, salvo no navegador por jogador e pela origem da extens
 Para desenvolver, use npm ci e npm run build. Para testes locais, sirva dist em localhost.
 
 Use o menu ☰ para alternar entre Inventário, Manipular peças e Decorar em camadas. As ferramentas atuam sobre um Prop ou Attachment selecionado no mapa. Guardar adiciona a referência ao inventário pessoal e retira a peça da cena. Desfazer usa o histórico de cena do Owlbear. A ordem de desenho é ajustada dentro da camada atual de cada peça.
+
+Se o seletor da coleção falhar, arraste a peça para o mapa, selecione-a e use **Da cena** no inventário. O item permanece no mapa e o painel abre a aba correspondente.
