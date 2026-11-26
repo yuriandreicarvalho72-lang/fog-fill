@@ -142,13 +142,15 @@ function render() {
       try { await transaction("readwrite", store => store.put({...piece, category})); await reload(); }
       catch { select.value = piece.category; status("Não foi possível salvar a categoria."); }
     };
-    info.append(title,select);
+    const categoryLabel = document.createElement('label');
+    categoryLabel.append('Categoria', select);
     const add = document.createElement("button"); add.textContent = piece.type === "PROP" ? "Colocar" : "Anexar";
     action(add, () => place(piece));
     if (piece.description) info.append(document.createTextNode(piece.description));
     if (piece.properties) info.append(document.createTextNode("Propriedades: "+piece.properties));
     if (piece.owner) info.append(document.createTextNode("Dono: "+piece.owner));
     if (!piece.local && !piece.image?.url) add.hidden = true;
+    info.append(categoryLabel);
     info.append(deleteButton(piece.name+" do inventário", action, async () => {
       await transaction("readwrite",(pieces,tx) => {
         pieces.delete(piece.key);
@@ -157,7 +159,7 @@ function render() {
       await reload(); status("Item excluído do inventário pessoal.");
     }));
     add.className = "place";
-    detail.append(back, thumbnail(piece), info, add);
+    detail.append(back, title, thumbnail(piece), add, info);
   } else for (const piece of visible) {
     const li = document.createElement("li"), card = document.createElement("button");
     const name = document.createElement("strong");
