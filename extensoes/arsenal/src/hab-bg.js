@@ -153,6 +153,16 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     await setAim({ token: aim.token }, true);
   };
 
+  // efeito armado pela página Efeitos: o próximo clique no mapa (em qualquer modo da ferramenta Habilidades) solta
+  const castArmed = async (point) => {
+    const a = (await OBR.player.getMetadata())[FX_LIVRE] || null;
+    if (!a?.spec) return false;
+    const r = await playFx({ ...a.spec, point, origem: "Efeitos" }).catch((e) => ({ error: e.message }));
+    if (r.error) OBR.notification.show(`Efeitos: ${r.error}`, "WARNING");
+    else if (!a.repetir) await OBR.player.setMetadata({ [FX_LIVRE]: null });
+    return true;
+  };
+
   // ---------- ferramenta (ícone próprio, só o mestre) ----------
   await controls.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs)", filter: { roles: ["GM"] } }], defaultMode: HAB_MODE });
   await controls.tool.createMode({
@@ -162,6 +172,7 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     onActivate: () => openPanel(),
     onDeactivate: async () => { controls.popover.close(HAB_PANEL).catch(() => {}); const a = await getAim(); if (a.armed) await setAim({ token: a.token }, true); },
     onToolClick: async (_ctx, ev) => {
+      if (await castArmed(ev.pointerPosition)) return false;
       const aim = await getAim();
       const it = ev.target;
       // sem habilidade armada: clicar num NPC com dossiê escolhe ele
@@ -190,17 +201,12 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     },
   });
   // efeito solto no mapa (sem NPC): o painel Efeitos arma, o clique solta
-  const armed = async () => (await OBR.player.getMetadata())[FX_LIVRE] || null;
   await controls.tool.createMode({
     id: FX_MODE,
     icons: [{ icon: url("fire.svg"), label: "Efeito no mapa (clique: solta o efeito armado · Esc: desarmar)", filter: { activeTools: [HAB_TOOL] } }],
     cursors: [{ cursor: "crosshair" }],
     onToolClick: async (_ctx, ev) => {
-      const a = await armed();
-      if (!a?.spec) { OBR.notification.show("Efeitos: escolha um efeito no painel do Arsenal (página Efeitos) e use \"Soltar no mapa\".", "INFO"); return false; }
-      const r = await playFx({ ...a.spec, point: ev.pointerPosition, origem: "Efeitos" }).catch((e) => ({ error: e.message }));
-      if (r.error) OBR.notification.show(`Efeitos: ${r.error}`, "WARNING");
-      else if (!a.repetir) await OBR.player.setMetadata({ [FX_LIVRE]: null });
+      if (!(await castArmed(ev.pointerPosition))) OBR.notification.show("Efeitos: escolha um efeito na página Efeitos do painel do Arsenal e use \"Soltar no mapa\".", "INFO");
       return false;
     },
     onKeyDown: async (_ctx, ev) => { if (ev.key === "Escape") await OBR.player.setMetadata({ [FX_LIVRE]: null }); },

@@ -77,6 +77,7 @@ export function allFiles() {
 // Como cada tipo de efeito usa os vídeos. proj = projétil; muzzle = clarão; impact = "bullet" | "energy:<efeito>" | "none";
 // keep = partes do efeito desenhado que continuam (cápsulas, mira laser, área de supressão...).
 export const PLAN = {
+  melee: null, // corpo a corpo: usa o motor das habilidades (arma-vfx.js)
   pistol:   { proj: "bullet", muzzle: "muzzle1", impact: "bullet" },
   revolver: { proj: "bulletL", muzzle: "muzzle2", impact: "bullet" },
   smg:      { proj: "bullet", muzzle: "muzzle1", impact: "bullet" },

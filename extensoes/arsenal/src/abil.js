@@ -158,14 +158,17 @@ export const abilFiles = () => [...new Set(Object.values(ABIL_LIB).flatMap((a) =
 //    (o build gera meus-efeitos/lista.json). 2) Link direto para um .webm, guardado na habilidade: { video: { url, tipo } }.
 // Largura, altura e duração vêm do próprio vídeo no navegador (setDims), antes de tocar.
 export const MEUS_LISTA = "meus-efeitos/lista.json";
-const TIPO = { alvo: "target", area: "area", "em-si": "self", projetil: "ranged", linha: "line", cone: "cone" };
-export const TIPOS_PROPRIOS = [["alvo", "no alvo"], ["area", "área"], ["em-si", "em si"], ["projetil", "projétil"], ["linha", "linha"], ["cone", "cone"]];
+const TIPO = { alvo: "target", area: "area", "em-si": "self", projetil: "ranged", linha: "line", cone: "cone", golpe: "melee" };
+export const TIPOS_PROPRIOS = [["alvo", "no alvo"], ["area", "área"], ["em-si", "em si"], ["projetil", "projétil"], ["linha", "linha"], ["cone", "cone"], ["golpe", "golpe (corpo a corpo)"]];
+/** Golpes corpo a corpo: tipo, nome e visual padrão (vídeo do JB2A). */
+export const GOLPES = [["corte", "Corte (talho)", "arma_corte"], ["estocada", "Estocada (perfuração)", "arma_perfuracao"], ["impacto", "Impacto (contundente)", "arma_impacto"], ["soco", "Soco", "soco"]];
 const customs = new Map(); // nome "meu_x" -> chave no LIB
 const safeDecode = (u) => { try { return decodeURI(u); } catch { return u; } };
 function customAsset(type, file) {
   if (type === "ranged") return { type, hit: 0.7, custom: true, v: { 30: { file, w: 0, h: 0, dur: 0 } } };
   const a = { type, file, w: 0, h: 0, dur: 0, custom: true };
   if (type === "line" || type === "cone") Object.assign(a, { ox: 0, span: 0 });
+  if (type === "melee") Object.assign(a, { ox: 0, span: 0 });
   if (type === "target") a.size = 1.6;
   if (type === "self") a.size = 2;
   return a;
@@ -201,10 +204,11 @@ export function setDims(k, { w, h, dur }) {
   if (!a?.custom || !(w > 0) || !(h > 0)) return;
   Object.assign(dimsOf(a), { w, h, dur: dur > 0 ? dur : 3000 });
   if (a.type === "line" || a.type === "cone") a.span = w;
+  if (a.type === "melee") { a.ox = w * 0.2; a.span = w / 3; } // golpe próprio: o vídeo cobre 3 quadrados, o começo fica 1 quadrado antes do alvo
 }
 /** Troca o link próprio de uma habilidade (null = tira). Devolve o dossiê novo. */
 export function setVideo(dossie, nome, video) {
-  if (video && (!/^https?:\/\/\S+$/i.test(video.url || "") || !TIPO[video.tipo])) throw new Error("o link precisa começar com http(s):// e o tipo precisa ser alvo, área, em si, projétil, linha ou cone.");
+  if (video && (!/^https?:\/\/\S+$/i.test(video.url || "") || !TIPO[video.tipo])) throw new Error("o link precisa começar com http(s):// e o tipo precisa ser alvo, área, em si, projétil, linha, cone ou golpe.");
   return {
     ...dossie,
     habilidades: dossie.habilidades.map((h) => {

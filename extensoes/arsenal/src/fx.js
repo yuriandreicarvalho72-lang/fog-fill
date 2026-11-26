@@ -55,6 +55,7 @@ export const PROFILES = {
   grenade:  { label: "Lança-granadas", color: "#ffb347", w: 0, speed: 0, flash: 0.5, casing: false, impact: 0, lob: "frag" },
   rocket:   { label: "Foguete / míssil", color: "#ffa04d", w: 0, speed: 16, flash: 0.9, casing: false, impact: 0, rocket: true },
   cannon:   { label: "Canhão", color: "#ffb84d", w: 0.12, speed: 55, flash: 1.1, casing: true, impact: 0, boom: 1.4 },
+  melee:    { label: "Corpo a corpo", color: "#e8eef5", w: 0, speed: 0, flash: 0, casing: false, impact: 0 },
   frag:     { label: "Granada de fragmentação", color: "#ffb347", w: 0, speed: 0, flash: 0, casing: false, impact: 0, lob: "frag", thrown: true },
   smoke:    { label: "Granada de fumaça", color: "#9aa3ad", w: 0, speed: 0, flash: 0, casing: false, impact: 0, lob: "smoke", thrown: true },
   flashbang:{ label: "Granada de luz (flashbang)", color: "#ffffff", w: 0, speed: 0, flash: 0, casing: false, impact: 0, lob: "flashbang", thrown: true },

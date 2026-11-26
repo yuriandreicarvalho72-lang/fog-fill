@@ -90,6 +90,13 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 - **Dossiê com etiquetas**: ataque, resistência, dano, cura e condição viram etiquetas coloridas; cada forma tem um ícone.
 - **Inventário**: itens do Inventário de mesa com a categoria "Equipamento (armas)" ganham **Usar no Arsenal** (põe a arma do catálogo na mão do seu atirador); itens com o mesmo nome de um efeito da biblioteca ganham **Usar habilidade**. O jogador solta o efeito nos tokens selecionados (o mestre executa).
 
+## Personagens, armas próprias e corpo a corpo (1.9.0)
+
+- **Página Personagens (☰)**: lista quem na cena tem armas no Arsenal (e quantas habilidades de dossiê), com a arma e a munição. 🎯 escolhe o atirador; 👁 seleciona e mostra o token no mapa. O jogador só pode usar os tokens dele.
+- **Corpo a corpo**: armas prontas na busca (faca, machete, katana, espada monomolecular, garras, chicote, adaga, estoque, lança, bastão, cassetete, martelo, soco inglês, punhos cibernéticos). Cada uma tem o tipo de ataque (corte, estocada, impacto, soco) e o **alcance em metros**; um alvo mais longe que o alcance é recusado. Golpe corpo a corpo não bate em cobertura e não gasta munição. O golpe usa os vídeos do JB2A (corte, perfuração, impacto, soco); errar faz o golpe passar ao lado.
+- **Arma própria** (Adicionar arma → Criar arma própria): escolha À distância ou Corpo a corpo. Em "Efeito próprio" dá para trocar o efeito por um visual da lista ou por um **link .webm** (tipo: projétil, golpe, alvo, área…, com para onde o vídeo aponta e o tamanho). Arma de distância com efeito próprio repete o vídeo na rajada.
+- **Efeitos soltos**: "Soltar no mapa" agora também funciona se a ferramenta estiver no modo de mirar as habilidades (o clique solta o efeito armado), e há o botão **No centro da tela**. Falha ao trocar de ferramenta avisa na tela.
+
 ## Créditos e licença das animações
 
 Animações: **JB2A** — https://jb2a.com — pacote gratuito, licença

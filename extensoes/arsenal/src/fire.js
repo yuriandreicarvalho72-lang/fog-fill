@@ -3,7 +3,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import {
   WEAPONS, ACTIVE, TARGETS, CONFIG, CH_SHOT, CH_LABEL, CH_AMMO, RULES, DEFAULT_CONFIG,
-  roundsFor, impactKind, itemName, applyAmmo,
+  roundsFor, impactKind, itemName, applyAmmo, metersPerUnit,
 } from "./shared.js";
 import { PROFILES } from "./fx.js";
 import { obstaclesFrom, coverBetween, firstHit, halfSize, DEFAULT_RULES } from "./cover.js";
@@ -79,7 +79,15 @@ export async function fireWith({ shooterId, weaponId, mode, targets: list, hit =
   // cobertura: com cobertura total (ou errando um alvo com meia / três quartos) a bala bate no obstáculo
   const obs = await loadObstacles(dpi);
   const blocked = [];
-  const lobbed = !!PROFILES[w.fx]?.lob; // granadas jogadas e lança-granadas passam por cima
+  const lobbed = !!PROFILES[w.fx]?.lob || !!w.melee; // granadas jogadas, lança-granadas e golpes corpo a corpo não batem em cobertura
+  if (w.melee) {
+    // corpo a corpo: só o que está ao alcance da arma (distância do centro, como a mira das habilidades)
+    const sc = await OBR.scene.grid.getScale().catch(() => null);
+    const mpc = (metersPerUnit(sc?.parsed?.unit) * (sc?.parsed?.multiplier || 1.5)) || 1.5;
+    const far = list.map((t) => { const it = t.id ? byId.get(t.id) : null; const at = it ? it.position : t.at; return at ? { it, m: (Math.hypot(at.x - shooter.position.x, at.y - shooter.position.y) / dpi) * mpc } : null; })
+      .filter((x) => x && x.m > (w.melee.alcance || 1.5) + 0.01);
+    if (far.length) return { error: `${w.name}: ${far.map((x) => (x.it ? itemName(x.it) : "o ponto")).join(", ")} fora do alcance (${String(w.melee.alcance || 1.5).replace(".", ",")} m).` };
+  }
   const targets = list.map((t) => {
     const it = t.id ? byId.get(t.id) : null;
     const at = it ? it.position : t.at;
@@ -102,7 +110,8 @@ export async function fireWith({ shooterId, weaponId, mode, targets: list, hit =
     fx: w.fx, mode: m, from: shooter.position, targets, hit: hit !== false, cell: dpi,
     seed: Math.floor(Math.random() * 2 ** 31), speed: config.speed, intensity: config.intensity,
     color: config.ownColor ? config.color : undefined, smokeSec: config.smokeSec,
-    rounds: need,
+    rounds: need, weaponName: w.name,
+    ...(w.melee ? { melee: w.melee } : {}), ...(w.vfx ? { vfx: w.vfx } : {}),
   };
   await OBR.broadcast.sendMessage(CH_SHOT, {
     spec, shooter: shooter.id, shooterName: itemName(shooter), weapon: w.name, rounds: need,

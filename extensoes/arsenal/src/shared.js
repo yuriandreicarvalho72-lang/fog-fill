@@ -62,6 +62,7 @@ export function weaponFrom(entry) {
   return {
     id: uid(), name: entry.n, cat: entry.c || "", fx: entry.fx, modes, mode: modes[0],
     mag: entry.mag ?? null, ammo: entry.mag ?? null, range: entry.r || [null, null], dmg: entry.dmg || "",
+    ...(entry.melee ? { melee: entry.melee } : {}), ...(entry.vfx ? { vfx: entry.vfx } : {}),
   };
 }
 

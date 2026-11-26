@@ -1,11 +1,11 @@
 {
   "name": "arsenal",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node tools/baixar-jb2a.mjs && node tools/listar-efeitos.mjs && vite build",
-    "test": "node test/fx.mjs && node test/cover.mjs && node test/destroy.mjs && node test/abil.mjs",
+    "test": "node test/fx.mjs && node test/cover.mjs && node test/destroy.mjs && node test/abil.mjs && node test/arma.mjs",
     "jb2a": "node tools/baixar-jb2a.mjs"
   },
   "dependencies": {

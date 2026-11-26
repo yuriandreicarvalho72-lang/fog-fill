@@ -114,7 +114,7 @@ export async function playFx(d = {}) {
   await loadMeus();
   const ab = { nome: String(d.tag || "Efeito").slice(0, 60), forma: "alvo", impacto: "nenhum" };
   if (d.video?.url) {
-    if (!registerLink(String(d.video.url).trim(), d.video.tipo)) return { error: "o link do vídeo precisa começar com http(s):// e ter um tipo (alvo, área, em si, projétil, linha ou cone)." };
+    if (!registerLink(String(d.video.url).trim(), d.video.tipo)) return { error: "o link do vídeo precisa começar com http(s):// e ter um tipo (alvo, área, em si, projétil, linha, cone ou golpe)." };
     ab.video = { url: String(d.video.url).trim(), tipo: d.video.tipo };
     const g = giroOf(d.video.giro); if (g) ab.video.giro = g;
   } else ab.visual = semAc(d.visual).replace(/\s+/g, "_");

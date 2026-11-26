@@ -9,6 +9,8 @@ import { buildShotJB2A } from "./jb2a.js";
 import { play, clearAll } from "./render.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
 import { setupHabilities } from "./hab-bg.js";
+import { hasOwnFx, weaponAnim } from "./arma-vfx.js";
+import { prepareCustom, loadMeus } from "./meus.js";
 import { fire, fireWith, reload, setActive, setTargets, getPlayerMeta, cycleShooter, getRules, loadObstacles, coverOf } from "./fire.js";
 import { COVER, MARKS } from "./cover.js";
 import { DESTR, CHARGE, damageEvents, buildDebris, buildBlast, chargeOf, remaining, seesCountdown, canControl } from "./destroy.js";
@@ -48,7 +50,14 @@ async function onShot(data) {
     ...data.spec, gore: config.gore, casings: config.casings && perf?.arsenal?.casings !== false,
     intensity: perf ? Math.min(data.spec.intensity ?? 1, perf.arsenal.intensity) : data.spec.intensity,
   };
-  const anim = (videosOn() && jb2aFiles && buildShotJB2A(spec, (f) => jb2aFiles.has(f))) || buildShot(spec);
+  let anim;
+  if (hasOwnFx(spec)) {
+    // arma com efeito próprio ou corpo a corpo: mesmo motor das habilidades
+    await loadMeus().catch(() => {});
+    const has = videosOn() ? (f) => !!jb2aFiles?.has(f) : null; // vídeo próprio (link) toca mesmo sem a lista do JB2A
+    if (has) await prepareCustom(weaponAnim(spec, null).ab, {}).catch(() => {}); // vídeo próprio: tamanho lido do arquivo
+    anim = weaponAnim(spec, has).anim;
+  } else anim = (videosOn() && jb2aFiles && buildShotJB2A(spec, (f) => jb2aFiles.has(f))) || buildShot(spec);
   if (aimIds.length) {
     hideAimsUntil = Date.now() + Math.min(4, anim.duration) * 1000;
     drawAims();

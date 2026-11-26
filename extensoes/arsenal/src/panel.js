@@ -12,6 +12,9 @@ import { getPlantCfg } from "./scenery.js";
 import { chargeOf } from "./destroy.js";
 import { readPerf, onPerf } from "./perf.js";
 import { setupEfeitos } from "./efeitos.js";
+import { renderRoster } from "./roster.js";
+import { GOLPES, TIPOS_PROPRIOS, GIROS, visualGroups } from "./abil.js";
+import { loadMeus } from "./meus.js";
 const PERF_NAME = { maximo: "Máximo", equilibrado: "Equilibrado", leve: "Leve", apresentacao: "Apresentação", custom: "personalizado" };
 import {
   WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, RULES, DEFAULT_CONFIG, GRENADES, PLANT_CFG,
@@ -20,7 +23,13 @@ import {
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const ALL = [...GRENADES, ...decodeCatalog(rawCatalog)];
+// armas corpo a corpo prontas (golpe e alcance em metros)
+const MELEE = [
+  ["Faca de combate", "corte", 1.5], ["Machete", "corte", 1.5], ["Katana", "corte", 1.5], ["Espada monomolecular", "corte", 1.5], ["Garras retráteis", "corte", 1.5],
+  ["Chicote monofilamento", "corte", 4.5], ["Adaga", "estocada", 1.5], ["Estoque / rapieira", "estocada", 1.5], ["Lança", "estocada", 3], ["Bastão extensível", "impacto", 1.5],
+  ["Cassetete elétrico", "impacto", 1.5], ["Martelo de guerra", "impacto", 1.5], ["Soco inglês", "soco", 1.5], ["Punhos cibernéticos", "soco", 1.5],
+].map(([n, golpe, alcance]) => ({ n, c: "Corpo a corpo", s: golpe, fx: "melee", m: ["single"], mag: null, r: [alcance, alcance], rt: `${String(alcance).replace(".", ",")}m`, melee: { golpe, alcance } }));
+const ALL = [...MELEE, ...GRENADES, ...decodeCatalog(rawCatalog)];
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 let me = { id: "", role: "PLAYER" };
@@ -95,7 +104,7 @@ function renderWeapons() {
     const low = w.mag != null && (w.ammo ?? 0) <= Math.max(1, w.mag * 0.2);
     return `<div class="card${on ? " on" : ""}" data-w="${w.id}">
       <div class="head">
-        <button type="button" class="name" data-pickw>${esc(w.name)}<small>${esc(w.cat)} · ${esc(fxLabel(w.fx))}${w.dmg ? ` · ${esc(w.dmg)}` : ""}</small></button>
+        <button type="button" class="name" data-pickw>${esc(w.name)}<small>${esc(w.cat)} · ${w.melee ? `corpo a corpo · ${esc((GOLPES.find(([k]) => k === w.melee.golpe) || [])[1] || "golpe")} · ${String(w.melee.alcance || 1.5).replace(".", ",")} m` : esc(fxLabel(w.fx))}${w.vfx ? " · efeito próprio" : ""}${w.dmg ? ` · ${esc(w.dmg)}` : ""}</small></button>
         <span class="ammo${low ? " low" : ""}" title="Munição">${ammoText(w)}</span>
       </div>
       ${gauge(w)}
@@ -180,17 +189,55 @@ function renderSearch() {
 
 function renderCustom() {
   const box = $("custom");
+  const grupos = visualGroups();
   box.innerHTML = `
     <input type="text" id="cName" placeholder="Nome da arma" />
-    <select id="cFx">${Object.entries(PROFILES).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join("")}</select>
-    <div class="row"><label class="inline">pente <input type="number" id="cMag" min="0" value="12" /></label><span class="hint">(0 = sem limite)</span></div>
-    <div class="row"><label class="inline">alcance <input type="number" id="cR1" min="0" value="12" /> m /</label><label class="inline"><input type="number" id="cR2" min="0" value="36" /> m</label></div>
-    <div class="row">${["single", "burst", "auto", "spray"].map((m) => `<label class="check"><input type="checkbox" data-cm="${m}" ${m === "single" ? "checked" : ""} /> ${MODE_LABEL[m]}</label>`).join("")}</div>
+    <div class="row"><label class="inline">Tipo <select id="cKind"><option value="dist">À distância</option><option value="melee">Corpo a corpo</option></select></label></div>
+    <div data-kind="dist">
+      <select id="cFx">${Object.entries(PROFILES).filter(([k]) => k !== "melee").map(([k, p]) => `<option value="${k}">${p.label}</option>`).join("")}</select>
+      <div class="row"><label class="inline">pente <input type="number" id="cMag" min="0" value="12" /></label><span class="hint">(0 = sem limite)</span></div>
+      <div class="row"><label class="inline">alcance <input type="number" id="cR1" min="0" value="12" /> m /</label><label class="inline"><input type="number" id="cR2" min="0" value="36" /> m</label></div>
+      <div class="row">${["single", "burst", "auto", "spray"].map((m) => `<label class="check"><input type="checkbox" data-cm="${m}" ${m === "single" ? "checked" : ""} /> ${MODE_LABEL[m]}</label>`).join("")}</div>
+    </div>
+    <div data-kind="melee" hidden>
+      <div class="row"><label class="inline">Ataque <select id="cGolpe">${GOLPES.map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select></label></div>
+      <div class="row"><label class="inline">alcance <input type="number" id="cReach" min="0.5" max="30" step="0.5" value="1.5" /> m</label><span class="hint">(1,5 m = corpo a corpo; lança 3 m; chicote 4,5 m)</span></div>
+    </div>
+    <details class="linkform" id="cVfx"><summary>Efeito próprio (opcional)</summary>
+      <select id="cVis"><option value="">(efeito padrão da arma)</option>${grupos.map(([t, l]) => `<optgroup label="${esc(t)}">${l.map((v) => `<option value="${v}">${v}</option>`).join("")}</optgroup>`).join("")}</select>
+      <input type="text" id="cLink" placeholder="ou link de um .webm: https://…/efeito.webm" />
+      <div class="row"><select id="cLinkTipo">${TIPOS_PROPRIOS.map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select>
+        <select id="cLinkGiro">${GIROS.map(([g, t]) => `<option value="${g}">${t}</option>`).join("")}</select></div>
+      <div class="row"><label class="inline">tamanho <input type="number" id="cTam" min="0" max="40" step="0.5" placeholder="auto" /> quadrados</label></div>
+      <small>O link vence o visual da lista. Tipo "projétil" sai do atirador até o alvo; "golpe" aparece no encontro dos dois; "alvo" fica em cima do alvo.</small>
+    </details>
     <button type="button" id="cAdd" ${shooter ? "" : "disabled"}>Adicionar ao repertório</button>`;
+  const kind = () => $("cKind").value;
+  const sync = () => {
+    for (const el of box.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind();
+    $("cLinkTipo").value = kind() === "melee" ? "golpe" : "projetil";
+  };
+  $("cKind").addEventListener("change", sync);
+  sync();
   $("cAdd").addEventListener("click", async () => {
-    const m = [...box.querySelectorAll("[data-cm]:checked")].map((c) => c.dataset.cm);
-    const mag = Number($("cMag").value) || null;
-    const w = weaponFrom({ n: $("cName").value.trim() || "Arma própria", c: "Própria", fx: $("cFx").value, m: m.length ? m : ["single"], mag, r: [Number($("cR1").value) || null, Number($("cR2").value) || null] });
+    const link = $("cLink").value.trim();
+    if (link && !/^https?:\/\/\S+$/i.test(link)) return OBR.notification.show("Arsenal: o link do vídeo precisa começar com http:// ou https://.", "WARNING");
+    const vfx = {};
+    if (link) { vfx.video = { url: link, tipo: $("cLinkTipo").value }; const g = Number($("cLinkGiro").value); if (g) vfx.video.giro = g; }
+    else if ($("cVis").value) vfx.visual = $("cVis").value;
+    if (Number($("cTam").value) > 0) vfx.tamanho = Number($("cTam").value);
+    const hasVfx = !!(vfx.video || vfx.visual);
+    let entry;
+    if (kind() === "melee") {
+      const alcance = Number($("cReach").value) || 1.5;
+      entry = { n: $("cName").value.trim() || "Arma corpo a corpo", c: "Própria", fx: "melee", m: ["single"], mag: null, r: [alcance, alcance], melee: { golpe: $("cGolpe").value, alcance } };
+    } else {
+      const m = [...box.querySelectorAll("[data-cm]:checked")].map((c) => c.dataset.cm);
+      const mag = Number($("cMag").value) || null;
+      entry = { n: $("cName").value.trim() || "Arma própria", c: "Própria", fx: $("cFx").value, m: m.length ? m : ["single"], mag, r: [Number($("cR1").value) || null, Number($("cR2").value) || null] };
+    }
+    if (hasVfx) entry.vfx = vfx;
+    const w = weaponFrom(entry);
     await saveWeapons((l) => [...l, w]);
     await setActive({ weapon: w.id, mode: w.mode });
     document.dispatchEvent(new CustomEvent("menu:ir", { detail: "Principal" })); // mostra a arma na lista
@@ -241,9 +288,10 @@ async function refresh(full = false) {
   shooter = state.active.shooter ? items.find((i) => i.id === state.active.shooter) || null : null;
   renderShooter();
   renderWeapons();
+  renderRoster($("rosterbox"), { items, me, party, active: state.active, setActive });
   await renderFire();
   await renderExtras();
-  if (full) { renderSearch(); renderCustom(); renderConfig(); }
+  if (full) { renderSearch(); renderCustom(); renderConfig(); loadMeus().then(() => { if (!typing()) renderCustom(); }).catch(() => {}); }
 }
 
 OBR.onReady(async () => {

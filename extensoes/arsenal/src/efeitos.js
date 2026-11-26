@@ -52,6 +52,7 @@ function draw() {
       <div class="row"><span class="hint">Apaga em</span><input type="number" id="lzfade" min="0" max="30" step="0.2" value="${l.fade}"> s</div></div>` : ""}
     <div class="btns">
       <button type="button" class="primary" id="fxarm">🎯 Soltar no mapa</button>
+ <button type="button" id="fxcenter" title="Solta no centro do que você está vendo">No centro da tela</button>
       <button type="button" id="fxsel" ${sel.length ? "" : "disabled"} title="Solta em cima dos tokens selecionados">Nos selecionados (${sel.length})</button>
     </div>
     <label class="check"><input type="checkbox" id="fxrep" ${armedNow?.repetir ? "checked" : ""}> Continuar armado depois do clique</label>
@@ -84,7 +85,9 @@ function read() {
 async function arm(spec, repetir) {
   if (!spec.visual && !spec.luz) return OBR.notification.show("Efeitos: escolha um visual ou ligue a luz.", "WARNING");
   await OBR.player.setMetadata({ [FX_LIVRE]: { spec, repetir: !!repetir } });
-  await OBR.tool.activateMode(HAB_TOOL, FX_MODE).catch(() => {});
+  try { await OBR.tool.activateMode(HAB_TOOL, FX_MODE); }
+  catch (e) { OBR.notification.show("Efeitos: armado, mas não consegui trocar a ferramenta. Escolha o ícone Habilidades na barra e clique no mapa.", "WARNING"); console.warn("[arsenal] activateMode", e); return; }
+  OBR.notification.show("Efeitos: armado. Clique no mapa (Esc desarma).", "INFO");
 }
 
 function bind() {
@@ -92,6 +95,14 @@ function bind() {
   for (const id of ["fxvis", "fxdur", "fxsob", "fxluz", "lzfim"]) g(id)?.addEventListener("change", () => { read(); draw(); });
   for (const id of ["fxnome", "fxtam", "fxsec", "lzcor", "lzanim", "lzraio", "lzint", "lzdur", "lzfade"]) g(id)?.addEventListener("change", read);
   g("fxarm")?.addEventListener("click", () => { read(); arm(specOf(form), g("fxrep")?.checked); });
+  g("fxcenter")?.addEventListener("click", async () => {
+    read();
+    const s = specOf(form);
+    if (!s.visual && !s.luz) return OBR.notification.show("Efeitos: escolha um visual ou ligue a luz.", "WARNING");
+    const [pos, sc, w, h] = await Promise.all([OBR.viewport.getPosition(), OBR.viewport.getScale(), OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
+    const r = await playFx({ ...s, point: { x: (w / 2 - pos.x) / sc, y: (h / 2 - pos.y) / sc }, origem: "Efeitos" }).catch((e) => ({ error: e.message }));
+    if (r.error) OBR.notification.show(`Efeitos: ${r.error}`, "WARNING");
+  });
   g("fxsel")?.addEventListener("click", async () => {
     read();
     const s = specOf(form);
