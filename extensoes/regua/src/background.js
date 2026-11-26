@@ -147,6 +147,20 @@ async function grabRelease(p, alt) {
   } catch (e) { console.warn(`[${ID}] camada indisponível, segurar e soltar fica no modo nativo`, e); }
 }
 
+// Mover o mapa arrastando o chão (no modo segurar e soltar o arrasto padrão fica desligado nos tokens).
+// O ponteiro vem em coordenadas do mapa: a cada movimento, desloca a vista para o ponto agarrado voltar ao ponteiro.
+let pan = null;
+function panStart(p) { pan = { w0: p, busy: false }; }
+async function panMove(p) {
+  if (!pan || pan.busy) return;
+  pan.busy = true;
+  try {
+    const [pos, scale] = await Promise.all([OBR.viewport.getPosition(), OBR.viewport.getScale()]);
+    await OBR.viewport.setPosition({ x: pos.x + (p.x - pan.w0.x) * scale, y: pos.y + (p.y - pan.w0.y) * scale });
+  } catch (e) { /* vista indisponível */ }
+  if (pan) pan.busy = false;
+}
+
 const grabMode = {
   id: MODES.grab,
   icons: [{ icon: url("mode-grab.svg"), label: "Mover: segurar e soltar (solte para marcar, direito confirma)", filter: { activeTools: [TOOL_ID] } }],
@@ -165,17 +179,26 @@ const grabMode = {
     if (loadSettings().debugGrab) OBR.notification.show(`[régua] arrasto iniciado · alvo: ${event.target ? `${event.target.type}/${event.target.layer}` : (grabDownTarget ? "do down" : "nenhum")}`, "DEFAULT").catch(() => {});
     try {
       if (area) return;
-      if (grab) { await grab.down(event.pointerPosition, event.altKey); return; }
       const t = event.target || grabDownTarget;
-      if (movableToken(t, role)) await grabStart(t, event.pointerPosition, event.altKey);
+      const onToken = movableToken(t, role);
+      // arrasto fora do token (ou longe da marca): mover o mapa. O Owlbear não faz isso sozinho aqui.
+      if (grab) {
+        if (grab.phase === "pending" && !grab.near(event.pointerPosition)) { panStart(event.pointerPosition); return; }
+        await grab.down(event.pointerPosition, event.altKey);
+        return;
+      }
+      if (onToken) await grabStart(t, event.pointerPosition, event.altKey);
+      else panStart(event.pointerPosition);
     } catch (e) { console.error(`[${ID}] segurar e soltar`, e); OBR.notification.show(`Régua: erro ao pegar o token (${e?.message || e})`, "ERROR").catch(() => {}); endGrab(); }
   },
-  onToolDragMove: (_ctx, event) => { if (grab) grab.move(event.pointerPosition, event.altKey); },
+  onToolDragMove: (_ctx, event) => { if (pan) panMove(event.pointerPosition); else if (grab) grab.move(event.pointerPosition, event.altKey); },
   onToolDragEnd: async (_ctx, event) => {
-    try { if (grab) await grabRelease(event.pointerPosition, event.altKey); }
-    catch (e) { console.error(`[${ID}] segurar e soltar`, e); OBR.notification.show(`Régua: erro ao soltar (${e?.message || e})`, "ERROR").catch(() => {}); endGrab(); }
+    try {
+      if (pan) { pan = null; return; }
+      if (grab) await grabRelease(event.pointerPosition, event.altKey);
+    } catch (e) { console.error(`[${ID}] segurar e soltar`, e); OBR.notification.show(`Régua: erro ao soltar (${e?.message || e})`, "ERROR").catch(() => {}); endGrab(); }
   },
-  onToolDragCancel: () => endGrab(),
+  onToolDragCancel: () => { if (pan) pan = null; else endGrab(); },
   onToolClick: async (_ctx, event) => {
     // modo nativo, com marcas feitas: um clique no chão acrescenta um ponto
     if (grab && grab.phase === "pending") await grab.down(event.pointerPosition, event.altKey);
