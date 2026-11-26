@@ -18,3 +18,5 @@ Novo modo da barra (✋), ao lado do "Mover personagem", que continua igual.
 1.6.1: o modo segurar e soltar guarda o token do "down" (o evento de arrastar nem sempre traz o item) e avisa na tela se algo falhar.
 
 1.6.2: corrigido o arrasto no modo segurar e soltar. No filtro preventDrag do Owlbear, "verdadeiro" libera o arrasto padrão (token andando sozinho); agora o padrão só vale fora dos tokens.
+
+1.6.3: caixa "Mostrar avisos de diagnóstico ao segurar" no painel (avisa na tela o que o Owlbear mandou ao apertar e ao arrastar).

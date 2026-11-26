@@ -25,6 +25,7 @@ function render() {
   $("pin").checked = s.pin;
   $("difficult").checked = s.difficult;
   $("liftShadow").checked = s.liftShadow !== false;
+  $("debugGrab").checked = !!s.debugGrab;
   $("areaWalls").checked = s.areaWalls !== false;
   for (const k of ["pinMeasure", "pinPath", "pinAreas"]) { $(k).checked = s[k]; $(k).disabled = !s.pin; }
   $("pin-what").classList.toggle("off", !s.pin);
@@ -65,7 +66,7 @@ for (const k of ["visionShared", "visionAll"]) $(k).addEventListener("change", (
 $("visionTo").addEventListener("change", (e) => set({ visionTo: e.target.value }));
 $("cellRule").addEventListener("change", (e) => set({ cellRule: e.target.value }));
 $("showCells").addEventListener("change", (e) => set({ showCells: e.target.checked }));
-for (const k of ["pin", "pinMeasure", "pinPath", "pinAreas", "difficult", "areaWalls", "liftShadow"]) $(k).addEventListener("change", (e) => set({ [k]: e.target.checked }));
+for (const k of ["pin", "pinMeasure", "pinPath", "pinAreas", "difficult", "areaWalls", "liftShadow", "debugGrab"]) $(k).addEventListener("change", (e) => set({ [k]: e.target.checked }));
 // o atalho da barra também muda o ajuste: mantém o painel em dia
 window.addEventListener("storage", () => { s = loadSettings(); render(); });
 $("areaOpacity").addEventListener("input", (e) => set({ areaOpacity: Number(e.target.value) }));

@@ -160,8 +160,9 @@ const grabMode = {
   // Então o arrasto padrão só vale fora dos tokens; em cima de um token quem trata é a régua.
   preventDrag: { target: [{ key: "type", value: "IMAGE", operator: "!=" }] },
   // o alvo vem do "down" (o evento de arrastar nem sempre traz o item sob o ponteiro)
-  onToolDown: (_ctx, event) => { grabDownTarget = event.target || null; },
+  onToolDown: (_ctx, event) => { grabDownTarget = event.target || null; if (loadSettings().debugGrab) OBR.notification.show(`[régua] botão apertado · alvo: ${event.target ? `${event.target.type}/${event.target.layer}${event.target.locked ? " (travado)" : ""}` : "nenhum"}`, "DEFAULT").catch(() => {}); },
   onToolDragStart: async (_ctx, event) => {
+    if (loadSettings().debugGrab) OBR.notification.show(`[régua] arrasto iniciado · alvo: ${event.target ? `${event.target.type}/${event.target.layer}` : (grabDownTarget ? "do down" : "nenhum")}`, "DEFAULT").catch(() => {});
     try {
       if (area) return;
       if (grab) { await grab.down(event.pointerPosition, event.altKey); return; }
