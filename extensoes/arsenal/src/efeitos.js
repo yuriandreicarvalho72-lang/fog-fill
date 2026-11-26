@@ -19,6 +19,7 @@ let sel = [];
 let loaded = false;
 let ativos = [];
 let marcas = [];
+let manter = false; // "manter o marcador": guardado fora do HTML, que é redesenhado a cada mudança
 let linkNote = "";
 
 const durOf = (f) => (f.dur === "" ? 0 : f.dur === "fim" ? "fim" : Number(f.dur) || 0);
@@ -63,7 +64,7 @@ function draw() {
  <button type="button" id="fxcenter" title="Solta no centro do que você está vendo">No centro da tela</button>
       <button type="button" id="fxsel" ${sel.length ? "" : "disabled"} title="Solta em cima dos tokens selecionados">Nos selecionados (${sel.length})</button>
     </div>
-    <label class="check"><input type="checkbox" id="fxrep"> Manter o marcador depois de soltar (para repetir)</label>
+    <label class="check"><input type="checkbox" id="fxrep" ${manter ? "checked" : ""}> Manter o marcador depois de soltar (para repetir)</label>
     <div class="btns"><button type="button" id="fxsave">💾 ${form.id ? "Atualizar" : "Guardar"} na biblioteca</button>${form.id ? `<button type="button" id="fxnew">Novo</button>` : ""}</div>
     <small>"Soltar no mapa" põe um marcador 🎯 no centro da tela (só você vê). Arraste-o até o ponto e use Soltar aqui, ou botão direito no marcador → "Soltar efeito aqui".</small>
   </div>
@@ -106,7 +107,8 @@ function bind() {
   const g = (id) => host.querySelector("#" + id);
   for (const id of ["fxvis", "fxdur", "fxsob", "fxluz", "lzfim"]) g(id)?.addEventListener("change", () => { read(); draw(); });
   for (const id of ["fxnome", "fxtam", "fxsec", "lzcor", "lzanim", "lzraio", "lzint", "lzdur", "lzfade"]) g(id)?.addEventListener("change", read);
-  g("fxarm")?.addEventListener("click", () => { read(); arm(specOf(form), g("fxrep")?.checked); });
+  g("fxrep")?.addEventListener("change", () => { manter = g("fxrep").checked; });
+  g("fxarm")?.addEventListener("click", () => { read(); arm(specOf(form), manter); });
   g("fxcenter")?.addEventListener("click", async () => {
     read();
     const s = specOf(form);
@@ -148,7 +150,7 @@ function bind() {
   g("fxlinkgiro")?.addEventListener("change", () => { if (form.video) form.video.giro = giroOf(g("fxlinkgiro").value); });
   g("fxnew")?.addEventListener("click", () => { form = { ...VAZIO }; draw(); });
   g("fxall")?.addEventListener("click", async () => { await endAtivos(() => true); await endLuz(""); });
-  for (const b of host.querySelectorAll("[data-bib-arm]")) b.addEventListener("click", () => { const e = lib.find((x) => x.id === b.dataset.bibArm); if (e) arm(specOf(e), false); });
+  for (const b of host.querySelectorAll("[data-bib-arm]")) b.addEventListener("click", () => { const e = lib.find((x) => x.id === b.dataset.bibArm); if (e) arm(specOf(e), manter); });
   for (const b of host.querySelectorAll("[data-bib-edit]")) b.addEventListener("click", () => { const e = lib.find((x) => x.id === b.dataset.bibEdit); if (e) { form = { ...VAZIO, ...e }; draw(); } });
   for (const b of host.querySelectorAll("[data-bib-del]")) b.addEventListener("click", async () => { await saveLib(lib.filter((x) => x.id !== b.dataset.bibDel)); if (form.id === b.dataset.bibDel) form.id = ""; draw(); });
   for (const b of host.querySelectorAll("[data-mk-ver]")) b.addEventListener("click", async () => { await OBR.player.select([b.dataset.mkVer]); const m = marcas.find((x) => x.id === b.dataset.mkVer); if (m) OBR.viewport.animateTo({ position: { x: -m.position.x * (await OBR.viewport.getScale()) + (await OBR.viewport.getWidth()) / 2, y: -m.position.y * (await OBR.viewport.getScale()) + (await OBR.viewport.getHeight()) / 2 }, scale: await OBR.viewport.getScale() }).catch(() => {}); });

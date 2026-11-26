@@ -116,3 +116,4 @@ Se o download falhar, o build continua e o Arsenal usa os efeitos desenhados.
 
 - **Soltar no mapa** não depende mais de clique de ferramenta: cria um marcador 🎯 (item oculto, só o mestre vê) no centro da tela. Arraste-o e solte o efeito ali pelo botão **▶ Soltar aqui** (página Efeitos) ou pelo botão direito no marcador. "Manter o marcador" permite repetir. O efeito da biblioteca (🎯) e o do Inventário usam o mesmo marcador.
 - **Vídeo próprio por link** na página Efeitos, igual ao dossiê: link direto para .webm, tipo (alvo, área, em si, projétil, linha, cone, golpe) e para onde o vídeo aponta. O link vence o visual da lista e pode ser guardado na biblioteca.
+- 1.9.2: "Manter o marcador" valia só até a página ser redesenhada (ex.: ao selecionar o marcador); agora a escolha é guardada e também vale para o 🎯 da biblioteca.
