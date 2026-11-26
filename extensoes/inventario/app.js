@@ -81,14 +81,59 @@ async function place(piece) {
   await OBR.scene.items.addItems([builder.build()]);
   status(piece.name + " na cena.");
 }
+let view = "gallery", selectedKey = null;
+const viewKey = "fog-fill.inventario/view";
+try { if (localStorage.getItem(viewKey) === "list") view = "list"; } catch {}
+const thumbnailUrls = new Set();
+
+function thumbnail(piece) {
+  const frame = document.createElement("span");
+  frame.className = "thumbnail";
+  const img = document.createElement("img");
+  img.alt = "";
+  img.loading = "lazy";
+  function fallback() { frame.textContent = "Sem prévia"; }
+  img.onerror = fallback;
+  frame.append(img);
+  if (piece.local) {
+    transaction("readonly", files => files.get(piece.key), ["files"]).then(file => {
+      if (!frame.isConnected) return;
+      if (!file) return fallback();
+      const url = URL.createObjectURL(file);
+      thumbnailUrls.add(url);
+      img.src = url;
+    }).catch(fallback);
+  } else if (piece.image?.url) img.src = piece.image.url;
+  else fallback();
+  return frame;
+}
+
 function render() {
   const category = $("#filter").value;
   const filtered = rows.filter(p => p.type === layer && (!category || p.category === category));
-  const list = $("#list"); list.replaceChildren();
-  for (const piece of filtered.slice(0,limit)) {
-    const li = document.createElement("li");
-    const img = document.createElement("img"); img.alt = ""; img.loading = "lazy"; if (piece.image?.url) img.src = piece.image.url; else img.hidden = true;
+  const visible = filtered.slice(0,limit);
+  const selected = visible.find(p => p.key === selectedKey);
+  if (!selected) selectedKey = null;
+  const list = $("#list"), detail = $("#detail");
+  list.replaceChildren();
+  detail.replaceChildren();
+  for (const url of thumbnailUrls) URL.revokeObjectURL(url);
+  thumbnailUrls.clear();
+  list.dataset.view = view;
+  list.hidden = Boolean(selected);
+  detail.hidden = !selected;
+  for (const button of document.querySelectorAll("button[data-view]"))
+    button.setAttribute("aria-pressed",String(button.dataset.view === view));
+  if (selected) {
+    const back = document.createElement("button");
+    back.textContent = "← Voltar às peças";
+    back.onclick = () => {
+      selectedKey = null;
+      render();
+      Array.from(list.querySelectorAll("button")).find(button => button.dataset.key === selected.key)?.focus();
+    };
     const info = document.createElement("article"), title = document.createElement("strong");
+    const piece = selected;
     title.textContent = piece.name;
     const select = document.createElement("select"); options(select); select.value = piece.category;
     select.setAttribute("aria-label","Categoria de " + piece.name);
@@ -111,11 +156,31 @@ function render() {
       },["pieces","files"]);
       await reload(); status("Item excluído do inventário pessoal.");
     }));
-    li.append(img, info, add); list.append(li);
+    add.className = "place";
+    detail.append(back, thumbnail(piece), info, add);
+  } else for (const piece of visible) {
+    const li = document.createElement("li"), card = document.createElement("button");
+    const name = document.createElement("strong");
+    name.textContent = piece.name;
+    card.dataset.key = piece.key;
+    card.append(thumbnail(piece), name);
+    card.onclick = () => {
+      selectedKey = piece.key;
+      render();
+      detail.querySelector("button").focus();
+    };
+    li.append(card);
+    list.append(li);
   }
   $("#empty").textContent = filtered.length ? "" : category ? "Nenhuma peça nesta categoria." : "Adicione peças da sua coleção ou do dispositivo.";
-  $("#more").hidden = filtered.length <= limit;
+  $("#more").hidden = Boolean(selected) || filtered.length <= limit;
 }
+for (const button of document.querySelectorAll("button[data-view]")) button.onclick = () => {
+  view = button.dataset.view;
+  selectedKey = null;
+  try { localStorage.setItem(viewKey, view); } catch {}
+  render();
+};
 for (const tab of document.querySelectorAll("[data-type]")) tab.onclick = () => {
   layer = tab.dataset.type;
   for (const other of document.querySelectorAll("[data-type]")) other.setAttribute("aria-pressed",String(other === tab));
