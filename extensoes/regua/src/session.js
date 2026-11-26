@@ -33,7 +33,24 @@ export class RulerSession {
   async begin() {
     // terreno difícil fixado no mapa (só grade quadrada)
     this.difficult = this.grid.square ? await loadDifficult(this.grid.dpi, this.cellRule).catch(() => new Set()) : new Set();
+    if (this.points.length > 1 && !this.text) await this.refreshText();
     await this.keeper.restart();
+  }
+
+  /** Recalcula o rótulo para as marcas que já existem (ex.: a camada do botão direito retoma um caminho). */
+  async refreshText() {
+    const pts = this.points;
+    if (this.grid.square) {
+      const all = this.cost(pts), prev = this.cost(pts.slice(0, -1));
+      this.lastDist = all.total;
+      this.text = this.labelText(all.total, pts.length > 2 ? all.total - prev.total : 0, all.extra > 0);
+      return;
+    }
+    this.fixedDist = 0;
+    for (let i = 1; i < pts.length - 1; i++) this.fixedDist += await OBR.scene.grid.getDistance(pts[i - 1], pts[i]);
+    const last = await OBR.scene.grid.getDistance(pts[pts.length - 2], pts[pts.length - 1]);
+    this.lastDist = this.fixedDist + last;
+    this.text = this.labelText(this.lastDist, last, false);
   }
 
   /** Custo em quadrados de um caminho, contando terreno difícil. */

@@ -53,6 +53,7 @@ await g.confirm((t) => { handed = t; });
 ok("confirmar anda pelo caminho e para a prévia", [M.state.scene[0].position, M.state.interactions.at(-1).stopped, handed.points.length], [{ x: 975, y: 375 }, true, 3]);
 const g2 = new GrabController({ grid, token: M.state.scene[0], color: "#f00", trailMs: 0, stepMs: 1, points: [{ x: 975, y: 375 }, { x: 1125, y: 375 }] });
 await g2.begin();
+ok("retomando marcas, o rótulo mostra a distância (não 0)", [g2.s.text && g2.s.text !== "0", g2.s.text], [true, g2.s.text]);
 ok("com marcas prontas começa pousado (camada do botão direito)", [g2.phase, g2.s.lifted, g2.ready], ["pending", false, true]);
 g2.cancel();
 ok("cancelar para a prévia e não mexe no token", [M.state.interactions.at(-1).stopped, M.state.scene[0].position], [true, { x: 975, y: 375 }]);

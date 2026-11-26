@@ -20,3 +20,5 @@ Novo modo da barra (✋), ao lado do "Mover personagem", que continua igual.
 1.6.2: corrigido o arrasto no modo segurar e soltar. No filtro preventDrag do Owlbear, "verdadeiro" libera o arrasto padrão (token andando sozinho); agora o padrão só vale fora dos tokens.
 
 1.6.3: caixa "Mostrar avisos de diagnóstico ao segurar" no painel (avisa na tela o que o Owlbear mandou ao apertar e ao arrastar).
+
+1.6.4: ao soltar, o rótulo mostra a distância até a marca (antes aparecia 0 depois que a camada do botão direito assumia) e a sombra ficou mais escura e maior.

@@ -212,7 +212,7 @@ export function liftLook(token, at, dpi, lifted) {
   return {
     ghost: { x: at.x, y: at.y - up },
     scale: lifted ? 1.08 : 1,
-    shadow: { cx: at.x, cy: at.y + base * 0.3, rx: base * (lifted ? 0.34 : 0.4), ry: base * (lifted ? 0.11 : 0.15), opacity: lifted ? 0.36 : 0.55 },
+    shadow: { cx: at.x, cy: at.y + base * 0.3, rx: base * (lifted ? 0.4 : 0.44), ry: base * (lifted ? 0.15 : 0.18), opacity: lifted ? 0.6 : 0.75 },
   };
 }
 
