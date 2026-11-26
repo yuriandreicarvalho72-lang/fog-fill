@@ -16,3 +16,5 @@ Novo modo da barra (✋), ao lado do "Mover personagem", que continua igual.
 - A lógica fica em `src/grab.js` (testada em `test/grab.mjs`); o desenho do token levantado está em `liftLook` (`src/geom.js`).
 
 1.6.1: o modo segurar e soltar guarda o token do "down" (o evento de arrastar nem sempre traz o item) e avisa na tela se algo falhar.
+
+1.6.2: corrigido o arrasto no modo segurar e soltar. No filtro preventDrag do Owlbear, "verdadeiro" libera o arrasto padrão (token andando sozinho); agora o padrão só vale fora dos tokens.

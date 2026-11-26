@@ -156,8 +156,9 @@ const grabMode = {
     { cursor: "grab", filter: { target: [{ key: "type", value: "IMAGE" }, { key: "layer", value: "MOUNT" }] } },
     { cursor: "default" },
   ],
-  // o token não anda sozinho: quem move é a régua (o mapa continua arrastável pelo chão)
-  preventDrag: { target: [{ key: "type", value: "IMAGE" }] },
+  // atenção: nesse filtro, "verdadeiro" = roda o arrasto PADRÃO do Owlbear (como a ferramenta Mover).
+  // Então o arrasto padrão só vale fora dos tokens; em cima de um token quem trata é a régua.
+  preventDrag: { target: [{ key: "type", value: "IMAGE", operator: "!=" }] },
   // o alvo vem do "down" (o evento de arrastar nem sempre traz o item sob o ponteiro)
   onToolDown: (_ctx, event) => { grabDownTarget = event.target || null; },
   onToolDragStart: async (_ctx, event) => {
@@ -166,7 +167,6 @@ const grabMode = {
       if (grab) { await grab.down(event.pointerPosition, event.altKey); return; }
       const t = event.target || grabDownTarget;
       if (movableToken(t, role)) await grabStart(t, event.pointerPosition, event.altKey);
-      else OBR.notification.show("Segurar e soltar: arraste um token seu (modo ✋).", "DEFAULT").catch(() => {});
     } catch (e) { console.error(`[${ID}] segurar e soltar`, e); OBR.notification.show(`Régua: erro ao pegar o token (${e?.message || e})`, "ERROR").catch(() => {}); endGrab(); }
   },
   onToolDragMove: (_ctx, event) => { if (grab) grab.move(event.pointerPosition, event.altKey); },
