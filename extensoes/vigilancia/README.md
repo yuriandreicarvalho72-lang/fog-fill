@@ -42,6 +42,26 @@ o cone das câmeras que giram é redesenhado a cada 0,25 s (Equilibrado), 0,5 s 
 Apresentação desliga o filtro de cor da visão térmica/baixa luz. Quem a câmera vê continua sendo conferido no ritmo normal
 pelo mestre. "Limpar sobras" apaga e redesenha cones, nós e filtros.
 
+## Ruído (1.2)
+
+- Painel → **Ruído**: a caixa **Ruído ligado** é a chave geral (desmarcada, ninguém ouve nada). Alcance em quadrados do tiro (15), do corpo a corpo (4), dos passos da Régua (0 = sem ruído de passos) e quanto do alcance sobra a cada parede no caminho (0,5 = metade).
+- Quem ouve: câmeras/guardas com **Ouve ruídos** marcado (e ativas). Tiros do Arsenal fazem barulho sozinhos; "fazer no item selecionado" cria um barulho à mão.
+- O mestre vê um círculo do alcance por alguns segundos e recebe o aviso "👂 Guarda ouviu…". O barulho de um andar não chega ao outro (Estados).
+- Se o guarda está em ronda e "Vai investigar ruídos" está ligado, ele deixa a rota, anda até o local, espera e volta.
+
+## Ronda de guardas (1.2)
+
+- Selecione o guarda → **Criar ronda**. **＋ Ponto** põe um marcador de rota (o primeiro na posição do guarda, os outros no centro da tela); arraste os marcadores. Os pontos e a rota (linha laranja com números) só o mestre vê.
+- Marque **Em ronda**: o mestre líder move o token pela rota (velocidade em quadrados/s, pausa em cada ponto, ciclo ou vai e volta). O token gira para onde anda, e o cone junto (deixe a direção da câmera em 0°).
+- **Para ao ver alguém** por alguns segundos (0 = não para) e **investiga ruídos**.
+- Só um mestre move os guardas (o líder). Desmarcar "Em ronda" para o guarda onde está.
+
+## Verdade por jogador (1.2)
+
+- Selecione o item → **Ativar** em "Verdade por jogador". O original fica escondido para os jogadores (você continua vendo); cada jogador vê a **primeira versão que cita ele**, senão a de "todos os outros", senão nada.
+- Cada versão pode trocar a imagem (link direto), o texto, ou esconder o item de quem cair nela. Serve para disfarce, ilusão, aura ou alucinação.
+- A cópia é local, na tela de cada jogador, e acompanha o original (posição, giro, tamanho). **Desfazer a verdade** mostra o item de novo.
+
 ## Integração
 
 - **Gatilhos** (1.7+): causas "Uma câmera vê alguém" (quem ativou = quem foi visto) e "Nó da Matriz muda de estado"
@@ -54,9 +74,12 @@ pelo mestre. "Limpar sobras" apaga e redesenha cones, nós e filtros.
 - Canais (destino ALL; só um mestre, o de menor connectionId, executa):
   `vigilancia/viu` { camera, name, tokens (novos), all } · `vigilancia/no-mudou` { id, name, type, state, prev } ·
   `vigilancia/mudar` { targets, state, from? } · `vigilancia/pedido` { node, action } ·
-  `vigilancia/visao` { targets, mode: "termica" | "baixa" | "todos", on, from? } (jogador só mexe nos tokens dele).
+  `vigilancia/visao` { targets, mode: "termica" | "baixa" | "todos", on, from? } (jogador só mexe nos tokens dele) ·
+  `vigilancia/ruido` { x, y, raio (quadrados), origem?, quem? } (um barulho; o líder calcula quem ouve) · `vigilancia/ouviu` { camera, name, x, y, origem, raio }.
+  Ouve também `arsenal/disparo` e `regua/caminho` (passos, se ligados).
 - Dados: `metadata["vigilancia/camera"]`, `metadata["vigilancia/no"]`, `metadata["vigilancia/commlink"]`,
   `metadata["vigilancia/visao"]` { modes, on } e `metadata["vigilancia/so-em"]` nos itens;
-  `vigilancia/acesso` e `vigilancia/pedidos` na cena. Cones e etiquetas da Matriz são itens locais (nada é salvo na cena).
+  `vigilancia/ronda` { on, speed, pausa, modo, girar, parar, investiga, espera }, `vigilancia/ponto` { g, n } (marcador de rota) e `vigilancia/verdade` { on, versoes: [{ para: [id] | "*", imagem?, texto?, esconder? }] } nos itens;
+  `vigilancia/ruido` { on, tiro, corpo, passos, paredes } na cena; `vigilancia/acesso` e `vigilancia/pedidos` na cena. Cones e etiquetas da Matriz são itens locais (nada é salvo na cena).
 
-Testes: `node test/core.mjs`
+Testes: `node test/core.mjs` e `node test/extra.mjs`

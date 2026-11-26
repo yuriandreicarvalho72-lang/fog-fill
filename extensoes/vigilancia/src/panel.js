@@ -4,12 +4,13 @@ import "./compact.js";
 // Jogador com commlink/cyberdeck: vê os nós e pede para hackear, pôr em loop, desativar ou reativar.
 import OBR from "@owlbear-rodeo/sdk";
 import { CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
-import { PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
+import { ruidoCfg, rondaOf, routeOf, verdadeOf, VERDADE, DEFAULT_RONDA } from "./extra.js";
+import { fazerRuido, setRuido, editRonda, addPonto, clearRota, editVerdade, PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 let role = "PLAYER", myId = "";
-let items = [], sel = [], pending = [], access = { players: [], autoApprove: false }, players = [];
+let items = [], sel = [], pending = [], access = { players: [], autoApprove: false }, players = [], ruido = ruidoCfg({});
 const asked = new Map(); // jogador: nó -> ação pedida (para mostrar "aguardando")
 
 const busy = () => ["INPUT", "SELECT"].includes(document.activeElement?.tagName) && document.activeElement.type !== "checkbox";
@@ -20,6 +21,7 @@ async function load() {
   const md = await OBR.scene.getMetadata();
   pending = Array.isArray(md[PENDING]) ? md[PENDING] : [];
   access = await getAccess();
+  ruido = ruidoCfg(md);
   render();
 }
 const render = () => (role === "GM" ? renderGM() : renderPlayer());
@@ -40,6 +42,7 @@ function camForm(it) {
     <label class="check"><input type="checkbox" data-camb="showAll" ${c.showAll ? "checked" : ""} /> Jogadores também veem o cone</label>
     <label class="check"><input type="checkbox" data-camb="alertAll" ${c.alertAll ? "checked" : ""} /> Avisar os jogadores quando ela vê alguém</label>
     <label class="check"><input type="checkbox" data-camb="hiddenSeen" ${c.hiddenSeen ? "checked" : ""} /> Vê tokens escondidos</label>
+    <label class="check"><input type="checkbox" data-camb="ouve" ${c.ouve ? "checked" : ""} /> 👂 Ouve ruídos (tiros, barulhos${ruido.on ? "" : "; o ruído está desligado na cena"})</label>
     <div class="sub">Não vê (aliados): ${ign || '<span class="hint">ninguém</span>'} <button type="button" class="mini" id="ignSel">usar seleção</button> ${ign ? '<button type="button" class="mini" id="ignClr">limpar</button>' : ""}</div>
     <div class="row"><span class="hint grow">Estado: ${chip(n?.state || "ativo")}</span><button type="button" class="mini danger" id="camDel">deixar de ser câmera</button></div>
   </div>`;
@@ -72,7 +75,53 @@ function renderSel() {
     ${node ? nodeForm(it) : ""}
     ${!cam || !node ? `<div class="btns">${cam ? "" : '<button type="button" id="mkCam">📷 Virar câmera</button>'}${node ? "" : '<button type="button" id="mkNode">◈ Virar nó da Matriz</button>'}</div>` : ""}
     ${isToken(it) ? `<label class="check"><input type="checkbox" id="deck" ${it.metadata?.[DECK] === true ? "checked" : ""} /> Tem commlink/cyberdeck (o dono deste token vê a Matriz)</label>` : ""}
-    ${visionForm(it)}`;
+    ${visionForm(it)}
+    ${rondaForm(it)}
+    ${verdadeForm(it)}`;
+}
+
+/** Ronda: o guarda anda sozinho por uma rota de pontos (o líder move o token). */
+function rondaForm(it) {
+  const r = rondaOf(it);
+  const n = routeOf(items, it.id).length;
+  if (!r) return `<div class="effect"><h3>🚶 Ronda</h3><p class="hint">O guarda anda sozinho por uma rota. Ele para quando vê alguém e vai investigar um ruído que ouviu.</p>
+    <div class="btns"><button type="button" id="rdOn">🚶 Criar ronda</button></div></div>`;
+  return `<div class="effect">
+    <h3>🚶 Ronda</h3>
+    <label class="check"><input type="checkbox" data-rd="on" ${r.on ? "checked" : ""} /> Em ronda (anda sozinho)</label>
+    <div class="row"><label class="inline">velocidade <input type="number" data-rdn="speed" min="0.25" max="10" step="0.25" value="${r.speed}" /> quadrados/s</label></div>
+    <div class="row"><label class="inline">pausa em cada ponto <input type="number" data-rdn="pausa" min="0" step="1" value="${r.pausa}" /> s</label></div>
+    <div class="row"><select data-rds="modo"><option value="ciclo" ${r.modo !== "vaivem" ? "selected" : ""}>Ciclo (volta ao primeiro ponto)</option><option value="vaivem" ${r.modo === "vaivem" ? "selected" : ""}>Vai e volta</option></select></div>
+    <label class="check"><input type="checkbox" data-rd="girar" ${r.girar !== false ? "checked" : ""} /> Gira o token (e o cone) para onde anda</label>
+    <div class="row"><label class="inline">para ao ver alguém por <input type="number" data-rdn="parar" min="0" step="1" value="${r.parar}" /> s (0 = não para)</label></div>
+    <label class="check"><input type="checkbox" data-rd="investiga" ${r.investiga ? "checked" : ""} /> Vai investigar ruídos que ouve (precisa de "Ouve ruídos" na câmera)</label>
+    <div class="row"><label class="inline">espera no local do ruído <input type="number" data-rdn="espera" min="0" step="1" value="${r.espera}" /> s</label></div>
+    <p class="hint">Rota: ${n} ponto${n === 1 ? "" : "s"}. "＋ Ponto" põe um marcador (o primeiro na posição do guarda, os outros no centro da tela): arraste os marcadores para ajustar. Os marcadores só o mestre vê.</p>
+    <div class="btns"><button type="button" id="rdPonto">＋ Ponto</button>${n ? '<button type="button" id="rdLimpa">✕ Limpar rota</button>' : ""}<button type="button" id="rdDel">Tirar a ronda</button></div>
+  </div>`;
+}
+
+/** Verdade por jogador: cada jogador vê uma versão diferente do item (o original fica escondido). */
+function verdadeForm(it) {
+  const v = it.metadata?.[VERDADE];
+  if (!v) return `<div class="effect"><h3>🎭 Verdade por jogador</h3><p class="hint">Cada jogador enxerga este item de um jeito: ilusão, disfarce, aura, alucinação. O original fica escondido para os jogadores e você continua vendo ele.</p>
+    <div class="btns"><button type="button" id="vdOn">🎭 Ativar</button></div></div>`;
+  const pl = players.filter((p) => p.role !== "GM");
+  const vers = v.versoes || [];
+  return `<div class="effect">
+    <h3>🎭 Verdade por jogador</h3>
+    <label class="check"><input type="checkbox" id="vdLig" ${v.on !== false ? "checked" : ""} /> Ligada</label>
+    <p class="hint">O original fica escondido; cada jogador vê a primeira versão que cita ele, senão a de "todos os outros", senão nada.</p>
+    ${vers.map((x, i) => `<div class="sub">
+      <div class="row"><b class="grow">Versão ${i + 1}</b><button type="button" class="mini danger" data-vdel="${i}">✕</button></div>
+      <div class="row">${pl.map((p) => `<label class="check"><input type="checkbox" data-vpl="${i}" value="${p.id}" ${Array.isArray(x.para) && x.para.includes(p.id) ? "checked" : ""} /> ${esc(p.name)}</label>`).join("")}
+        <label class="check"><input type="checkbox" data-vall="${i}" ${x.para === "*" ? "checked" : ""} /> todos os outros</label></div>
+      <input type="text" data-vf="imagem" data-vi="${i}" placeholder="link da imagem (opcional)" value="${esc(x.imagem || "")}" />
+      <input type="text" data-vf="texto" data-vi="${i}" placeholder="texto (opcional)" value="${esc(x.texto || "")}" />
+      <label class="check"><input type="checkbox" data-vf="esconder" data-vi="${i}" ${x.esconder ? "checked" : ""} /> não enxerga nada (item invisível para quem cair aqui)</label>
+    </div>`).join("")}
+    <div class="btns"><button type="button" id="vdAdd">＋ Versão</button><button type="button" id="vdDel">Desfazer a verdade (mostrar o item)</button></div>
+  </div>`;
 }
 
 /** Visão especial: modos que o token tem (ciberolhos) e itens que só aparecem num modo. */
@@ -100,6 +149,13 @@ function renderGM() {
     ${pending.length ? `<section><h2>Pedidos de hack</h2>${pending.map((r) => `<div class="mrow"><span class="mname">${esc(r.byName)} → ${esc(r.nodeName)}: <b>${esc(stateLabel(r.action))}</b></span>
       <button type="button" class="mini" data-ok="${r.id}">aprovar</button><button type="button" class="mini x" data-no="${r.id}">negar</button></div>`).join("")}</section>` : ""}
     <section id="selbox">${renderSel()}</section>
+    <section><h2>👂 Ruído</h2>
+      <label class="check"><input type="checkbox" id="ruOn" ${ruido.on ? "checked" : ""} /> Ruído ligado (desmarque e ninguém ouve nada)</label>
+      <div class="row"><label class="inline">tiro <input type="number" data-ru="tiro" min="0" step="1" value="${ruido.tiro}" /> quadrados</label><label class="inline">corpo a corpo <input type="number" data-ru="corpo" min="0" step="1" value="${ruido.corpo}" /></label></div>
+      <div class="row"><label class="inline">passos (Régua) <input type="number" data-ru="passos" min="0" step="1" value="${ruido.passos}" /> (0 = sem)</label><label class="inline">cada parede deixa <input type="number" data-ru="paredes" min="0" max="1" step="0.1" value="${ruido.paredes}" /> do alcance</label></div>
+      <div class="row"><label class="inline">barulho manual <input type="number" id="ruRaio" min="1" step="1" value="10" /> quadrados</label><button type="button" class="mini" id="ruFaz">fazer no item selecionado</button></div>
+      <p class="hint">Quem ouve: câmeras/guardas com "Ouve ruídos" ligado (paredes abafam). Tiros do Arsenal fazem barulho sozinhos. Outras extensões podem mandar o canal <code>vigilancia/ruido</code> { x, y, raio }.</p>
+    </section>
     <section><h2>Na cena</h2>
       ${cams.length || nodes.length ? `<div class="mlist">${[...cams, ...nodes].map((i) => { const n = nodeOf(i); return `<div class="mrow${sel.includes(i.id) ? " sel" : ""}" data-pick="${i.id}">
         <span class="ico">${camOf(i) ? "📷" : iconOf(n.type)}</span><span class="mname">${esc(n?.name || itemName(i))}</span>${n ? chip(n.state) : ""}${n?.hidden ? '<span class="tag">oculto</span>' : ""}</div>`; }).join("")}</div>`
@@ -127,6 +183,13 @@ function bindGM() {
   for (const b of document.querySelectorAll("[data-no]")) b.onclick = () => decide(b.dataset.no, false);
   for (const r of document.querySelectorAll("[data-pick]")) r.onclick = () => OBR.player.select([r.dataset.pick], false);
   for (const c of document.querySelectorAll("[data-acc]")) c.onchange = () => setAccess((a) => ({ ...a, players: c.checked ? [...new Set([...(a.players || []), c.dataset.acc])] : (a.players || []).filter((x) => x !== c.dataset.acc) }));
+  $("ruOn").onchange = (e) => setRuido({ on: e.target.checked });
+  for (const el of document.querySelectorAll("[data-ru]")) el.onchange = () => setRuido({ [el.dataset.ru]: Math.max(0, Number(el.value) || 0) });
+  $("ruFaz").onclick = () => {
+    const it = items.find((i) => ids.includes(i.id));
+    if (!it) return OBR.notification.show("Vigilância: selecione o item de onde sai o barulho.", "WARNING");
+    fazerRuido(it.position.x, it.position.y, Math.max(1, Number($("ruRaio").value) || 10), `um barulho em ${itemName(it)}`);
+  };
   $("auto").onchange = (e) => setAccess((a) => ({ ...a, autoApprove: e.target.checked }));
   $("mkCam")?.addEventListener("click", () => makeCamera(ids));
   $("mkNode")?.addEventListener("click", () => makeNode(ids));
@@ -162,6 +225,35 @@ function bindGM() {
       if (e.target.value) { it.metadata[ONLY] = e.target.value; it.visible = false; } else { delete it.metadata[ONLY]; it.visible = true; }
     }
   }));
+  // ronda
+  $("rdOn")?.addEventListener("click", () => editRonda(one.id, (r) => ({ ...DEFAULT_RONDA, ...r })));
+  for (const el of document.querySelectorAll("[data-rd]")) el.onchange = () => editRonda(one.id, (r) => ({ ...r, [el.dataset.rd]: el.checked }));
+  for (const el of document.querySelectorAll("[data-rdn]")) el.onchange = () => editRonda(one.id, (r) => ({ ...r, [el.dataset.rdn]: Math.max(0, Number(el.value) || 0) }));
+  for (const el of document.querySelectorAll("[data-rds]")) el.onchange = () => editRonda(one.id, (r) => ({ ...r, [el.dataset.rds]: el.value }));
+  $("rdPonto")?.addEventListener("click", async () => { await editRonda(one.id, (r) => r); await addPonto(one); load(); });
+  $("rdLimpa")?.addEventListener("click", async () => { await clearRota(one.id); load(); });
+  $("rdDel")?.addEventListener("click", async () => { await clearRota(one.id); await OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) delete it.metadata["vigilancia/ronda"]; }); load(); });
+  // verdade por jogador
+  $("vdOn")?.addEventListener("click", () => editVerdade(one.id, (v) => ({ ...v, on: true, versoes: v.versoes?.length ? v.versoes : [{ para: "*", esconder: true }] }), true));
+  $("vdLig")?.addEventListener("change", (e) => editVerdade(one.id, (v) => ({ ...v, on: e.target.checked }), e.target.checked));
+  $("vdAdd")?.addEventListener("click", () => editVerdade(one.id, (v) => ({ ...v, versoes: [...(v.versoes || []), { para: [] }] })));
+  $("vdDel")?.addEventListener("click", () => editVerdade(one.id, () => null));
+  for (const b of document.querySelectorAll("[data-vdel]")) b.onclick = () => editVerdade(one.id, (v) => ({ ...v, versoes: v.versoes.filter((_, i) => i !== Number(b.dataset.vdel)) }));
+  for (const el of document.querySelectorAll("[data-vf]")) {
+    el.onchange = () => editVerdade(one.id, (v) => { const x = v.versoes[Number(el.dataset.vi)]; if (x) x[el.dataset.vf] = el.type === "checkbox" ? el.checked : el.value.trim(); return v; });
+  }
+  for (const el of document.querySelectorAll("[data-vpl]")) {
+    el.onchange = () => editVerdade(one.id, (v) => {
+      const x = v.versoes[Number(el.dataset.vpl)];
+      if (!x) return v;
+      const cur = Array.isArray(x.para) ? x.para : [];
+      x.para = el.checked ? [...new Set([...cur, el.value])] : cur.filter((id) => id !== el.value);
+      return v;
+    });
+  }
+  for (const el of document.querySelectorAll("[data-vall]")) {
+    el.onchange = () => editVerdade(one.id, (v) => { const x = v.versoes[Number(el.dataset.vall)]; if (x) x.para = el.checked ? "*" : []; return v; });
+  }
 }
 
 // ---------------- jogador ----------------

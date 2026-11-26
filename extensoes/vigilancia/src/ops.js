@@ -1,6 +1,7 @@
 // Operações da Vigilância com o SDK (usadas pelo segundo plano, pelo painel e pelo popover de aprovação).
-import OBR from "@owlbear-rodeo/sdk";
+import OBR, { buildShape } from "@owlbear-rodeo/sdk";
 import { CAM, NODE, ACCESS, DEFAULT_CAM, newNode, nodeOf, stateLabel } from "./core.js";
+import { RUIDO, RONDA, PONTO, VERDADE, DEFAULT_RONDA, ruidoCfg, routeOf } from "./extra.js";
 
 export const ID = "vigilancia";
 export const PENDING = `${ID}/pedidos`;         // metadado da cena: [{ id, node, nodeName, action, by, byName, at }]
@@ -12,6 +13,8 @@ export const CH_REQ = `${ID}/pedido`;           // jogador -> líder: { node, ac
 export const CH_RES = `${ID}/resposta`;         // mestre -> todos: { by, nodeName, action, ok }
 export const CH_VISION = `${ID}/visao`;          // painel do jogador / Gatilhos -> líder: { targets: [id], mode: "termica"|"baixa"|"todos", on, from? }
 export const CH_PREFS = `${ID}/prefs`;          // painel -> segundo plano (LOCAL): preferências deste navegador mudaram
+export const CH_RUIDO = `${ID}/ruido`;          // qualquer um -> líder: { x, y, raio (quadrados), origem?, quem? } (um barulho no mapa)
+export const CH_OUVIU = `${ID}/ouviu`;          // líder -> todos: { camera, name, x, y, origem, raio }
 export const APPROVE = `${ID}/aprovar`;         // id do popover de aprovação
 
 export const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
@@ -94,4 +97,58 @@ export function applyTheme(theme) {
   if (theme.text?.primary) r.setProperty("--fg", theme.text.primary);
   if (theme.text?.secondary) r.setProperty("--muted", theme.text.secondary);
   if (theme.primary?.main) r.setProperty("--accent", theme.primary.main);
+}
+
+// ---------------- ruído ----------------
+export const getRuido = async () => ruidoCfg(await OBR.scene.getMetadata());
+export async function setRuido(patch) {
+  const cur = await getRuido();
+  await OBR.scene.setMetadata({ [RUIDO]: { ...cur, ...patch } });
+}
+/** Faz um barulho em (x, y) com o raio em quadrados. */
+export const fazerRuido = (x, y, raio, origem = "barulho") => OBR.broadcast.sendMessage(CH_RUIDO, { x, y, raio, origem }, { destination: "ALL" });
+
+// ---------------- ronda ----------------
+export async function editRonda(id, fn) {
+  await OBR.scene.items.updateItems([id], (d) => { for (const it of d) it.metadata[RONDA] = fn({ ...DEFAULT_RONDA, ...(it.metadata[RONDA] || {}) }); });
+}
+async function viewCenter() {
+  const [w, h, pos, k] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight(), OBR.viewport.getPosition(), OBR.viewport.getScale()]);
+  return { x: (w / 2 - pos.x) / k, y: (h / 2 - pos.y) / k };
+}
+/** Põe um ponto novo na rota do guarda (o primeiro na posição dele, os outros no centro da tela). */
+export async function addPonto(guard) {
+  const [items, dpi] = await Promise.all([OBR.scene.items.getItems(), OBR.scene.grid.getDpi().catch(() => 150)]);
+  const route = routeOf(items, guard.id);
+  const n = (items.filter((i) => i.metadata?.[PONTO]?.g === guard.id).reduce((m, i) => Math.max(m, i.metadata[PONTO].n ?? 0), 0)) + 1;
+  const at = route.length ? await viewCenter() : { ...guard.position };
+  const size = dpi * 0.45;
+  const mk = buildShape().shapeType("CIRCLE").width(size).height(size).position(at).fillColor("#ffb347").fillOpacity(0.85)
+    .strokeColor("#000000").strokeOpacity(0.6).strokeWidth(3).layer("PROP").visible(false).name(`Ronda ${n} · ${itemName(guard)}`)
+    .metadata({ [PONTO]: { g: guard.id, n } }).build();
+  await OBR.scene.items.addItems([mk]);
+  return n;
+}
+export async function clearRota(guardId) {
+  const ids = (await OBR.scene.items.getItems()).filter((i) => i.metadata?.[PONTO]?.g === guardId).map((i) => i.id);
+  if (ids.length) await OBR.scene.items.deleteItems(ids);
+  return ids.length;
+}
+
+// ---------------- verdade por jogador ----------------
+export async function editVerdade(id, fn, setHidden) {
+  await OBR.scene.items.updateItems([id], (d) => {
+    for (const it of d) {
+      const cur = it.metadata[VERDADE] || { on: true, versoes: [] };
+      const next = fn(JSON.parse(JSON.stringify(cur)));
+      if (next) {
+        it.metadata[VERDADE] = next;
+        if (setHidden === true && it.visible !== false) { it.visible = false; next.escondidoPor = true; }
+      } else {
+        const was = cur.escondidoPor;
+        delete it.metadata[VERDADE];
+        if (was) it.visible = true;
+      }
+    }
+  });
 }

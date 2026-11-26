@@ -10,10 +10,10 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Vigilância",
-        version: "1.1.5",
+        version: "1.2.0",
         manifest_version: 1,
         author: "Yuri",
-        description: "Câmeras com cone de visão que as paredes bloqueiam e a camada RA da Matriz: deckers hackeiam, o mestre aprova.",
+        description: "Câmeras com cone, ruído, ronda de guardas, verdade por jogador e a camada RA da Matriz (hack com aprovação do mestre).",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
         action: { title: "Vigilância", icon: `${BASE}icon.svg`, popover: `${BASE}index.html`, height: 620, width: 380 },

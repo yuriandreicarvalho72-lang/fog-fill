@@ -2,14 +2,17 @@ import { controls } from "./visibility.js";
 // Vigilância em segundo plano (todos os navegadores):
 // - desenha os cones das câmeras e a camada RA da Matriz como itens LOCAIS (cada um vê o que pode ver);
 // - no mestre líder: vê quem entrou nos cones, avisa e manda o evento para o Gatilhos; aplica pedidos de hack.
-import OBR, { buildPath, buildLabel, buildShape, buildEffect } from "@owlbear-rodeo/sdk";
+import OBR, { buildPath, buildLabel, buildShape, buildEffect, buildCurve } from "@owlbear-rodeo/sdk";
 import {
   CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, conePolygon, seenBy, wallsFrom,
   hasAccess, nodeChanges, doorLock, iconOf, stateLabel,
-  VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS,
+  VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS, sameFloor,
 } from "./core.js";
 import {
-  ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
+  ruidoCfg, hears, shotRaio, rondaOf, routeOf, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance,
+} from "./extra.js";
+import {
+  CH_RUIDO, CH_OUVIU, ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
   url, itemName, uid, getPrefs, setState, makeCamera, makeNode, decide,
 } from "./ops.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
@@ -27,6 +30,9 @@ let lastSweep = 0;
 let dpi = 150;
 let ready = false;
 let estGroups = []; // prédios/andares do Estados (câmeras só veem o próprio andar)
+let ruido = ruidoCfg({});    // chave geral e alcances do ruído (metadado da cena)
+const noises = [];           // barulhos recentes, só para o mestre ver o círculo { id, x, y, raio, until }
+const patrols = new Map();   // guarda -> estado da ronda (só no líder)
 
 const shown = new Map();      // id local -> assinatura do que está desenhado
 const prevSeen = new Map();   // câmera -> Set(tokens) (só no líder)
@@ -106,6 +112,34 @@ function wanted(now) {
         });
       }
     }
+    // verdade por jogador: o original fica escondido; cada jogador vê a versão dele (o mestre vê o original)
+    const verdade = verdadeOf(it);
+    if (verdade && !gm) {
+      const copy = appearance(it, versionFor(verdade, myId));
+      if (copy) {
+        Object.assign(copy, { id: lid("ver", it.id), visible: true, locked: true, disableHit: true, metadata: { [LOCAL]: true } });
+        out.set(copy.id, { sig: JSON.stringify([it.position, it.rotation, it.scale, it.layer, copy.image?.url, copy.text?.plainText, copy.name]), build: () => copy });
+      }
+    }
+    // ronda: o mestre vê a rota (linha e números)
+    const ronda = rondaOf(it);
+    if (ronda && gm && prefs.cones) {
+      const route = routeOf(items, it.id);
+      if (route.length) {
+        const pts = [...route.map((p) => ({ x: p.x, y: p.y })), ...(route.length > 2 && ronda.modo !== "vaivem" ? [{ x: route[0].x, y: route[0].y }] : [])];
+        out.set(lid("rota", it.id), {
+          sig: JSON.stringify([pts, ronda.on]),
+          build: () => tag(buildCurve().points(pts).tension(0).closed(false).strokeColor(ronda.on ? "#ffb347" : "#8a8f98").strokeWidth(Math.max(2, dpi / 40))
+            .strokeDash([dpi / 6, dpi / 8]).strokeOpacity(0.85).fillOpacity(0).layer("DRAWING").name(`Rota: ${itemName(it)}`)).id(lid("rota", it.id)).position({ x: 0, y: 0 }).build(),
+        });
+        route.forEach((p, i) => out.set(lid("rn", p.id), {
+          sig: JSON.stringify([p.x, p.y, i]),
+          build: () => tag(buildLabel().position({ x: p.x, y: p.y - dpi * 0.32 }).plainText(String(i + 1)).fontSize(Math.max(12, dpi / 8)).fontWeight(700)
+            .backgroundColor("#2a1a00").backgroundOpacity(0.85).fillColor("#ffb347").cornerRadius(6).pointerDirection("DOWN").pointerHeight(5).pointerWidth(8)
+            .layer("TEXT")).id(lid("rn", p.id)).build(),
+        }));
+      }
+    }
     const node = nodeOf(it);
     if (node && ra && (gm || (!node.hidden && it.visible !== false))) {
       const color = STATE_COLOR[node.state] || "#4fc3ff";
@@ -123,6 +157,18 @@ function wanted(now) {
         build: () => tag(buildShape().shapeType("HEXAGON").position(it.position).width(size).height(size).fillOpacity(0)
           .strokeColor(color).strokeOpacity(0.9).strokeWidth(Math.max(2, dpi / 40)).strokeDash([dpi / 12, dpi / 16])
           .layer("DRAWING")).id(lid("ring", it.id)).build(),
+      });
+    }
+  }
+  if (gm) {
+    const now2 = Date.now();
+    for (const n of noises) {
+      if (n.until < now2) continue;
+      const r = n.raio * dpi;
+      out.set(lid("ruido", n.id), {
+        sig: JSON.stringify([n.x, n.y, n.raio]),
+        build: () => tag(buildShape().shapeType("CIRCLE").position({ x: n.x, y: n.y }).width(r * 2).height(r * 2).fillColor("#ffd23f").fillOpacity(0.08)
+          .strokeColor("#ffd23f").strokeOpacity(0.8).strokeWidth(Math.max(2, dpi / 40)).strokeDash([dpi / 10, dpi / 10]).layer("DRAWING").name("Ruído")).id(lid("ruido", n.id)).build(),
       });
     }
   }
@@ -186,6 +232,8 @@ function detect(now) {
     const fresh = seen.filter((t) => !before.has(t));
     prevSeen.set(it.id, new Set(seen));
     if (fresh.length) {
+      const rd = rondaOf(it), ps = patrols.get(it.id);
+      if (rd?.on && rd.parar > 0 && ps) patrols.set(it.id, hold(ps, rd.parar * 1000)); // viu alguém: para um pouco
       OBR.broadcast.sendMessage(CH_SEEN, { camera: it.id, name: nodeOf(it)?.name || itemName(it), tokens: fresh, all: seen, alertAll: !!camOf(it).alertAll }, { destination: "ALL" }).catch(() => {});
     }
   }
@@ -254,6 +302,76 @@ async function onVision(e) {
   await OBR.scene.items.updateItems(its.map((i) => i.id), (dr) => { for (const it of dr) it.metadata[VISION] = toggleVision(visionOf(it), d.mode, d.on !== false); });
 }
 
+// ---------- ruído (líder): quem ouve um barulho ----------
+function onRuidoEvent(src) {
+  if (!ruido.on || !(src.raio > 0)) return;
+  noises.push({ id: uid(), x: src.x, y: src.y, raio: src.raio, until: Date.now() + 2500 });
+  while (noises.length > 12) noises.shift();
+  setTimeout(draw, 2600);
+  const origin = src.quem ? items.find((i) => i.id === src.quem) : null;
+  for (const it of items) {
+    const cam = camOf(it);
+    if (!cam?.ouve || !camOn(it) || it.id === src.quem) continue;
+    if (origin && !sameFloor(it, origin)) continue; // o barulho de um andar não chega ao outro
+    const h = hears(it.position, { x: src.x, y: src.y }, src.raio, dpi, walls, ruido.paredes);
+    if (!h.hears) continue;
+    const name = nodeOf(it)?.name || itemName(it);
+    OBR.broadcast.sendMessage(CH_OUVIU, { camera: it.id, name, x: src.x, y: src.y, origem: src.origem || "um barulho", raio: src.raio }, { destination: "ALL" }).catch(() => {});
+    const rd = rondaOf(it), ps = patrols.get(it.id);
+    if (rd?.on && rd.investiga && ps) patrols.set(it.id, investigate(ps, { x: src.x, y: src.y }, rd));
+  }
+  draw();
+}
+
+async function onRuidoMsg(e) {
+  if (!(await isLeader())) return;
+  const d = e.data || {};
+  if (typeof d.x !== "number" || typeof d.y !== "number") return;
+  onRuidoEvent({ x: d.x, y: d.y, raio: Number(d.raio) || 0, origem: d.origem, quem: d.quem });
+}
+function onShotNoise(e) {
+  if (!leader) return;
+  const d = e.data || {};
+  const from = d.spec?.from || items.find((i) => i.id === d.shooter)?.position;
+  if (!from) return;
+  onRuidoEvent({ x: from.x, y: from.y, raio: shotRaio(d, ruido), origem: `o disparo de ${d.shooterName || "alguém"}`, quem: d.shooter });
+}
+function onStepNoise(e) {
+  if (!leader || !(ruido.passos > 0)) return;
+  const d = e.data || {};
+  const end = Array.isArray(d.points) && d.points.length ? d.points[d.points.length - 1] : null;
+  if (end) onRuidoEvent({ x: end.x, y: end.y, raio: ruido.passos, origem: "passos", quem: d.tokenId });
+}
+
+// ---------- ronda (líder): move os guardas pela rota ----------
+let lastPatrol = 0;
+function patrolTick() {
+  if (!leader || !ready) return;
+  const now = Date.now(), dt = Math.min(1000, now - (lastPatrol || now - 250));
+  lastPatrol = now;
+  const upd = [];
+  const alive = new Set();
+  for (const it of items) {
+    const rd = rondaOf(it);
+    if (!rd?.on) continue;
+    alive.add(it.id);
+    const route = routeOf(items, it.id);
+    if (!route.length && !patrols.get(it.id)?.inv) continue;
+    const st = patrols.get(it.id) || patrolInit(it.position, route);
+    const r = patrolStep(st, it.position, route, rd, dt, dpi);
+    patrols.set(it.id, r.st);
+    const moved = r.pos.x !== it.position.x || r.pos.y !== it.position.y;
+    const turned = r.rotation != null && Math.abs(((r.rotation - (it.rotation ?? 0) + 540) % 360) - 180) > 0.5;
+    if (moved || turned) upd.push({ id: it.id, pos: r.pos, rot: r.rotation });
+  }
+  for (const id of [...patrols.keys()]) if (!alive.has(id)) patrols.delete(id);
+  if (!upd.length) return;
+  const by = new Map(upd.map((u) => [u.id, u]));
+  OBR.scene.items.updateItems(upd.map((u) => u.id), (d) => {
+    for (const it of d) { const u = by.get(it.id); it.position = u.pos; if (u.rot != null) it.rotation = u.rot; }
+  }).catch(() => {});
+}
+
 // ---------- ciclo ----------
 let tm = null;
 function loop() {
@@ -267,6 +385,8 @@ function loop() {
   }
   tm = setTimeout(loop, sweeping ? 160 : 400);
 }
+let ptm = null;
+const patrolLoop = () => { clearTimeout(ptm); try { patrolTick(); } catch (e) { console.error(`[${ID}] ronda`, e); } ptm = setTimeout(patrolLoop, 250); };
 
 async function loadScene() {
   ready = false;
@@ -278,6 +398,7 @@ async function loadScene() {
   const md0 = await OBR.scene.getMetadata();
   access = { players: [], autoApprove: false, ...(md0[ACCESS] || {}) };
   estGroups = Array.isArray(md0[EST_GROUPS]) ? md0[EST_GROUPS] : [];
+  ruido = ruidoCfg(md0);
   prevSeen.clear(); prevState.clear();
   for (const it of items) { const n = nodeOf(it); if (n) prevState.set(it.id, n.state); }
   // quem já está no cone ao abrir a cena não dispara alarme
@@ -342,6 +463,14 @@ OBR.onReady(async () => {
   OBR.broadcast.onMessage(CH_REQ, onRequest);
   OBR.broadcast.onMessage(CH_SET, onSet);
   OBR.broadcast.onMessage(CH_VISION, onVision);
+  OBR.broadcast.onMessage(CH_RUIDO, onRuidoMsg);
+  OBR.broadcast.onMessage("arsenal/disparo", onShotNoise);
+  OBR.broadcast.onMessage("regua/caminho", onStepNoise);
+  OBR.broadcast.onMessage(CH_OUVIU, (e) => {
+    const d = e.data || {};
+    if (role !== "GM") return;
+    OBR.notification.show(`👂 ${d.name} ouviu ${d.origem || "um barulho"}`, "WARNING");
+  });
   OBR.broadcast.onMessage(CH_PREFS, (e) => { prefs = { ...prefs, ...(e.data || {}) }; draw(); });
 
   perf = readPerf();
@@ -363,8 +492,10 @@ OBR.onReady(async () => {
   OBR.scene.onMetadataChange((md) => {
     access = { players: [], autoApprove: false, ...(md[ACCESS] || {}) };
     estGroups = Array.isArray(md[EST_GROUPS]) ? md[EST_GROUPS] : [];
+    ruido = ruidoCfg(md);
     draw();
   });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; draw(); });
   loop();
+  patrolLoop();
 });
