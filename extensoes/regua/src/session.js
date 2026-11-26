@@ -3,7 +3,7 @@
 import OBR, { buildCurve, buildLabel, buildPath } from "@owlbear-rodeo/sdk";
 import { Keeper, ID, PATH_CHANNEL, HALT_CHANNEL } from "./shared.js";
 import { persistRuler } from "./persist.js";
-import { pathCells, pathCost, formatDistance, snapRelative, snapCenter, dotsToCommands, ellipseCommands, liftLook } from "./geom.js";
+import { pathCells, pathCost, formatDistance, snapRelative, snapCenter, dotsToCommands, ellipseCommands, liftLook, tokenSizePx } from "./geom.js";
 import { loadDifficult } from "./terrain.js";
 
 export class RulerSession {
@@ -107,8 +107,20 @@ export class RulerSession {
           .fillColor("#000000").fillOpacity(sh.opacity).strokeOpacity(0).strokeWidth(0).layer("MOUNT").locked(true).disableHit(true).position({ x: 0, y: 0 }).build());
       } else items.push(buildPath().id(`${ID}/shadow-off`).commands(ellipseCommands(0, 0, 1, 1)).fillOpacity(0).strokeOpacity(0).layer("MOUNT").locked(true).disableHit(true).position({ x: 0, y: 0 }).build());
       items.push({ ...this.token, position: lk.ghost, scale: { x: (this.token.scale?.x ?? 1) * lk.scale, y: (this.token.scale?.y ?? 1) * lk.scale } });
+      // anel nas posições marcadas: fica visível mesmo com o token em cima
+      items.push(buildPath().id(`${ID}/marks-${Math.random().toString(36).slice(2, 8)}`).commands(this.marksCommands())
+        .fillColor(this.color).fillOpacity(0.18).strokeColor(this.color).strokeOpacity(1).strokeWidth(Math.max(4, d / 24)).strokeDash([d / 14, d / 14])
+        .layer("RULER").locked(true).disableHit(true).position({ x: 0, y: 0 }).build());
     } else if (this.token) items.push({ ...this.token, position: this.cursor });
     return items;
+  }
+
+  /** Anéis do tamanho do token em cada marca (a partida não conta). */
+  marksCommands() {
+    const { w, h } = tokenSizePx(this.token, this.grid.dpi);
+    const r = Math.min(w, h) / 2 * 1.12;
+    const cmds = this.points.slice(1).flatMap((p) => ellipseCommands(p.x, p.y, r, r));
+    return cmds.length ? cmds : ellipseCommands(0, 0, 0.01, 0.01);
   }
 
   /** Atualiza o token-fantasma (e a sombra, no modo levantar) na interação em andamento. */
@@ -164,7 +176,7 @@ export class RulerSession {
     if (!this.grid.square) this.fixedDist += await OBR.scene.grid.getDistance(last, this.cursor);
     this.points.push(this.cursor);
     const cmds = dotsToCommands(this.points, Math.max(5, this.grid.dpi / 10));
-    this.keeper.update((draft) => { draft[1].commands = cmds; });
+    this.keeper.update((draft) => { draft[1].commands = cmds; if (this.lift && draft[5]) draft[5].commands = this.marksCommands(); });
   }
 
   /** Backspace: tira o último ponto fixo. */
@@ -173,7 +185,7 @@ export class RulerSession {
     const removed = this.points.pop();
     if (!this.grid.square) this.fixedDist -= await OBR.scene.grid.getDistance(this.points[this.points.length - 1], removed);
     const cmds = dotsToCommands(this.points, Math.max(5, this.grid.dpi / 10));
-    this.keeper.update((draft) => { draft[1].commands = cmds; });
+    this.keeper.update((draft) => { draft[1].commands = cmds; if (this.lift && draft[5]) draft[5].commands = this.marksCommands(); });
   }
 
   cancel() {

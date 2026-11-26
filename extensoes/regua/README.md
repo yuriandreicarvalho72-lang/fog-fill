@@ -24,3 +24,5 @@ Novo modo da barra (✋), ao lado do "Mover personagem", que continua igual.
 1.6.4: ao soltar, o rótulo mostra a distância até a marca (antes aparecia 0 depois que a camada do botão direito assumia) e a sombra ficou mais escura e maior.
 
 1.6.5: no modo segurar e soltar, arrastar o chão (ou fora da marca) move o mapa. A régua faz isso sozinha porque o Owlbear não move a vista nesse modo.
+
+1.6.6: cada marca ganha um anel tracejado do tamanho do token (visível mesmo com o token em cima). Com a camada do botão direito ativa, arrastar o chão move o mapa e só o clique sem arrastar acrescenta um ponto.

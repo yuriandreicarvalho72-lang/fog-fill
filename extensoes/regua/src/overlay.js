@@ -57,11 +57,19 @@ function onMove(e) {
 const held = { on: false };
 
 let pan = null;
+let lpress = null;   // segurar e soltar: botão esquerdo apertado longe do token (clique = ponto, arrasto = mover mapa)
 async function onDown(e) {
   if (!session || session.done) return;
   if (grabMode && e.button === 0) {
+    const w = toWorld(e.clientX, e.clientY);
+    if (session.phase === "pending" && !session.near(w)) {
+      // longe do token: arrastar move o mapa; só um clique (sem arrastar) acrescenta o ponto
+      lpress = { x: e.clientX, y: e.clientY, moved: false, alt: e.altKey };
+      pan = { x: e.clientX, y: e.clientY, ox: view.ox, oy: view.oy };
+      return;
+    }
     held.on = true;
-    await session.down(toWorld(e.clientX, e.clientY), e.altKey);
+    await session.down(w, e.altKey);
     return;
   }
   if (e.button === 0) {
@@ -77,10 +85,19 @@ async function onDown(e) {
 }
 async function onUp(e) {
   if (e.button === 1) pan = null;
+  if (grabMode && e.button === 0 && lpress) {
+    const l = lpress; lpress = null; pan = null;
+    if (!l.moved) await session?.down(toWorld(e.clientX, e.clientY), l.alt);
+    return;
+  }
   if (grabMode && e.button === 0 && held.on) { held.on = false; await session?.up(toWorld(e.clientX, e.clientY), e.altKey); }
 }
 async function onPanMove(e) {
   if (!pan) return;
+  if (lpress && !lpress.moved) {
+    if (Math.hypot(e.clientX - lpress.x, e.clientY - lpress.y) < 5) return;
+    lpress.moved = true;
+  }
   view.ox = pan.ox + (e.clientX - pan.x);
   view.oy = pan.oy + (e.clientY - pan.y);
   await OBR.viewport.setPosition({ x: view.ox, y: view.oy });

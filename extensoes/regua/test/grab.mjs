@@ -31,10 +31,11 @@ await g.move({ x: 500, y: 500 });
 ok("sem segurar, mexer o ponteiro não faz nada", [g.phase, g.s.cursor], ["idle", { x: 75, y: 75 }]);
 await g.down({ x: 300, y: 75 });
 ok("pegou: segurando e levantado", [g.phase, g.s.lifted], ["drag", true]);
-ok("a prévia tem sombra e token", [items().length, items()[3].layer, items()[4].id], [5, "MOUNT", "tok"]);
+ok("a prévia tem sombra e token", [items().length, items()[3].layer, items()[4].id], [6, "MOUNT", "tok"]);
 await g.move({ x: 450, y: 75 });
 ok("arrastando: o token acompanha (levantado)", [items()[4].position.x, items()[4].position.y < 75], [525, true]);
 await g.up({ x: 450, y: 75 });
+ok("anel na marca (item extra)", [items().length, items()[5].commands.length > 1], [6, true]);
 ok("soltou: marcado e pousado", [g.phase, g.points.length, g.s.lifted, g.ready], ["pending", 2, false, true]);
 ok("pousado: o token fica no ponto", [items()[4].position, items()[4].scale], [{ x: 525, y: 75 }, { x: 1, y: 1 }]);
 await g.down({ x: 540, y: 80 });   // perto da última marca: pega de novo
