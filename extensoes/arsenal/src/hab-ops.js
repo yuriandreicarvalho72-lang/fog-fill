@@ -5,7 +5,9 @@ import { DOSSIE, HAB_USO, CH_HAB, normalize, canUse, markUse, numbers, shapeOf, 
 import { prepareCustom, loadMeus } from "./meus.js";
 import { addAtivo } from "./ativos.js";
 import { halfSize } from "./cover.js";
-import { ID, metersPerUnit, itemName, isToken } from "./shared.js";
+import { ID, metersPerUnit, itemName, isToken, CENARIO, OWNER, CH_HAB_DANO } from "./shared.js";
+import { habEvents, destrOf } from "./destroy.js";
+import { applyEvents, isLeaderGM, breakNow } from "./scenery.js";
 import { luzRequest, sendLuz } from "./luz.js";
 
 export const HAB_TOOL = `${ID}/habilidades`;
@@ -93,6 +95,12 @@ export async function useAbility(tokenId, nome, aim = {}) {
   const caught = caughtIds.map((id) => itemName(byId.get(id)));
   const { uso, aviso } = markUse(ab, usoOf(tok), dossie);
   await setUso(tok.id, () => uso);
+  // cenário destrutível: a habilidade machuca o que estiver na área (cenario: explosao | tiro | nenhum no dossiê)
+  const evs = habEvents(ab, shape, targets, mpc);
+  if (evs.length) setTimeout(() => aplicarDano(evs, tok.id).catch(() => {}), 600);
+  // arma de cenário: depois de usar, o objeto quebra ou some
+  const cen = tok.metadata?.[CENARIO];
+  if (cen?.aoUsar === "quebrar" || cen?.aoUsar === "sumir") setTimeout(() => depoisDeUsar(tok.id, cen.aoUsar).catch(() => {}), 900);
   // Ataque Múltiplo: mostra os números dos ataques que ele faz (ex.: "2× Garras do Gânglio: +9 para acertar · ...")
   const counts = (ab.faz || []).reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map());
   const text = ab.faz?.length ? [...counts].map(([n, k]) => `${k}× ${n}${subs[n] ? `: ${numbers(subs[n])}` : ""}`).join(" | ") : numbers(ab);
@@ -100,6 +108,57 @@ export async function useAbility(tokenId, nome, aim = {}) {
   // sem aviso de confirmação: o resultado fica no topo do painel (só o de covil repetido avisa)
   if (aviso) OBR.notification.show(`Habilidades: ${aviso}`, "WARNING");
   return { ok: true, caught };
+}
+
+/** Dano de habilidade no cenário destrutível: só o mestre líder muda a cena; outro mestre pede por mensagem. */
+async function aplicarDano(events, by) {
+  const conn = await OBR.player.getConnectionId().catch(() => "");
+  if (await isLeaderGM(conn)) return applyEvents(events, by);
+  await OBR.broadcast.sendMessage(CH_HAB_DANO, { events, by }, { destination: "ALL" });
+}
+
+/** Depois de usar uma arma de cenário: "quebrar" (usa o cenário destrutível; sem ele, esconde) ou "sumir" (esconde). */
+async function depoisDeUsar(id, modo) {
+  const [it] = await OBR.scene.items.getItems([id]);
+  if (!it) return;
+  if (modo === "quebrar" && destrOf(it)) { if (!destrOf(it).broken) await breakNow(id, null); return; }
+  await OBR.scene.items.updateItems([id], (d) => { for (const x of d) x.visible = false; });
+}
+
+/** Arma de cenário: liga/desliga e ajusta (jogadores podem usar, alcance em quadrados, o que acontece depois de usar). null = tira. */
+export const setCenario = (id, fn) => OBR.scene.items.updateItems([id], (d) => {
+  for (const it of d) {
+    const next = fn({ jogadores: false, alcance: 1.5, aoUsar: "nada", ...(it.metadata[CENARIO] || {}) });
+    if (next) it.metadata[CENARIO] = next; else delete it.metadata[CENARIO];
+  }
+});
+
+/**
+ * Jogador usa uma arma de cenário (pedido { item, nome, targets, point, by }); só o líder executa.
+ * Confere se o objeto aceita jogadores e se algum token de quem pediu está no alcance. Devolve { ok, text } ou { error }.
+ */
+export async function useScenery(d = {}) {
+  const [it] = d.item ? await OBR.scene.items.getItems([d.item]).catch(() => []) : [];
+  const dossie = dossieOf(it);
+  const cen = it?.metadata?.[CENARIO];
+  if (!it || !dossie || !cen?.jogadores) return { error: "este objeto não pode ser usado pelos jogadores." };
+  const ab = dossie.habilidades.find((h) => h.nome === d.nome);
+  if (!ab) return { error: `"${d.nome || ""}" não está no objeto.` };
+  const cell = await OBR.scene.grid.getDpi().catch(() => 150);
+  const all = await OBR.scene.items.getItems();
+  const mine = all.filter((i) => isToken(i) && (i.metadata?.[OWNER] === d.by || (!i.metadata?.[OWNER] && i.createdUserId === d.by)));
+  if (!mine.length) return { error: "você não tem um token na cena." };
+  const alc = Number(cen.alcance) || 0;
+  if (alc > 0) {
+    const near = mine.some((t) => Math.hypot(t.position.x - it.position.x, t.position.y - it.position.y) <= alc * cell + (halfSize(it, cell) || cell / 2) + (halfSize(t, cell) || cell / 2));
+    if (!near) return { error: `chegue a até ${String(alc).replace(".", ",")} quadrado(s) de ${itemName(it)} para usar.` };
+  }
+  const ids = new Set(all.map((i) => i.id));
+  const point = d.point && Number.isFinite(d.point.x) && Number.isFinite(d.point.y) ? { x: d.point.x, y: d.point.y } : null;
+  const r = await useAbility(it.id, ab.nome, { targets: (d.targets || []).filter((id) => ids.has(id)).slice(0, 10), point });
+  if (r.error) return r;
+  const who = mine[0] ? itemName(mine[0]) : "alguém";
+  return { ok: true, text: `${who} usou ${ab.nome} (${itemName(it)}): ${r.caught?.length ? `pegou ${r.caught.join(", ")}` : "ninguém na área"}${numbers(ab) ? ` · ${numbers(ab)}` : ""}` };
 }
 
 const semAc = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();

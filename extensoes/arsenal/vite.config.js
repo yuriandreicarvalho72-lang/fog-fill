@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Arsenal",
-        version: "1.9.2",
+        version: "1.10.0",
         manifest_version: 1,
         author: "Yuri",
         description: "Armas de fogo animadas (vídeos JB2A): monte o repertório do token pelo catálogo de Metrópole, mire e atire.",
@@ -34,6 +34,7 @@ export default defineConfig(({ command }) => ({
         background: resolve(__dirname, "background.html"),
         hud: resolve(__dirname, "hud.html"),
         hab: resolve(__dirname, "hab.html"),
+        cenario: resolve(__dirname, "cenario.html"),
       },
     },
   },

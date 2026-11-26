@@ -346,6 +346,9 @@ export function normalize(input) {
     const dur = parseDuracao(h.duracao);
     if (dur) out.duracao = dur;
     if (sem(h.camada) === "sob") out.camada = "sob";
+    const cen = sem(h.cenario);
+    if (["explosao", "tiro", "nenhum"].includes(cen)) out.cenario = cen;
+    else if (h.cenario) avisos.push(`${nome}: cenario "${h.cenario}" desconhecido (use explosao, tiro ou nenhum).`);
     const luz = normLuz(h.luz);
     if (luz) out.luz = luz;
     for (const k of Object.keys(out)) if (out[k] === "" || out[k] === null || out[k] === false) delete out[k];

@@ -1,7 +1,7 @@
 // Operações da Vigilância com o SDK (usadas pelo segundo plano, pelo painel e pelo popover de aprovação).
 import OBR, { buildShape } from "@owlbear-rodeo/sdk";
 import { CAM, NODE, ACCESS, DEFAULT_CAM, newNode, nodeOf, stateLabel } from "./core.js";
-import { RUIDO, RONDA, PONTO, VERDADE, DEFAULT_RONDA, ruidoCfg, routeOf } from "./extra.js";
+import { RUIDO, RONDA, PONTO, VERDADE, ETIQ, DEFAULT_ETIQ, DEFAULT_RONDA, ruidoCfg, routeOf } from "./extra.js";
 
 export const ID = "vigilancia";
 export const PENDING = `${ID}/pedidos`;         // metadado da cena: [{ id, node, nodeName, action, by, byName, at }]
@@ -149,6 +149,17 @@ export async function editVerdade(id, fn, setHidden) {
         delete it.metadata[VERDADE];
         if (was) it.visible = true;
       }
+    }
+  });
+}
+
+// ---------------- etiquetas de RA ----------------
+export async function editEtiqueta(ids, fn) {
+  await OBR.scene.items.updateItems(ids, (d) => {
+    for (const it of d) {
+      const cur = it.metadata[ETIQ] || { ...DEFAULT_ETIQ, titulo: it.name || "" };
+      const next = fn(JSON.parse(JSON.stringify(cur)));
+      if (next) it.metadata[ETIQ] = next; else delete it.metadata[ETIQ];
     }
   });
 }

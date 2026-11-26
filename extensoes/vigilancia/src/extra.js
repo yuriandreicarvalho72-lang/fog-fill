@@ -107,3 +107,29 @@ export function appearance(it, ver) {
   }
   return copy;
 }
+
+// ---------------- etiquetas de RA ----------------
+export const ETIQ = "vigilancia/etiqueta"; // metadado do item: rótulo de realidade aumentada (só quem tem RA vê)
+export const DEFAULT_ETIQ = { on: true, titulo: "", linhas: "", cor: "#4fc3ff", alcance: 0, para: [], mesmoOculto: false };
+/** Etiqueta ligada e com algum texto, ou null. */
+export const etiquetaOf = (it) => {
+  const e = it?.metadata?.[ETIQ];
+  return e && e.on !== false && (String(e.titulo || "").trim() || String(e.linhas || "").trim()) ? { ...DEFAULT_ETIQ, ...e } : null;
+};
+/** Texto da etiqueta; {estado} vira o estado do nó da Matriz do próprio item (ex.: "hackeado"). */
+export function etiquetaTexto(e, estado = "") {
+  const sub = String(e.linhas || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  return [String(e.titulo || "").trim(), ...sub].filter(Boolean).join("\n").replace(/\{estado\}/gi, estado);
+}
+/**
+ * Este jogador vê a etiqueta agora? O mestre sempre vê. Com "só para" preenchido, só quem está na lista.
+ * Com alcance (quadrados), só quando um token com commlink/cyberdeck dele está a essa distância;
+ * jogador marcado pelo mestre que não tem token com commlink vê sempre (não dá para medir).
+ */
+export function etiquetaVisivel(e, itemPos, { gm = false, playerId = "", decks = [], cell = 150 } = {}) {
+  if (gm) return true;
+  if (Array.isArray(e.para) && e.para.length && !e.para.includes(playerId)) return false;
+  const r = Number(e.alcance) || 0;
+  if (r <= 0 || !decks.length) return true;
+  return decks.some((p) => Math.hypot(p.x - itemPos.x, p.y - itemPos.y) <= r * cell);
+}

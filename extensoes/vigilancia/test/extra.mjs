@@ -1,4 +1,4 @@
-import { crossings, hears, shotRaio, ruidoCfg, DEFAULT_RUIDO, routeOf, patrolInit, patrolStep, investigate, hold, versionFor, appearance, verdadeOf, PONTO, RUIDO, VERDADE } from "../src/extra.js";
+import { crossings, hears, shotRaio, ruidoCfg, DEFAULT_RUIDO, routeOf, patrolInit, patrolStep, investigate, hold, versionFor, appearance, verdadeOf, PONTO, RUIDO, VERDADE, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel } from "../src/extra.js";
 let bad = 0;
 const ok = (n, v, e) => { const g = JSON.stringify(v) === JSON.stringify(e); if (!g) bad++; console.log((g ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v)); };
 const cell = 100;
@@ -62,4 +62,18 @@ const c = appearance(it, versionFor(v, "ana"));
 ok("cópia com a imagem trocada, sem prender a outro item", [c.image.url, c.image.width, c.attachedTo, c.text.plainText], ["https://x/y.png", 150, undefined, "Guarda"]);
 ok("escondido para ele", appearance(it, versionFor(v, "bob")), null);
 ok("desligado não vale", verdadeOf({ metadata: { [VERDADE]: { on: false, versoes: [] } } }), null);
+
+// etiquetas de RA
+const et = { on: true, titulo: "Painel B-12", linhas: "Dono: Horizon\nSeg.: 4\nEstado: {estado}", alcance: 0, para: [] };
+ok("etiqueta ligada com texto", etiquetaOf({ metadata: { [ETIQ]: et } })?.titulo, "Painel B-12");
+ok("sem texto ou desligada: nada", [etiquetaOf({ metadata: { [ETIQ]: { titulo: " " } } }), etiquetaOf({ metadata: { [ETIQ]: { ...et, on: false } } }), etiquetaOf({ metadata: {} })], [null, null, null]);
+ok("texto com {estado} e linhas vazias", etiquetaTexto({ titulo: "X", linhas: "a\n\n b " }, "hackeado"), "X\na\nb");
+ok("{estado} vira o estado do nó", etiquetaTexto(et, "hackeado").split("\n").pop(), "Estado: hackeado");
+const e1 = { ...et, alcance: 5 };
+const at = { x: 0, y: 0 };
+ok("mestre sempre vê", etiquetaVisivel(e1, at, { gm: true, decks: [{ x: 9999, y: 0 }] }), true);
+ok("alcance: perto vê, longe não", [etiquetaVisivel(e1, at, { playerId: "a", decks: [{ x: 400, y: 0 }], cell: 100 }), etiquetaVisivel(e1, at, { playerId: "a", decks: [{ x: 600, y: 0 }], cell: 100 })], [true, false]);
+ok("vale o token mais perto", etiquetaVisivel(e1, at, { playerId: "a", decks: [{ x: 900, y: 0 }, { x: 0, y: 300 }], cell: 100 }), true);
+ok("marcado sem token com commlink: vê sempre", etiquetaVisivel(e1, at, { playerId: "a", decks: [], cell: 100 }), true);
+ok("só para: fora da lista não vê", [etiquetaVisivel({ ...et, para: ["ana"] }, at, { playerId: "bob" }), etiquetaVisivel({ ...et, para: ["ana"] }, at, { playerId: "ana" })], [false, true]);
 process.exit(bad ? 1 : 0);

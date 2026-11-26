@@ -62,6 +62,17 @@ pelo mestre. "Limpar sobras" apaga e redesenha cones, nós e filtros.
 - Cada versão pode trocar a imagem (link direto), o texto, ou esconder o item de quem cair nela. Serve para disfarce, ilusão, aura ou alucinação.
 - A cópia é local, na tela de cada jogador, e acompanha o original (posição, giro, tamanho). **Desfazer a verdade** mostra o item de novo.
 
+## Etiquetas de RA (1.3)
+
+- Botão direito em qualquer item → **Etiqueta de RA (Vigilância)** (ou painel → "🏷 Etiqueta de RA"). Escreva um título e uma informação por linha
+  (nome do aparelho, dono, nível de segurança...). A etiqueta aparece embaixo do item, na camada de texto, **só para quem tem RA**:
+  você, os jogadores marcados no painel e os donos de tokens com commlink/cyberdeck. O jogador pode desligar a RA no painel dele.
+- `{estado}` no texto vira o estado do nó da Matriz do próprio item (ativo, em loop, hackeado...). Hackear o painel muda a etiqueta sozinho.
+- **Só aparece a até N quadrados:** usa os tokens com commlink do jogador; quem foi só marcado pelo mestre, sem token, vê sempre. 0 = sempre.
+- **Só para:** lista de jogadores; nenhum marcado = todos com RA.
+- **Aparece mesmo com o item escondido:** aparelho que só existe na RA (escuta, antena, host). O mestre vê todas, também as de itens escondidos.
+- Metadado do item: `vigilancia/etiqueta` = `{ on, titulo, linhas, cor, alcance, para: [ids], mesmoOculto }`. A etiqueta é local (cada navegador desenha a sua).
+
 ## Integração
 
 - **Gatilhos** (1.7+): causas "Uma câmera vê alguém" (quem ativou = quem foi visto) e "Nó da Matriz muda de estado"

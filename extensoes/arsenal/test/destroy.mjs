@@ -1,4 +1,4 @@
-import { DESTR, DEFAULT_DESTR, destrOf, addDamage, damageText, resistText, itemDistance, centerOf, damageEvents, affects, caughtBy, remaining, seesCountdown, canControl, chargeOf, buildDebris, buildBlast, CHARGE } from "../src/destroy.js";
+import { DESTR, DEFAULT_DESTR, destrOf, addDamage, damageText, resistText, itemDistance, centerOf, damageEvents, affects, caughtBy, remaining, seesCountdown, canControl, chargeOf, buildDebris, buildBlast, CHARGE, shapeHitsItem, habEvents } from "../src/destroy.js";
 const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v));
 const dpi = 100;
 const box = (id, x, y, md = {}) => ({ id, type: "IMAGE", layer: "PROP", position: { x, y }, rotation: 0, scale: { x: 1, y: 1 }, image: { width: 100, height: 100 }, grid: { dpi: 100, offset: { x: 50, y: 50 } }, metadata: md });
@@ -56,3 +56,23 @@ ok("quem controla: quem plantou e o mestre", [canControl(c, "p1", "PLAYER"), can
 const has = () => true;
 ok("quebra com vídeos JB2A", buildDebris({ x: 0, y: 0 }, 2, dpi, 1, has).videos.length, 4);
 ok("explosão sem vídeos: desenhada", buildBlast({ x: 0, y: 0 }, 2, dpi, 1, () => false).videos.length, 0);
+
+// habilidades no cenário
+const circle = (x, y, r) => ({ kind: "circle", c: { x, y }, r });
+const cone = { kind: "poly", pts: [{ x: 0, y: 0 }, { x: 400, y: 200 }, { x: 400, y: -200 }] };
+ok("círculo pega a caixa no raio", [shapeHitsItem(circle(150, 0, 120), box("c", 0, 0), dpi), shapeHitsItem(circle(400, 0, 60), box("c", 0, 0), dpi)], [true, false]);
+ok("cone pega a caixa à frente, não a de trás", [shapeHitsItem(cone, box("c", 200, 0), dpi), shapeHitsItem(cone, box("c", -300, 0), dpi)], [true, false]);
+ok("cone pega a parede que ele atravessa", shapeHitsItem(cone, { ...wall, position: { x: 300, y: 0 } }, dpi), true);
+ok("cone fora da parede", shapeHitsItem(cone, { ...wall, position: { x: 700, y: 0 } }, dpi), false);
+const abArea = { forma: "area", area: 3, dano: "6d6 fogo" };
+ok("área com dano: 1 explosão pesada", habEvents(abArea, circle(0, 0, 200), []).map((e) => [e.kind, e.peso]), [["shape", "blast"]]);
+ok("área sem dano não machuca o cenário", habEvents({ forma: "area", area: 3 }, circle(0, 0, 200), []), []);
+ok("cenario: nenhum desliga", habEvents({ ...abArea, cenario: "nenhum" }, circle(0, 0, 200), []), []);
+ok("cenario: tiro vira tiro pesado", habEvents({ ...abArea, cenario: "tiro" }, circle(0, 0, 200), [])[0].peso, "shot");
+ok("alvo só machuca com cenario explícito", [habEvents({ forma: "alvo", dano: "2d8" }, null, [{ id: "c", at: { x: 1, y: 1 } }]).length, habEvents({ forma: "alvo", cenario: "tiro" }, null, [{ id: "c", at: { x: 1, y: 1 } }]).map((e) => [e.kind, e.id, e.heavy])], [0, [["shot", "c", true]]]);
+ok("alvo com explosão: raio da área em quadrados", habEvents({ forma: "alvo", cenario: "explosao", area: 3 }, null, [{ id: "c", at: { x: 0, y: 0 } }], 1.5)[0].r, 2);
+const evS = habEvents(abArea, circle(150, 0, 120), [])[0];
+const dest0 = { ...DEFAULT_DESTR };
+ok("evento de forma afeta o destrutível na área (explosão)", [affects(evS, box("c", 0, 0), dest0, dpi), affects(evS, box("c", 900, 0), dest0, dpi)], [true, false]);
+ok("à prova de explosão não é afetado", affects(evS, box("c", 0, 0), { ...dest0, blasts: 0 }, dpi), false);
+ok("tiro de habilidade só conta se o item aguenta tiros", [affects({ ...evS, peso: "shot" }, box("c", 0, 0), dest0, dpi), affects({ ...evS, peso: "shot" }, box("c", 0, 0), { ...dest0, shots: 0 }, dpi)], [true, false]);

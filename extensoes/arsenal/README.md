@@ -51,6 +51,16 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 - **Direção e linha** (1.7): cone e linha giram para onde o NPC aponta com qualquer visual (visual de ponto num cone fica um só, no meio do
   cone, virado; numa linha é **lançado** do NPC até o ponto). A linha vai até o ponto clicado (no máximo o comprimento da ficha) e quem
   ficou dentro é contado nesse trecho. Visual de linha/cone numa habilidade de alvo sai do NPC e chega no alvo.
+- **Cenário como arma** (1.10): qualquer objeto com dossiê (barril, guindaste, painel) vira arma. Botão direito → **Habilidades (dossiê)** → cole o
+  dossiê → **⚙ Arma de cenário**: **Jogadores podem usar**, **alcance** (quadrados do objeto até o token de quem usa; 0 = qualquer distância)
+  e **depois de usar** (o objeto continua, **quebra** pelo cenário destrutível ou **some**). O jogador faz botão direito no objeto → **Usar arma de cenário**
+  (ou o ícone Habilidades da barra): abre uma janela com as habilidades, 🎯 mira (clique no mapa, Enter usa) ou ▶ usa na hora. O mestre líder confere
+  o alcance e usa; a mensagem de resultado mostra os números da ficha e quem ficou na área (o jogador rola os dados). Quem usa precisa ter um token
+  na cena (criador do token ou "jogador que usa este token"). O ícone Habilidades agora aparece também para os jogadores.
+  NPCs usam do mesmo jeito: você mira a habilidade do objeto no painel, ou o Gatilhos usa "Habilidade de NPC (Arsenal)" escolhendo o objeto.
+- **Habilidades machucam o cenário destrutível** (1.10): área, aura, cone e linha **com dano** contam como 1 explosão sobre o que estiver na forma
+  (itens marcados como destrutíveis). Campo **`cenario`** na habilidade do dossiê: `"explosao"` (padrão das de área com dano), `"tiro"` (conta como tiro pesado)
+  ou `"nenhum"` (não machuca o cenário). Habilidade de **alvo** só machuca o cenário se tiver `cenario: "explosao"` ou `"tiro"` (o alvo marcado leva o dano).
 - **Duração** (1.7): no 🎨 de cada habilidade, **uma vez**, **por N segundos** (em loop) ou **em loop até eu encerrar** (campo
   `duracao` no dossiê: número de segundos ou `"fim"`). O vídeo principal fica no mapa para todos (inclusive quem entra depois); a lista
   **Efeitos no mapa** no topo do painel mostra o tempo que falta, ✕ em cada um e **Encerrar todos**. Fica no metadado da cena

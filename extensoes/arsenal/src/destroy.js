@@ -127,9 +127,51 @@ export function damageEvents(spec) {
   return out;
 }
 
+// ---------------- habilidades no cenário ----------------
+const segsOfPoly = (pts) => pts.map((p, i) => ({ a: p, b: pts[(i + 1) % pts.length] }));
+const side = (a, b, c) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+const segHit = (p1, p2, p3, p4) => side(p1, p2, p3) !== side(p1, p2, p4) && side(p3, p4, p1) !== side(p3, p4, p2);
+
+/** A forma da habilidade (círculo { c, r } ou polígono { pts }, em px) pega este item? */
+export function shapeHitsItem(shape, item, dpi) {
+  if (!shape) return false;
+  if (shape.kind === "circle") return itemDistance(item, shape.c, dpi) <= shape.r;
+  if (!shape.pts?.length) return false;
+  const poly = segsOfPoly(shape.pts);
+  const segs = outline(item, dpi);
+  if (!segs.length) return inside(item.position, poly);
+  const pts = [centerOf(item, dpi), ...segs.flatMap((s) => [s.a, s.b])];
+  if (pts.some((p) => inside(p, poly))) return true;
+  if (segs.some((s) => poly.some((e) => segHit(s.a, s.b, e.a, e.b)))) return true;
+  return closed(item) && shape.pts.some((p) => inside(p, segs));
+}
+
+/** Peso do dano de cenário de cada valor do campo "cenario" da habilidade. */
+export const CENARIO_PESO = { explosao: "blast", tiro: "shot" };
+
+/**
+ * Eventos de dano no cenário de uma habilidade usada. Área, aura, cone e linha com dano contam como 1 explosão
+ * (cenario: "nenhum" desliga; "tiro" conta como tiro pesado). Habilidade de alvo só machuca o cenário se tiver
+ * cenario: "explosao" ou "tiro" no dossiê. targets = [{ id, at }]; shape = a área da habilidade (ou null); mpc = metros por quadrado.
+ */
+export function habEvents(ab, shape, targets, mpc = 1.5) {
+  if (!ab || ab.cenario === "nenhum") return [];
+  const areaLike = ["area", "aura", "cone", "linha"].includes(ab.forma);
+  const mode = ab.cenario || (areaLike && ab.dano ? "explosao" : "");
+  if (!mode) return [];
+  const peso = CENARIO_PESO[mode] || "blast";
+  if (ab.forma === "alvo") {
+    return (targets || []).map((t) => (peso === "shot"
+      ? { kind: "shot", id: t.id, at: t.at, heavy: true }
+      : { kind: "blast", at: t.at, r: ab.area > 0 ? Math.max(0.5, ab.area / (mpc || 1.5)) : 1 }));
+  }
+  return areaLike && shape ? [{ kind: "shape", shape, peso, heavy: true }] : [];
+}
+
 /** O evento pega este item destrutível? (tiro: o alvo marcado ou um ponto em cima dele; explosão: dentro do raio) */
 export function affects(ev, item, d, dpi) {
   if (!d || d.broken) return false;
+  if (ev.kind === "shape") return (ev.peso === "shot" ? d.shots > 0 : d.blasts > 0) && shapeHitsItem(ev.shape, item, dpi);
   if (ev.kind === "blast") return d.blasts > 0 && itemDistance(item, ev.at, dpi) <= ev.r * dpi;
   if (!(ev.heavy || d.any) || d.shots <= 0) return false;
   if (ev.id) return ev.id === item.id;

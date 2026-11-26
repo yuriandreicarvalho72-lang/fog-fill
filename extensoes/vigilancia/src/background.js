@@ -9,11 +9,11 @@ import {
   VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS, sameFloor,
 } from "./core.js";
 import {
-  ruidoCfg, hears, shotRaio, rondaOf, routeOf, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance,
+  ruidoCfg, hears, shotRaio, rondaOf, routeOf, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel,
 } from "./extra.js";
 import {
   CH_RUIDO, CH_OUVIU, ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
-  url, itemName, uid, getPrefs, setState, makeCamera, makeNode, decide,
+  url, itemName, uid, getPrefs, setState, makeCamera, makeNode, decide, editEtiqueta,
 } from "./ops.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
 
@@ -69,6 +69,7 @@ function wanted(now) {
   const gm = role === "GM";
   const ra = prefs.ra && hasAccess(myId, role, items, access);
   const modes = activeModes(myId, role, items);
+  const myDecks = ownedBy(myId, items).filter((i) => i.metadata?.[DECK] === true).map((i) => i.position);
   // filtro de cor na tela (térmica laranja, baixa luz verde) para quem está com o modo ligado
   if (modes.length && prefs.tint !== false && perf?.vig?.tint !== false) {
     const m = modes.includes("termica") ? "termica" : "baixa";
@@ -157,6 +158,21 @@ function wanted(now) {
         build: () => tag(buildShape().shapeType("HEXAGON").position(it.position).width(size).height(size).fillOpacity(0)
           .strokeColor(color).strokeOpacity(0.9).strokeWidth(Math.max(2, dpi / 40)).strokeDash([dpi / 12, dpi / 16])
           .layer("DRAWING")).id(lid("ring", it.id)).build(),
+      });
+    }
+    // etiqueta de RA: rótulo embaixo do item, só para quem tem RA (e, se configurado, perto e na lista "só para")
+    const et = etiquetaOf(it);
+    if (et && ra && (gm || it.visible !== false || et.mesmoOculto)
+        && etiquetaVisivel(et, it.position, { gm, playerId: myId, decks: myDecks, cell: dpi })) {
+      const size = Math.max(dpi * 0.9, (it.image ? (it.image.width * dpi) / (it.grid?.dpi || it.image.width) : dpi) * Math.abs(it.scale?.x ?? 1));
+      const text = etiquetaTexto(et, nodeOf(it) ? stateLabel(nodeOf(it).state) : "");
+      const col = /^#[0-9a-f]{6}$/i.test(et.cor) ? et.cor : "#4fc3ff";
+      out.set(lid("etiq", it.id), {
+        sig: JSON.stringify([it.position, size, text, col]),
+        build: () => tag(buildLabel().position({ x: it.position.x, y: it.position.y + size / 2 }).plainText(text)
+          .backgroundColor("#061a24").backgroundOpacity(0.85).fillColor(col).fontWeight(600).fontSize(Math.max(12, dpi / 8))
+          .cornerRadius(6).pointerDirection("UP").pointerHeight(6).pointerWidth(10).layer("TEXT").name(`RA: ${text.split("\n")[0]}`))
+          .id(lid("etiq", it.id)).build(),
       });
     }
   }
@@ -437,6 +453,11 @@ OBR.onReady(async () => {
       const give = ctx.items.some((i) => i.metadata?.[DECK] !== true);
       OBR.scene.items.updateItems(ctx.items.map((i) => i.id), (d) => { for (const it of d) { if (give) it.metadata[DECK] = true; else delete it.metadata[DECK]; } });
     },
+  });
+  await controls.contextMenu.create({
+    id: `${ID}/etiqueta`,
+    icons: [{ icon: url("node.svg"), label: "Etiqueta de RA (Vigilância)", filter: { ...GM, max: 1, every: [{ key: ["metadata", ETIQ], value: undefined }] } }],
+    onClick: async (ctx) => { await editEtiqueta(ctx.items.map((i) => i.id), (e) => e); controls.openPanel().catch(() => {}); },
   });
   await controls.contextMenu.create({
     id: `${ID}/hackear`,

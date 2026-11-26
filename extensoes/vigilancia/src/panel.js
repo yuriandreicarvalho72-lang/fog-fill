@@ -4,8 +4,8 @@ import "./compact.js";
 // Jogador com commlink/cyberdeck: vê os nós e pede para hackear, pôr em loop, desativar ou reativar.
 import OBR from "@owlbear-rodeo/sdk";
 import { CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
-import { ruidoCfg, rondaOf, routeOf, verdadeOf, VERDADE, DEFAULT_RONDA } from "./extra.js";
-import { fazerRuido, setRuido, editRonda, addPonto, clearRota, editVerdade, PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
+import { ruidoCfg, rondaOf, routeOf, verdadeOf, VERDADE, DEFAULT_RONDA, ETIQ, DEFAULT_ETIQ } from "./extra.js";
+import { editEtiqueta, fazerRuido, setRuido, editRonda, addPonto, clearRota, editVerdade, PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -13,7 +13,7 @@ let role = "PLAYER", myId = "";
 let items = [], sel = [], pending = [], access = { players: [], autoApprove: false }, players = [], ruido = ruidoCfg({});
 const asked = new Map(); // jogador: nó -> ação pedida (para mostrar "aguardando")
 
-const busy = () => ["INPUT", "SELECT"].includes(document.activeElement?.tagName) && document.activeElement.type !== "checkbox";
+const busy = () => ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName) && document.activeElement.type !== "checkbox";
 const chip = (st) => `<span class="chip" style="background:${STATE_COLOR[st] || "#888"};color:#111">${esc(stateLabel(st))}</span>`;
 
 async function load() {
@@ -77,7 +77,29 @@ function renderSel() {
     ${isToken(it) ? `<label class="check"><input type="checkbox" id="deck" ${it.metadata?.[DECK] === true ? "checked" : ""} /> Tem commlink/cyberdeck (o dono deste token vê a Matriz)</label>` : ""}
     ${visionForm(it)}
     ${rondaForm(it)}
-    ${verdadeForm(it)}`;
+    ${verdadeForm(it)}
+    ${etiquetaForm(it)}`;
+}
+
+/** Etiqueta de RA: rótulo flutuante embaixo do item, visível só para quem tem commlink/cyberdeck (ou o mestre). */
+function etiquetaForm(it) {
+  const e = it.metadata?.[ETIQ];
+  if (!e) return `<div class="effect"><h3>🏷 Etiqueta de RA</h3><p class="hint">Rótulo de realidade aumentada colado no item (nome do aparelho, dono, nível de segurança). Só quem tem RA vê: você, jogadores marcados e donos de tokens com commlink/cyberdeck.</p>
+    <div class="btns"><button type="button" id="etOn">🏷 Criar etiqueta</button></div></div>`;
+  const x = { ...DEFAULT_ETIQ, ...e };
+  const pl = players.filter((p) => p.role !== "GM");
+  return `<div class="effect">
+    <h3>🏷 Etiqueta de RA</h3>
+    <label class="check"><input type="checkbox" data-etb="on" ${x.on !== false ? "checked" : ""} /> Ligada</label>
+    <input type="text" data-et="titulo" placeholder="título (ex.: Painel de acesso B-12)" value="${esc(x.titulo)}" />
+    <textarea data-et="linhas" rows="3" placeholder="uma informação por linha (dono, segurança, estado...). {estado} vira o estado do nó da Matriz.">${esc(x.linhas)}</textarea>
+    <div class="row"><label class="inline">cor <input type="color" data-et="cor" value="${esc(x.cor)}" /></label>
+      <label class="inline">só aparece a até <input type="number" data-etn="alcance" min="0" step="1" value="${Number(x.alcance) || 0}" /> quadrados (0 = sempre)</label></div>
+    <label class="check"><input type="checkbox" data-etb="mesmoOculto" ${x.mesmoOculto ? "checked" : ""} /> Aparece mesmo com o item escondido (aparelho que só existe na RA)</label>
+    <div class="row"><span class="hint">Só para (nenhum marcado = todos com RA):</span>${pl.map((p) => `<label class="check"><input type="checkbox" data-etpl value="${p.id}" ${Array.isArray(x.para) && x.para.includes(p.id) ? "checked" : ""} /> ${esc(p.name)}</label>`).join("")}</div>
+    <p class="hint">O alcance usa os tokens do jogador que têm commlink/cyberdeck; quem foi só marcado pelo mestre, sem token, vê sempre. O jogador pode desligar a RA no painel dele.</p>
+    <div class="btns"><button type="button" id="etDel">Tirar a etiqueta</button></div>
+  </div>`;
 }
 
 /** Ronda: o guarda anda sozinho por uma rota de pontos (o líder move o token). */
@@ -233,6 +255,18 @@ function bindGM() {
   $("rdPonto")?.addEventListener("click", async () => { await editRonda(one.id, (r) => r); await addPonto(one); load(); });
   $("rdLimpa")?.addEventListener("click", async () => { await clearRota(one.id); load(); });
   $("rdDel")?.addEventListener("click", async () => { await clearRota(one.id); await OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) delete it.metadata["vigilancia/ronda"]; }); load(); });
+  // etiqueta de RA
+  $("etOn")?.addEventListener("click", () => editEtiqueta([one.id], (e) => e));
+  $("etDel")?.addEventListener("click", () => editEtiqueta([one.id], () => null));
+  for (const el of document.querySelectorAll("[data-et]")) el.onchange = () => editEtiqueta([one.id], (e) => ({ ...e, [el.dataset.et]: el.value }));
+  for (const el of document.querySelectorAll("[data-etb]")) el.onchange = () => editEtiqueta([one.id], (e) => ({ ...e, [el.dataset.etb]: el.checked }));
+  for (const el of document.querySelectorAll("[data-etn]")) el.onchange = () => editEtiqueta([one.id], (e) => ({ ...e, [el.dataset.etn]: Math.max(0, Number(el.value) || 0) }));
+  for (const el of document.querySelectorAll("[data-etpl]")) {
+    el.onchange = () => editEtiqueta([one.id], (e) => {
+      const cur = Array.isArray(e.para) ? e.para : [];
+      return { ...e, para: el.checked ? [...new Set([...cur, el.value])] : cur.filter((id) => id !== el.value) };
+    });
+  }
   // verdade por jogador
   $("vdOn")?.addEventListener("click", () => editVerdade(one.id, (v) => ({ ...v, on: true, versoes: v.versoes?.length ? v.versoes : [{ para: "*", esconder: true }] }), true));
   $("vdLig")?.addEventListener("change", (e) => editVerdade(one.id, (v) => ({ ...v, on: e.target.checked }), e.target.checked));

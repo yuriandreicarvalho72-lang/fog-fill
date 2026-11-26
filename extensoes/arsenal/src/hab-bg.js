@@ -5,12 +5,14 @@ import { CH_HAB, CH_FX, CH_FX_END, CH_HAB_USE, DOSSIE, buildAbility, shapeOf } f
 import { setupAtivos, endByTag } from "./ativos.js";
 import { halfSize } from "./cover.js";
 import { loadMeus, prepareCustom } from "./meus.js";
-import { url, isToken, itemName, ACTIVE, WEAPONS, weaponFrom, decodeCatalog } from "./shared.js";
-import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger, FX_MARCA, colocarMarcador, soltarMarcador, BIBLIOTECA, CH_INV_ARMA, CH_INV_EFEITO } from "./hab-ops.js";
+import { url, isToken, itemName, ACTIVE, WEAPONS, weaponFrom, decodeCatalog, CENARIO, CH_CEN_USE, CH_CEN_RES, CH_HAB_DANO } from "./shared.js";
+import { applyEvents } from "./scenery.js";
+import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger, useScenery, FX_MARCA, colocarMarcador, soltarMarcador, BIBLIOTECA, CH_INV_ARMA, CH_INV_EFEITO } from "./hab-ops.js";
 
 /** play(anim, base), base = pasta dos vídeos, has() = função "o vídeo está disponível" (ou null), isLeader() = este é o mestre que executa pedidos. */
 export async function setupHabilities({ play, base, has, isLeader }) {
   let role = await OBR.player.getRole();
+  const myId = await OBR.player.getId().catch(() => "");
   OBR.player.onChange((p) => { role = p.role; });
 
   // ---------- todos: tocar a habilidade ----------
@@ -42,6 +44,24 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     if (!(await isLeader())) return;
     const r = await useFromTrigger(e.data || {}).catch((err) => ({ error: err.message }));
     if (r.error) warn(e.data, r.error);
+  });
+
+  // ---------- arma de cenário: jogador pede, o líder confere o alcance e usa; todos recebem o resultado ----------
+  OBR.broadcast.onMessage(CH_CEN_USE, async (e) => {
+    if (!(await isLeader())) return;
+    const d = e.data || {};
+    const r = await useScenery(d).catch((err) => ({ error: err.message }));
+    await OBR.broadcast.sendMessage(CH_CEN_RES, { by: d.by, ...(r.error ? { error: r.error } : { text: r.text }) }, { destination: "ALL" });
+  });
+  OBR.broadcast.onMessage(CH_CEN_RES, (e) => {
+    const r = e.data || {};
+    if (r.error) { if (r.by === myId) OBR.notification.show(`Arma de cenário: ${r.error}`, "WARNING"); return; }
+    if (r.text && (r.by === myId || role === "GM")) OBR.notification.show(`Arma de cenário: ${r.text}`, "INFO");
+  });
+  // dano de habilidade no cenário destrutível (vindo de um mestre que não é o líder)
+  OBR.broadcast.onMessage(CH_HAB_DANO, async (e) => {
+    if (!(await isLeader())) return;
+    await applyEvents(Array.isArray(e.data?.events) ? e.data.events : [], e.data?.by || null).catch(() => {});
   });
 
   // ---------- vindo do Inventário de mesa (mesmo navegador) ----------
@@ -88,7 +108,17 @@ export async function setupHabilities({ play, base, has, isLeader }) {
   });
 
   // ---------- painel ----------
+  // jogador: janela pequena com as armas de cenário que ele pode usar
+  const openPlayerPanel = async () => {
+    await controls.popover.open({
+      id: HAB_PANEL, url: url("cenario.html"), width: 320, height: 360,
+      anchorReference: "POSITION", anchorPosition: { left: 72, top: 64 },
+      anchorOrigin: { horizontal: "LEFT", vertical: "TOP" }, transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
+      disableClickAway: true, marginThreshold: 8,
+    }).catch(() => {});
+  };
   const openPanel = async () => {
+    if (role !== "GM") return openPlayerPanel();
     const vh = await OBR.viewport.getHeight().catch(() => 800);
     await controls.popover.open({
       id: HAB_PANEL, url: url("hab.html"), width: 340, height: Math.max(360, Math.min(640, vh - 96)),
@@ -147,13 +177,18 @@ export async function setupHabilities({ play, base, has, isLeader }) {
   const fireNow = async () => {
     const aim = await getAim();
     if (!aim.token || !aim.nome) return OBR.notification.show("Habilidades: escolha uma habilidade no painel.", "WARNING");
+    if (role !== "GM") { // jogador: o líder confere o alcance e usa
+      await OBR.broadcast.sendMessage(CH_CEN_USE, { item: aim.token, nome: aim.nome, targets: aim.targets || [], point: aim.point || null, by: myId }, { destination: "ALL" });
+      await setAim({ token: aim.token }, true);
+      return;
+    }
     const r = await useAbility(aim.token, aim.nome, aim);
     if (r.error) return OBR.notification.show(`Habilidades: ${r.error}`, "WARNING");
     await setAim({ token: aim.token }, true);
   };
 
   // ---------- ferramenta (ícone próprio, só o mestre) ----------
-  await controls.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs)", filter: { roles: ["GM"] } }], defaultMode: HAB_MODE });
+  await controls.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs e armas de cenário)" }], defaultMode: HAB_MODE });
   await controls.tool.createMode({
     id: HAB_MODE,
     icons: [{ icon: url("hab.svg"), label: "Mirar a habilidade (clique: alvo ou ponto · Enter: usar · Esc: cancelar)", filter: { activeTools: [HAB_TOOL] } }],
@@ -165,8 +200,8 @@ export async function setupHabilities({ play, base, has, isLeader }) {
       const it = ev.target;
       // sem habilidade armada: clicar num NPC com dossiê escolhe ele
       if (!aim.armed) {
-        if (it && isToken(it) && dossieOf(it)) { await setAim({ token: it.id }, true); return false; }
-        OBR.notification.show("Habilidades: escolha uma habilidade no painel (▶) e depois clique no mapa.", "INFO");
+        if (role === "GM" && it && it.type === "IMAGE" && it.layer !== "MAP" && dossieOf(it)) { await setAim({ token: it.id }, true); return false; }
+        OBR.notification.show("Habilidades: escolha uma habilidade no painel (▶ ou 🎯) e depois clique no mapa.", "INFO");
         return false;
       }
       const [tok] = await OBR.scene.items.getItems([aim.token]).catch(() => []);
@@ -211,6 +246,16 @@ export async function setupHabilities({ play, base, has, isLeader }) {
       await OBR.tool.activateTool(HAB_TOOL).catch(() => {});
       openPanel();
       if (!ctx.items[0].metadata?.[DOSSIE]) OBR.notification.show(`Habilidades: cole o dossiê de ${itemName(ctx.items[0])} no painel.`, "INFO");
+    },
+  });
+  // botão direito numa arma de cenário liberada para jogadores: abre a janela dela
+  await controls.contextMenu.create({
+    id: `${HAB_TOOL}/jogador`,
+    icons: [{ icon: url("hab.svg"), label: "Usar arma de cenário", filter: { roles: ["PLAYER"], max: 1, every: [{ key: ["metadata", CENARIO, "jogadores"], value: true }] } }],
+    onClick: async (ctx) => {
+      await setAim({ token: ctx.items[0].id }, true);
+      await OBR.tool.activateTool(HAB_TOOL).catch(() => {});
+      openPlayerPanel();
     },
   });
   // o painel pede para usar (aura, si, passiva) pelo canal local

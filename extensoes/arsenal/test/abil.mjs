@@ -164,3 +164,12 @@ ok("setLuz liga e desliga", [setLuz(dos, "Boom", null).habilidades[0].luz, setLu
 ok("setCamada liga e desliga", [setCamada(dos, "Boom", "sob").habilidades[0].camada, setCamada(setCamada(dos, "Boom", "sob"), "Boom", "").habilidades[0].camada], ["sob", undefined]);
 const evL = (ab, extra) => ({ ab, from: { x: 10, y: 10 }, aim: { point: { x: 500, y: 400 }, targets: [{ id: "t", at: { x: 700, y: 700 }, half: 50 }], ...extra } });
 ok("luz acende: no ponto mirado > no alvo > em quem usa", [luzPoint(evL({ forma: "area" })), luzPoint(evL({ forma: "alvo" }, { point: null })), luzPoint(evL({ forma: "si" })), luzPoint(evL({ forma: "area", luz: { onde: "origem" } }))], [{ x: 500, y: 400 }, { x: 700, y: 700 }, { x: 10, y: 10 }, { x: 10, y: 10 }]);
+
+// campo cenario (dano no cenário destrutível)
+{
+  const mk = (c) => normalize({ dossie: 1, nome: "Barril", habilidades: [{ nome: "Explosão", secao: "acao", forma: "area", area: 3, dano: "6d6", cenario: c }] });
+  ok("cenario aceita explosao/tiro/nenhum (sem acento)", ["explosão", "tiro", "nenhum"].map((c) => mk(c).dossie.habilidades[0].cenario), ["explosao", "tiro", "nenhum"]);
+  const bad = mk("fogo");
+  ok("cenario desconhecido: some e avisa", [bad.dossie.habilidades[0].cenario, bad.avisos.length], [undefined, 1]);
+  ok("sem cenario: nada no dossiê", "cenario" in mk("").dossie.habilidades[0], false);
+}

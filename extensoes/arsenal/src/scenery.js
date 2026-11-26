@@ -90,7 +90,7 @@ export async function applyEvents(events, by = null) {
     let d = destrOf(it);
     for (const ev of events) {
       if (!affects(ev, it, d, dpi)) continue;
-      const r = addDamage(d, ev.kind);
+      const r = addDamage(d, ev.kind === "shape" ? ev.peso : ev.kind);
       if (!r.counted) continue;
       d = r.d;
       changed.set(it.id, d);

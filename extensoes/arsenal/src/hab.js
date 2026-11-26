@@ -3,10 +3,10 @@ import "./visibility.js";
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";
 import { SECOES, VISUAIS, BLFX_LICENSE, TIPOS_PROPRIOS, GIROS, duracaoText, LUZ_ANIMS, normLuz, meusVisuais, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
-import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, setDuracaoOn, setCamadaOn, setLuzOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { setCenario, HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, setDuracaoOn, setCamadaOn, setLuzOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
 import { listOf, endAtivos } from "./ativos.js";
 import { loadMeus, probeVideo, videoSrc } from "./meus.js";
-import { itemName, isToken, applyTheme, url } from "./shared.js";
+import { itemName, isToken, applyTheme, url, CENARIO } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -118,6 +118,7 @@ function render() {
     <div class="btns"><button type="button" id="round" title="Devolve as ações lendárias">↻ Nova rodada</button><button type="button" id="rest" title="Devolve recargas, 1/descanso e lendárias">☾ Descanso</button></div>
     ${lastBox}
     ${rows}
+    ${cenarioHtml(tok)}
     <details><summary>Dossiê</summary>
       <textarea id="raw" rows="6" placeholder="Cole um dossiê novo para trocar"></textarea>
       <div class="btns"><button type="button" id="save">Trocar dossiê</button><button type="button" class="danger" id="del">Tirar dossiê</button></div>
@@ -128,6 +129,11 @@ function render() {
   bindChips();
   bindAtivos();
   bindList(tok);
+  $("cenOn")?.addEventListener("click", () => setCenario(tok.id, (c) => c));
+  $("cenOff")?.addEventListener("click", () => setCenario(tok.id, () => null));
+  $("cenJog")?.addEventListener("change", (e) => setCenario(tok.id, (c) => ({ ...c, jogadores: e.target.checked })));
+  $("cenAlc")?.addEventListener("change", (e) => setCenario(tok.id, (c) => ({ ...c, alcance: Math.max(0, Number(e.target.value) || 0) })));
+  $("cenAo")?.addEventListener("change", (e) => setCenario(tok.id, (c) => ({ ...c, aoUsar: e.target.value })));
   for (const s of box.querySelectorAll("[data-durmode]")) s.addEventListener("change", async () => {
     const v = s.value;
     s.blur();
@@ -246,6 +252,19 @@ function row(h, d, uso, tok) {
     ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.video?.url ? "link próprio" : h.visual || "sem vídeo")}${h.duracao ? ` · ⏱ ${esc(duracaoText(h.duracao))}` : ""}</button></div>${visEdit}`}${armedBox}</div>`;
 }
 
+/** Arma de cenário (só em objetos, não em tokens): liberar para jogadores, alcance e o que acontece depois de usar. */
+function cenarioHtml(tok) {
+  if (isToken(tok)) return "";
+  const c = tok.metadata?.[CENARIO];
+  if (!c) return `<details class="cenario"><summary>⚙ Arma de cenário</summary><p class="hint">Transforma este objeto (barril, guindaste, painel) em arma: você usa as habilidades dele no mapa, e pode liberar para os jogadores. Habilidades de área com dano já machucam o cenário destrutível (campo <b>cenario</b> do dossiê: explosao, tiro ou nenhum).</p>
+    <div class="btns"><button type="button" id="cenOn">⚙ Ativar arma de cenário</button></div></details>`;
+  return `<details class="cenario" open><summary>⚙ Arma de cenário</summary>
+    <label class="check"><input type="checkbox" id="cenJog" ${c.jogadores ? "checked" : ""}> Jogadores podem usar (botão direito no objeto → Usar arma de cenário)</label>
+    <div class="row"><label class="inline">quem usa precisa estar a até <input type="number" id="cenAlc" min="0" step="0.5" value="${Number(c.alcance) || 0}"> quadrados (0 = qualquer distância)</label></div>
+    <div class="row"><span class="hint">Depois de usar:</span><select id="cenAo"><option value="nada"${c.aoUsar === "nada" || !c.aoUsar ? " selected" : ""}>o objeto continua</option><option value="quebrar"${c.aoUsar === "quebrar" ? " selected" : ""}>quebra (usa o cenário destrutível)</option><option value="sumir"${c.aoUsar === "sumir" ? " selected" : ""}>some (esconde)</option></select></div>
+    <div class="btns"><button type="button" class="danger" id="cenOff">Tirar a arma de cenário</button></div></details>`;
+}
+
 function bindChips() {
   for (const b of document.querySelectorAll("[data-tok]")) b.addEventListener("click", () => { setAim({ token: b.dataset.tok }, true); OBR.player.select([b.dataset.tok], false); });
 }
@@ -310,7 +329,7 @@ OBR.onReady(async () => {
     const changed = JSON.stringify([ns, na, nl]) !== JSON.stringify([sel, aim, last]);
     sel = ns; aim = na; last = nl;
     // trocou de token selecionado sem habilidade armada: o painel segue a seleção
-    if (!aim.armed && ns.length === 1 && ns[0] !== aim.token && items.some((i) => i.id === ns[0] && isToken(i))) { setAim({ token: ns[0] }, true); return; }
+    if (!aim.armed && ns.length === 1 && ns[0] !== aim.token && items.some((i) => i.id === ns[0] && i.layer !== "MAP")) { setAim({ token: ns[0] }, true); return; }
     if (changed) render();
   });
   document.addEventListener("keydown", (e) => {
