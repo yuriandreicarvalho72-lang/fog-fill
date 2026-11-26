@@ -124,5 +124,5 @@ export function applyTheme(theme) {
   document.documentElement.classList.toggle("light", theme.mode === "LIGHT");
   if (theme.text?.primary) r.setProperty("--fg", theme.text.primary);
   if (theme.text?.secondary) r.setProperty("--muted", theme.text.secondary);
-  if (theme.primary?.main) r.setProperty("--accent", theme.primary.main);
+  // o destaque é fixo (âmbar no Arsenal, ciano nas Habilidades): não usa a cor do tema do Owlbear
 }

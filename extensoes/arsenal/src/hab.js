@@ -114,7 +114,7 @@ function render() {
   }).join("");
   const lastBox = last && last.by === itemName(tok) ? `<div class="last"><b>${esc(last.nome)}</b>${last.forma !== "si" && last.forma !== "movimento" ? ` — ${last.caught?.length ? `pegou <b>${esc(last.caught.join(", "))}</b>` : "ninguém na área"}` : ""}${last.text ? `<small>${esc(last.text)}</small>` : ""}</div>` : "";
   box.innerHTML = `${ativosHtml()}${chips}
-    <div class="row"><h2 class="grow">${esc(d.nome)}</h2><span class="tag">ND ${esc(d.nd ?? "?")} · CA ${esc(d.ca ?? "?")} · PV ${esc(d.pv ?? "?")}</span></div>
+    <div class="row"><h2 class="grow">${esc(d.nome)}</h2><div class="stats"><span><b>${esc(d.nd ?? "?")}</b>ND</span><span><b>${esc(d.ca ?? "?")}</b>CA</span><span><b>${esc(d.pv ?? "?")}</b>PV</span></div></div>
     <div class="btns"><button type="button" id="round" title="Devolve as ações lendárias">↻ Nova rodada</button><button type="button" id="rest" title="Devolve recargas, 1/descanso e lendárias">☾ Descanso</button></div>
     ${lastBox}
     ${rows}

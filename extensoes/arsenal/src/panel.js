@@ -71,6 +71,14 @@ function renderShooter() {
   }));
 }
 
+/** Barra de munição em gomos (só para arma com pente). */
+const gauge = (w) => {
+  if (w.mag == null || !w.mag) return "";
+  const pct = Math.max(0, Math.min(100, Math.round(((w.ammo ?? 0) / w.mag) * 100)));
+  const low = (w.ammo ?? 0) <= Math.max(1, w.mag * 0.2);
+  return `<span class="gauge${low ? " low" : ""}" style="--p:${pct}%"><i></i></span>`;
+};
+
 function ammoText(w) {
   if (w.mag == null) return "∞";
   return `${w.ammo ?? 0}/${w.mag}`;
@@ -89,6 +97,7 @@ function renderWeapons() {
         <button type="button" class="name" data-pickw>${esc(w.name)}<small>${esc(w.cat)} · ${esc(fxLabel(w.fx))}${w.dmg ? ` · ${esc(w.dmg)}` : ""}</small></button>
         <span class="ammo${low ? " low" : ""}" title="Munição">${ammoText(w)}</span>
       </div>
+      ${gauge(w)}
       ${on ? `<div class="modes">${w.modes.map((m) => `<button type="button" class="chip${(act.mode || w.mode) === m ? " on" : ""}" data-mode="${m}">${MODE_LABEL[m] || m}${w.mag != null ? ` (${ROUNDS[m]})` : ""}</button>`).join("")}</div>
       <div class="row">
         ${w.mag != null ? `<button type="button" class="mini" data-reload>⟳ Recarregar</button><button type="button" class="mini" data-ammo="-1">−1</button><button type="button" class="mini" data-ammo="1">+1</button>` : ""}

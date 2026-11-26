@@ -50,6 +50,7 @@ async function render() {
       const remotes = items.filter((i) => chargeOf(i)?.mode === "remote" && canControl(chargeOf(i), me.id, me.role) && (me.role !== "GM" || chargeOf(i).by === me.id));
       const ammo = w ? (w.mag == null ? "∞" : `${w.ammo ?? 0}/${w.mag}`) : "";
       const low = w && w.mag != null && (w.ammo ?? 0) <= Math.max(1, w.mag * 0.2);
+      const gauge = w && w.mag ? `<span class="gauge${low ? " low" : ""}" style="--p:${Math.max(0, Math.min(100, Math.round(((w.ammo ?? 0) / w.mag) * 100)))}%"><i></i></span>` : "";
       $("hud").innerHTML = `
         <div class="row">
           <button type="button" class="mini" id="prev" title="Atirador anterior (Shift+Tab)" ${shooters.length > 1 ? "" : "disabled"}>◀</button>
@@ -62,6 +63,7 @@ async function render() {
           <span class="ammo${low ? " low" : ""}" title="Munição">${ammo}</span>
           ${w.mag != null ? '<button type="button" class="mini" id="reload" title="Recarregar (R)">⟳</button>' : ""}
         </div>
+        ${gauge}
         <div class="modes">${w.modes.map((m) => `<button type="button" class="chip${m === mode ? " on" : ""}" data-mode="${m}">${MODE_LABEL[m] || m}${w.mag != null ? ` ${ROUNDS[m]}` : ""}</button>`).join("")}</div>`
         : `<p class="hint">${shooter ? `${esc(itemName(shooter))} não tem armas.` : "Shift+clique no seu token para escolher o atirador."}</p>`}
         <div class="targets">${rows.join("") || '<p class="hint">Clique no mapa para marcar alvos.</p>'}</div>

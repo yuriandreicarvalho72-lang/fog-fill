@@ -75,6 +75,13 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 - Testes: `node test/fx.mjs` · `node test/cover.mjs` · `node test/destroy.mjs` · `node test/abil.mjs` · fotos dos efeitos desenhados: `node test/sheet.mjs saida.png` ·
   fotos dos vídeos no lugar certo: `npm run jb2a && node test/jb2a-sheet.mjs saida.png` (precisam do Playwright)
 
+## Visual (1.7.6)
+- Identidade própria, fixa (não usa mais a cor de destaque do tema do Owlbear): **âmbar** no Arsenal e na mira, **ciano** nas Habilidades. Texto e fundo continuam seguindo o tema claro/escuro.
+- Munição com **barra em gomos** no cartão da arma e na mira (fica vermelha no fim do pente). Alvos num painel mais escuro, com a distância em fonte monoespaçada.
+- Habilidades: ND, CA e PV em **quadros separados** no topo, ícone de ação em botão quadrado, caixa tracejada na habilidade que está mirando.
+- Títulos em Bahnschrift (Windows) ou DIN Alternate (Mac); sem esses, cai em system-ui. Tudo em `src/style.css`; a lógica não mudou.
+- Não declare `color-scheme` no CSS: o painel deixaria de ser transparente sobre o Owlbear.
+
 ## Créditos e licença das animações
 
 Animações: **JB2A** — https://jb2a.com — pacote gratuito, licença
