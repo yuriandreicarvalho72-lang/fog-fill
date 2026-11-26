@@ -9,6 +9,13 @@ const $ = selector => document.querySelector(selector);
 const categories = {unset:"Sem categoria", weapon:"Equipamento (armas)", quest:"Item de quest", decor:"Elemento de cenário"};
 const pageSize = 30;
 let layer = "PROP", limit = pageSize, rows = [], database;
+const INV_META = "fog-fill.inventario/itens"; // nomes do inventário, no metadado do jogador (o Gatilhos lê no Restrito)
+const norm = text => String(text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+let effectNames = [];
+async function publish() {
+  try { await OBR.player.setMetadata({[INV_META]: rows.map(row => String(row.name || "").slice(0, 60)).slice(0, 80)}); } catch { /* fora da sala */ }
+}
+const hasEffect = piece => effectNames.some(name => name && (name === norm(piece.name) || norm(piece.name).includes(name) || name.includes(norm(piece.name))));
 const status = message => { $("#status").textContent = message; };
 
 function options(select) {
@@ -39,6 +46,7 @@ async function reload() {
   rows = await transaction("readonly", store => store.getAll());
   rows.sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
   render();
+  publish();
 }
 function action(button, callback) {
   button.onclick = async () => {
@@ -159,7 +167,18 @@ function render() {
       await reload(); status("Item excluído do inventário pessoal.");
     }));
     add.className = "place";
-    detail.append(back, title, thumbnail(piece), add, info);
+    const uses = [];
+    if (piece.category === "weapon") {
+      const arsenal = document.createElement("button"); arsenal.textContent = "Usar no Arsenal";
+      action(arsenal, async () => { await OBR.broadcast.sendMessage("arsenal/inventario-arma", {nome:piece.name}, {destination:"LOCAL"}); status("Pedido enviado ao Arsenal."); });
+      uses.push(arsenal);
+    }
+    if (hasEffect(piece)) {
+      const skill = document.createElement("button"); skill.textContent = "Usar habilidade";
+      action(skill, async () => { await OBR.broadcast.sendMessage("arsenal/inventario-efeito", {nome:piece.name}, {destination:"LOCAL"}); status("Pedido enviado ao Arsenal."); });
+      uses.push(skill);
+    }
+    detail.append(back, title, thumbnail(piece), add, ...uses, info);
   } else for (const piece of visible) {
     const li = document.createElement("li"), card = document.createElement("button");
     const name = document.createElement("strong");
@@ -276,12 +295,23 @@ action($("#scene-import"), async () => {
   await savePieces(pieces.map(item => ({...item,type:item.layer})));
   $("#filter").value = "";
   document.querySelector('[data-type="' + pieces[0].layer + '"]').click();
-  status("Seleção guardada. As peças continuam no mapa.");
+  // guardou no inventário: a peça sai da cena (menos as que têm outras peças presas nelas, para não soltar ninguém)
+  const children = await OBR.scene.items.getItems(child => pieces.some(piece => child.attachedTo === piece.id && !pieces.some(other => other.id === child.id)));
+  const holders = new Set(children.map(child => child.attachedTo));
+  const leaving = pieces.filter(piece => !holders.has(piece.id) && !piece.locked);
+  const skipped = pieces.length - leaving.length;
+  let removed = 0;
+  if (leaving.length) {
+    try { await OBR.scene.items.deleteItems(leaving.map(piece => piece.id)); removed = leaving.length; }
+    catch { status("Guardado, mas você não tem permissão para tirar a peça da cena."); return; }
+  }
+  status("Guardado no inventário" + (removed ? " e tirado da cena (" + removed + ")" : "") + "." + (skipped ? " " + skipped + " ficou no mapa (bloqueada ou com peças presas nela)." : ""));
 });
 OBR.onReady(async () => {
   try {
     setupEditing(OBR, savePieces, status);
     database = await openInventory(await OBR.player.getId());
+    try { effectNames = ((await OBR.room.getMetadata())["arsenal/biblioteca"] || []).map(entry => norm(entry.nome)); render(); OBR.room.onMetadataChange(md => { effectNames = (md["arsenal/biblioteca"] || []).map(entry => norm(entry.nome)); render(); }); } catch { /* sem biblioteca */ }
     await reload(); $("#scene-import").disabled = false; $("#import").disabled = false; $("#upload").disabled = false; status("");
   } catch { status("O navegador não permitiu abrir o inventário local."); }
   try {

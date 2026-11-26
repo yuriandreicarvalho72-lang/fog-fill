@@ -233,6 +233,40 @@ export function parseDuracao(v) {
 }
 export const duracaoText = (d) => (!d ? "uma vez" : d === "fim" ? "até encerrar" : `${String(d).replace(".", ",")} s`);
 /** Troca a duração de uma habilidade (null = uma vez). Devolve o dossiê novo. */
+// ---------- camada do efeito ("sob" = por baixo dos tokens, "sobre" = por cima) e luz colorida da habilidade ----------
+export const CAMADA_SOB = "MOUNT"; // camada logo abaixo dos tokens (CHARACTER)
+export const LUZ_ANIMS = [["none", "fixa"], ["flicker", "tocha / fogo"], ["pulse", "pulsa (alarme)"], ["strobe", "estrobo"], ["beacon", "giroflex"], ["faulty", "defeito"], ["breathe", "respirando"]];
+const LUZ_COR = { vermelho: "#e0453a", laranja: "#ff8a1f", amarelo: "#f5d742", verde: "#7bd23a", azul: "#4fa8ff", roxo: "#a36bff", branco: "#ffffff", ciano: "#35e0ff" };
+/** Luz da habilidade: { cor "#rrggbb", raio (m), intens 0.1..1, anim, dur (s | "fim"), fade (s), onde? ("alvo" | "origem") }. null = sem luz. */
+export function normLuz(l) {
+  if (!l || typeof l !== "object") return null;
+  const c = sem(l.cor);
+  const cor = LUZ_COR[c] || (/^#[0-9a-f]{6}$/i.test(String(l.cor || "").trim()) ? String(l.cor).trim().toLowerCase() : "");
+  if (!cor) return null;
+  const out = { cor, raio: Math.min(60, Math.max(0.5, num(l.raio, 6))), intens: Math.min(1, Math.max(0.1, num(l.intens, 0.7))) };
+  const a = sem(l.anim);
+  if (LUZ_ANIMS.some(([k]) => k === a) && a !== "none") out.anim = a;
+  const d = parseDuracao(l.dur);
+  out.dur = d || 1.5;
+  out.fade = Math.min(30, Math.max(0, num(l.fade, 0.8)));
+  if (sem(l.onde) === "origem") out.onde = "origem";
+  return out;
+}
+export function setCamada(dossie, nome, camada) {
+  return { ...dossie, habilidades: dossie.habilidades.map((h) => { if (h.nome !== nome) return h; const n = { ...h }; if (camada === "sob") n.camada = "sob"; else delete n.camada; return n; }) };
+}
+export function setLuz(dossie, nome, luz) {
+  const l = normLuz(luz);
+  return { ...dossie, habilidades: dossie.habilidades.map((h) => { if (h.nome !== nome) return h; const n = { ...h }; if (l) n.luz = l; else delete n.luz; return n; }) };
+}
+/** Onde a luz da habilidade acende (px): o ponto, o alvo, a área ou o próprio token. */
+export function luzPoint(ev) {
+  const { ab, from, aim = {} } = ev;
+  if (ab.luz?.onde === "origem" || ab.forma === "si" || ab.forma === "aura") return from;
+  if (aim.point) return aim.point;
+  if (aim.targets?.length) return aim.targets[0].at;
+  return from;
+}
 export function setDuracao(dossie, nome, dur) {
   const d = parseDuracao(dur);
   return { ...dossie, habilidades: dossie.habilidades.map((h) => { if (h.nome !== nome) return h; const n = { ...h }; if (d) n.duracao = d; else delete n.duracao; return n; }) };
@@ -307,6 +341,9 @@ export function normalize(input) {
     }
     const dur = parseDuracao(h.duracao);
     if (dur) out.duracao = dur;
+    if (sem(h.camada) === "sob") out.camada = "sob";
+    const luz = normLuz(h.luz);
+    if (luz) out.luz = luz;
     for (const k of Object.keys(out)) if (out[k] === "" || out[k] === null || out[k] === false) delete out[k];
     return out;
   });
@@ -554,6 +591,7 @@ export function buildAbility(ev, has = () => true, byName = null) {
     els.push({ kind: "line", t0: 0, t1: 1.2, tag: "move", frame: (t) => ({ a: from, b: to, color, width: Math.max(2, cell / 30), opacity: 0.8 * (1 - t / 1.2) }) });
   }
   for (const v of vids) delete v.stretched;
+  if (ab.camada === "sob") for (const v of vids) v.layer = CAMADA_SOB;
   // vídeos próprios (link ou pasta meus-efeitos) não estão no ok.json; só tocam depois de ter tamanho e duração
   const ok = has ? vids.filter((v) => v.w > 0 && v.dur > 0 && (has(v.file) || /^(https?:|\.\.\/)/.test(v.file))) : []; // has = null: vídeos desligados
   let videos = ok, persist = [];

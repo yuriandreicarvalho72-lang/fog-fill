@@ -4,6 +4,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { videoItem } from "./render.js";
 import { ID, uid } from "./shared.js";
+import { CAMADA_SOB } from "./abil.js";
 
 export const ATIVOS = `${ID}/efeitos-ativos`; // metadado da cena: [{ id, nome, tag, by, at, until (ms | null = até encerrar), v: [vídeo compacto] }]
 export const ATIVO_FX = `${ID}/fx-ativo`;     // marca dos itens locais (fora do "limpar" do Arsenal)
@@ -11,8 +12,8 @@ const MAX = 12, MAX_CHARS = 7000;             // o metadado da cena é dividido 
 
 export const listOf = (md) => (Array.isArray(md?.[ATIVOS]) ? md[ATIVOS] : []);
 const r2 = (n) => Math.round((n || 0) * 100) / 100;
-const pack = (v) => ({ f: v.file, w: v.w, h: v.h, d: r2(v.dpi), o: [r2(v.offset.x), r2(v.offset.y)], p: [r2(v.position.x), r2(v.position.y)], r: r2(v.rotation), t: r2(v.t0) });
-const unpack = (c) => ({ file: c.f, w: c.w, h: c.h, dpi: c.d, offset: { x: c.o[0], y: c.o[1] }, position: { x: c.p[0], y: c.p[1] }, rotation: c.r, t0: c.t });
+const pack = (v) => ({ f: v.file, w: v.w, h: v.h, d: r2(v.dpi), o: [r2(v.offset.x), r2(v.offset.y)], p: [r2(v.position.x), r2(v.position.y)], r: r2(v.rotation), t: r2(v.t0), ...(v.layer ? { y: v.layer } : {}) });
+const unpack = (c) => ({ file: c.f, w: c.w, h: c.h, dpi: c.d, offset: { x: c.o[0], y: c.o[1] }, position: { x: c.p[0], y: c.p[1] }, rotation: c.r, t0: c.t, layer: c.y });
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 /** Guarda um efeito que fica. dur = segundos ou "fim" (até encerrar). Os mais antigos saem se a lista encher. */
@@ -36,6 +37,11 @@ export async function endAtivos(fn) {
   if (keep.length !== list.length) await OBR.scene.setMetadata({ [ATIVOS]: keep });
   return list.length - keep.length;
 }
+/** Troca a camada (sob/sobre os tokens) de um efeito que ficou no mapa. */
+export async function setAtivoCamada(id, camada) {
+  const list = listOf(await OBR.scene.getMetadata()).map((e) => (e.id !== id ? e : { ...e, v: e.v.map((c) => { const n = { ...c }; if (camada === "sob") n.y = CAMADA_SOB; else delete n.y; return n; }) }));
+  await OBR.scene.setMetadata({ [ATIVOS]: list });
+}
 /** Pelo nome do efeito (o "nome" que o Gatilhos deu, ou o nome da habilidade). "" ou "*" = todos. */
 export const endByTag = (tag) => { const t = sem(tag); return endAtivos((e) => !t || t === "*" || sem(e.tag) === t || sem(e.nome) === t); };
 
@@ -57,8 +63,10 @@ export async function setupAtivos({ base, has, isLeader }) {
     const keep = new Set();
     for (const e of list) {
       keep.add(e.id);
+      const sig = (e.v || []).map((c) => c.y || "").join(",");
+      if (shown.has(e.id) && shown.get(e.id).sig !== sig) drop(e.id); // camada trocada: desenha de novo
       if (shown.has(e.id)) continue;
-      const rec = { ids: [], timers: [] };
+      const rec = { ids: [], timers: [], sig };
       shown.set(e.id, rec);
       if (e.until) rec.timers.push(setTimeout(() => drop(e.id), Math.max(0, e.until - e.at))); // conta daqui (relógios diferentes)
       if (!h) continue;

@@ -2,8 +2,8 @@ import "./visibility.js";
 // Painel das Habilidades (ícone próprio na barra; só o mestre): dossiê do NPC, mira e contadores.
 // Não rola dados: mostra os números da ficha e quem ficou na área.
 import OBR from "@owlbear-rodeo/sdk";
-import { SECOES, VISUAIS, BLFX_LICENSE, TIPOS_PROPRIOS, GIROS, duracaoText, meusVisuais, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
-import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, setDuracaoOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
+import { SECOES, VISUAIS, BLFX_LICENSE, TIPOS_PROPRIOS, GIROS, duracaoText, LUZ_ANIMS, normLuz, meusVisuais, canUse, numbers, shapeText, isRecharge, isPerRest, legCost, recharge, newRound, rest, visualGroups, previewFile } from "./abil.js";
+import { HAB_AIM, HAB_LAST, getAim, setAim, saveDossie, removeDossie, setUso, setVisualOn, setVideoOn, setDuracaoOn, setCamadaOn, setLuzOn, dossieOf, usoOf, useAbility } from "./hab-ops.js";
 import { listOf, endAtivos } from "./ativos.js";
 import { loadMeus, probeVideo, videoSrc } from "./meus.js";
 import { itemName, isToken, applyTheme, url } from "./shared.js";
@@ -138,6 +138,19 @@ function render() {
     n.blur();
     await setDuracaoOn(tok.id, n.dataset.dursec, v > 0 ? v : 10);
   });
+  for (const c of box.querySelectorAll("[data-camada]")) c.addEventListener("change", () => setCamadaOn(tok.id, c.dataset.camada, c.checked ? "sob" : ""));
+  const luzOf = (nome) => d.habilidades.find((x) => x.nome === nome)?.luz;
+  for (const c of box.querySelectorAll("[data-luzon]")) c.addEventListener("change", () => setLuzOn(tok.id, c.dataset.luzon, c.checked ? { cor: "#ff8a1f", raio: 6, intens: 0.7, dur: 1.5, fade: 0.8 } : null));
+  const luzSet = (nome, patch) => { const l = luzOf(nome); if (l) setLuzOn(tok.id, nome, { ...l, ...patch }); };
+  for (const el of box.querySelectorAll("[data-luz]")) el.addEventListener("change", () => {
+    const [nome, k] = el.dataset.luz.split(/:(?=[^:]*$)/);
+    const l = luzOf(nome); if (!l) return;
+    if (k === "fim") luzSet(nome, { dur: el.checked ? "fim" : 10 });
+    else if (k === "origem") luzSet(nome, { onde: el.checked ? "origem" : "alvo" });
+    else if (k === "cor" || k === "anim") luzSet(nome, { [k]: el.value });
+    else luzSet(nome, { [k]: Number(el.value) });
+  });
+  for (const b of box.querySelectorAll("[data-luzcor]")) b.addEventListener("click", () => { const [nome, c] = b.dataset.luzcor.split(/:(?=[^:]*$)/); luzSet(nome, { cor: c }); });
   for (const s of box.querySelectorAll("[data-giro]")) s.addEventListener("change", async () => {
     const h = d.habilidades.find((x) => x.nome === s.dataset.giro);
     s.blur();
@@ -179,10 +192,34 @@ function render() {
   $("cancel")?.addEventListener("click", () => setAim({ token: tok.id }, true));
 }
 
+const SHAPE_ICON = { alvo: "◎", cone: "◢", linha: "━", area: "◉", aura: "◌", si: "◍", movimento: "➜" };
+/** Números da ficha como etiquetas (ataque, resistência, dano, cura, condição). */
+function chips(h) {
+  const c = [];
+  if (h.ataque != null) c.push(`<i class="atk">⚔ ${h.ataque >= 0 ? "+" : ""}${h.ataque}</i>`);
+  if (h.resistencia) c.push(`<i class="sv">🛡 ${esc(h.resistencia)}${h.metade ? " ½" : ""}</i>`);
+  if (h.dano) c.push(`<i class="dmg">💥 ${esc(h.dano)}</i>`);
+  if (h.cura) c.push(`<i class="heal">✚ ${esc(h.cura)}</i>`);
+  if (h.condicao) c.push(`<i class="cond">${esc(h.condicao)}</i>`);
+  if (h.luz) c.push(`<i class="luz" style="--lz:${esc(h.luz.cor)}">💡 luz</i>`);
+  if (h.camada === "sob") c.push(`<i class="sob">▾ sob tokens</i>`);
+  return c.length ? `<div class="chipsrow">${c.join("")}</div>` : "";
+}
+function luzHtml(h) {
+  const l = h.luz;
+  const cores = ["#ff8a1f", "#e0453a", "#f5d742", "#7bd23a", "#35e0ff", "#4fa8ff", "#a36bff", "#ffffff"];
+  return `<div class="luzbox"><label class="check"><input type="checkbox" data-luzon="${esc(h.nome)}" ${l ? "checked" : ""}> 💡 Acende uma luz colorida (Luz Colorida)</label>
+    ${l ? `<div class="row"><input type="color" data-luz="${esc(h.nome)}:cor" value="${esc(l.cor)}"><select data-luz="${esc(h.nome)}:anim">${LUZ_ANIMS.map(([k, t]) => `<option value="${k}"${(l.anim || "none") === k ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+    <div class="row"><span class="hint">Raio</span><input type="number" data-luz="${esc(h.nome)}:raio" min="0.5" max="60" step="0.5" value="${l.raio}"> m <span class="hint">Brilho</span><input type="number" data-luz="${esc(h.nome)}:intens" min="0.1" max="1" step="0.1" value="${l.intens}"></div>
+    <div class="row"><span class="hint">Dura</span><input type="number" data-luz="${esc(h.nome)}:dur" min="0.2" max="3600" step="0.5" value="${l.dur === "fim" ? 10 : l.dur}"> s <label class="check"><input type="checkbox" data-luz="${esc(h.nome)}:fim" ${l.dur === "fim" ? "checked" : ""}> até encerrar</label></div>
+    <div class="row"><span class="hint">Apaga em</span><input type="number" data-luz="${esc(h.nome)}:fade" min="0" max="30" step="0.2" value="${l.fade}"> s <label class="check"><input type="checkbox" data-luz="${esc(h.nome)}:origem" ${l.onde === "origem" ? "checked" : ""}> sai de quem usa</label></div>
+    <div class="chips">${cores.map((c) => `<button type="button" class="sw" style="background:${c}" data-luzcor="${esc(h.nome)}:${c}" title="${c}"></button>`).join("")}</div>
+    <small>Explosão: duração curta e apagar em 1 s. Giroflex ou tocha: fica até encerrar.</small>` : ""}</div>`;
+}
 function row(h, d, uso, tok) {
   const can = canUse(h, uso, d);
   const armed = aim.armed && aim.nome === h.nome && aim.token === tok.id;
-  const n = h.faz?.length ? `faz: ${h.faz.join(" + ")}` : numbers(h);
+  const n = h.faz?.length ? `faz: ${h.faz.join(" + ")}` : "";
   const cost = h.secao === "lendaria" && legCost(h) > 1 ? ` · custa ${legCost(h)}` : "";
   const use = (isRecharge(h) || isPerRest(h)) ? `<span class="tag${can.ok ? "" : " broken"}">${esc(h.uso)}</span>` : "";
   const back = !can.ok && isRecharge(h) ? `<button type="button" class="mini" data-rc="${esc(h.nome)}" title="Você rolou a recarga e ela voltou">↺ recarregou</button>` : "";
@@ -194,6 +231,8 @@ function row(h, d, uso, tok) {
   const link = h.video?.url ? `<div class="linkbox"><small>Vídeo próprio (${esc(TIPOS_PROPRIOS.find(([k]) => k === h.video.tipo)?.[1] || h.video.tipo)}): <a href="${esc(h.video.url)}" target="_blank" rel="noopener">${esc(h.video.url.split("/").pop())}</a> — ele vence o visual da lista.</small>${videoTag(h.video.url)}<div class="btns"><button type="button" class="danger" data-linkdel="${esc(h.nome)}">Tirar link</button></div></div>` : "";
   const visEdit = open ? `<div class="visedit">${link}<select data-visset="${esc(h.nome)}"><option value="">(sem vídeo)</option>${GROUPS.map(([t, l]) => `<optgroup label="${esc(t)}">${l.map((v) => `<option value="${v}"${v === h.visual ? " selected" : ""}>${v}</option>`).join("")}</optgroup>`).join("")}</select>${h.visual && !h.video?.url ? video(h.visual) : ""}
       ${durHtml(h)}
+      <label class="check"><input type="checkbox" data-camada="${esc(h.nome)}" ${h.camada === "sob" ? "checked" : ""}> Desenhar por baixo dos tokens (névoa e área não escondem ninguém)</label>
+      ${luzHtml(h)}
       <details class="linkform"><summary>Usar um vídeo próprio (link)</summary>
         <input type="text" id="linkurl" placeholder="https://…/meu-efeito.webm" value="${esc(h.video?.url || "")}">
         <div class="row"><select id="linktipo">${TIPOS_PROPRIOS.map(([k, t]) => `<option value="${k}"${(h.video?.tipo || "area") === k ? " selected" : ""}>${t}</option>`).join("")}</select><button type="button" class="primary" data-linkset="${esc(h.nome)}">Usar link</button></div>
@@ -202,8 +241,8 @@ function row(h, d, uso, tok) {
       </details>${linkNote ? `<small class="${/^Não|Cole/.test(linkNote) ? "why" : ""}">${esc(linkNote)}</small>` : ""}</div>` : "";
   return `<div class="ab${armed ? " on" : ""}${can.ok ? "" : " off"}">
     <div class="row"><button type="button" class="mini go" data-go="${esc(h.nome)}" ${can.ok ? "" : "disabled"} title="${instant(h) ? "Usar agora" : "Mirar no mapa"}">${instant(h) ? "▶" : "🎯"}</button>
-      <span class="grow name" title="${esc(h.texto || "")}">${esc(h.nome)}</span>${use}<span class="tag">${esc(shapeText(h) || "")}${cost}</span></div>
-    ${n ? `<small>${esc(n)}</small>` : ""}${!can.ok ? `<small class="why">${esc(can.why)} ${back}</small>` : ""}
+      <span class="grow name" title="${esc(h.texto || "")}">${esc(h.nome)}</span>${use}<span class="tag">${SHAPE_ICON[h.forma] || ""} ${esc(shapeText(h) || "")}${cost}</span></div>
+    ${n ? `<small>${esc(n)}</small>` : chips(h)}${!can.ok ? `<small class="why">${esc(can.why)} ${back}</small>` : ""}
     ${h.faz?.length ? `<small>🎨 usa o visual de ${esc([...new Set(h.faz)].join(", "))}</small>` : `<div class="visrow"><button type="button" class="vis${open ? " on" : ""}" data-vis="${esc(h.nome)}" title="Trocar o visual (vídeo) desta habilidade">🎨 ${esc(h.video?.url ? "link próprio" : h.visual || "sem vídeo")}${h.duracao ? ` · ⏱ ${esc(duracaoText(h.duracao))}` : ""}</button></div>${visEdit}`}${armedBox}</div>`;
 }
 

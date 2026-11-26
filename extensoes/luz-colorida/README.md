@@ -16,6 +16,10 @@ Cada luz colorida é um efeito preso ao token (`attachedTo`): a cor anda junto n
 no teleporte do Gatilhos e na troca de estado do Estados. Token escondido ou apagado: a cor some junto.
 O efeito não gira nem cresce com o token (o raio vem da luz do Dynamic Fog).
 
+## Luzes pontuais (1.3.0)
+
+Outras extensões (habilidades do Arsenal, efeitos soltos) pedem uma luz colorida num ponto do mapa, sem token: canal `luz-colorida/pontual` (`{ id, x, y, cor, raio (px), intens, anim, dur, fade }`) para luzes de até 8 s, ou a lista `luz-colorida/pontuais` no metadado da cena para as longas. Cada navegador desenha a sua, com a mesma camada e mistura dos ajustes, e apaga suavemente. Máximo de 10 ao mesmo tempo; o Otimizador (luz desligada) vale. Sem sombra de parede nessas luzes.
+
 ## Limites
 - Até 16 luzes coloridas ao mesmo tempo (dá para subir no painel, até 24).
 - Enquanto o token é arrastado, a sombra das paredes acompanha; a direção de luzes em cone só se ajusta ao soltar.

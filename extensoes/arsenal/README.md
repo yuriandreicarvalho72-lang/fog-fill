@@ -82,6 +82,14 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 - Títulos em Bahnschrift (Windows) ou DIN Alternate (Mac); sem esses, cai em system-ui. Tudo em `src/style.css`; a lógica não mudou.
 - Não declare `color-scheme` no CSS: o painel deixaria de ser transparente sobre o Owlbear.
 
+## Efeitos, luz e camada (1.8.0)
+
+- **Camada do efeito**: no 🎨 de cada habilidade (painel Habilidades) há "Desenhar por baixo dos tokens". O Owlbear não deixa mudar a transparência de uma imagem, então a névoa/área não fica "mais fraca": ela passa a ficar **por baixo** dos tokens (camada logo abaixo dos personagens) e ninguém some debaixo dela. Efeitos que ficaram no mapa têm o botão ▴ sobre / ▾ sob na página Efeitos para trocar na hora. No dossiê: `"camada": "sob"`.
+- **Luz colorida nas habilidades**: no 🎨, "Acende uma luz colorida": cor, raio (m), brilho, animação (fixa, tocha, estrobo, giroflex…), duração e quanto tempo leva para apagar. A luz acende no ponto mirado (ou no alvo, ou em quem usa) e é desenhada pela extensão **Luz Colorida** (precisa estar instalada). Explosão: duração 1 s, apaga em 1 s. Giroflex: "até encerrar". No dossiê: `"luz": { "cor": "laranja", "raio": 6, "intens": 0.8, "anim": "flicker", "dur": 1.5, "fade": 1 }`.
+- **Página Efeitos (☰, só o mestre)**: solte um efeito (vídeo e/ou luz) em qualquer ponto do mapa sem precisar de NPC: monte, clique em **Soltar no mapa** e clique no mapa (ferramenta Habilidades, modo "Efeito no mapa"). Guarde os que você repete na **biblioteca** (fica na sala). "Nos selecionados" solta em cima dos tokens escolhidos.
+- **Dossiê com etiquetas**: ataque, resistência, dano, cura e condição viram etiquetas coloridas; cada forma tem um ícone.
+- **Inventário**: itens do Inventário de mesa com a categoria "Equipamento (armas)" ganham **Usar no Arsenal** (põe a arma do catálogo na mão do seu atirador); itens com o mesmo nome de um efeito da biblioteca ganham **Usar habilidade**. O jogador solta o efeito nos tokens selecionados (o mestre executa).
+
 ## Créditos e licença das animações
 
 Animações: **JB2A** — https://jb2a.com — pacote gratuito, licença

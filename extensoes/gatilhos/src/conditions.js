@@ -35,7 +35,7 @@ export function evalCond(c, env) {
     }
     case "has": {
       if (!String(c.name || "").trim()) return true;
-      const any = (env.actorIds || []).some((id) => hasRequired(id, env.items, c.name));
+      const any = (env.actorIds || []).some((id) => hasRequired(id, env.items, c.name, env.inv));
       return inv(c, any);
     }
     default: return true;

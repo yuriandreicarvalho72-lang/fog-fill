@@ -89,8 +89,17 @@ export function findRequired(tokenId, items, req) {
   if (!r) return null;
   return attachmentsOf(tokenId, items).find((i) => norm(itemLabel(i)).includes(r) || norm(i.name).includes(r)) || null;
 }
-/** O token tem preso um item cujo nome contém "req"? req vazio = sem restrição. */
-export const hasRequired = (tokenId, items, req) => !norm(req) || !!findRequired(tokenId, items, req);
+// Inventário de mesa (extensão Inventário): cada jogador publica os nomes do seu inventário no metadado dele.
+export const INV_META = "fog-fill.inventario/itens"; // metadado do jogador: [nome, ...]
+/** Algum nome do inventário contém "req"? */
+export const invHas = (names, req) => { const r = norm(req); return !!r && (names || []).some((n) => norm(n).includes(r)); };
+/** inv: { [idDoJogador]: [nomes] }. O token vale se o item está preso nele OU no inventário de quem controla o token. */
+export function hasRequired(tokenId, items, req, inv) {
+  if (!norm(req)) return true;
+  if (findRequired(tokenId, items, req)) return true;
+  const owner = items.find((i) => i.id === tokenId)?.createdUserId;
+  return !!(inv && owner && invHas(inv[owner], req));
+}
 /** Algum dos nós da Matriz (Vigilância) escolhidos está hackeado? (libera o restrito sem o item: cartão clonado) */
 export const nodeHacked = (items, ids) => (ids || []).some((id) => items.find((i) => i.id === id)?.metadata?.[VIG_NODE_META]?.state === "hackeado");
 // ---------- inventário: itens presos nos personagens, que o jogador pode passar adiante ----------

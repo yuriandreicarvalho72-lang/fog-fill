@@ -55,7 +55,7 @@ export function videoItem(v, baseUrl) {
   return buildImage(
     { width: v.w, height: v.h, url: new URL(encodeURI(v.file), baseUrl).href, mime: "video/webm" },
     { dpi: v.dpi, offset: v.offset },
-  ).position(v.position).rotation(v.rotation).layer(LAYER).locked(true).disableHit(true)
+  ).position(v.position).rotation(v.rotation).layer(v.layer || LAYER).locked(true).disableHit(true)
     .metadata({ [META_FX]: true }).build();
 }
 

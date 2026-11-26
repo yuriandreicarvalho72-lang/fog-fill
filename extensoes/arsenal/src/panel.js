@@ -11,6 +11,7 @@ import { renderDestr, renderCharges } from "./panel-extra.js";
 import { getPlantCfg } from "./scenery.js";
 import { chargeOf } from "./destroy.js";
 import { readPerf, onPerf } from "./perf.js";
+import { setupEfeitos } from "./efeitos.js";
 const PERF_NAME = { maximo: "Máximo", equilibrado: "Equilibrado", leve: "Leve", apresentacao: "Apresentação", custom: "personalizado" };
 import {
   WEAPONS, ACTIVE, TARGETS, CONFIG, CH_CLEAR, TOOL, OWNER, RULES, DEFAULT_CONFIG, GRENADES, PLANT_CFG,
@@ -263,6 +264,7 @@ OBR.onReady(async () => {
     }
     await refresh(true);
   };
+  if (me.role === "GM") { $("efeitos").hidden = false; setupEfeitos($("efeitosbox")).catch((e) => console.error("[arsenal] efeitos", e)); }
   rules = await getRules();
   OBR.room.onMetadataChange((md) => {
     const next = { ...rules, ...(md[RULES] || {}) };

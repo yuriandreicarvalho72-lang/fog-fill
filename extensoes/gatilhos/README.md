@@ -51,3 +51,7 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
 - **Efeito visual (Arsenal)**: vídeo da lista do Arsenal (sugestões no campo) ou link .webm próprio, em cima de cada item ou saindo de
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.
+
+## Restrito e inventário (1.18.0)
+
+O Restrito (e a condição "tem item") vale também para o item guardado no **Inventário de mesa** do jogador que controla o token (a extensão Inventário publica os nomes no metadado do jogador). Continua valendo o item preso (attachment) no token. Item de inventário não é gasto pelos "usos" do Restrito (só o preso no token).

@@ -236,7 +236,7 @@ function condRow(t, c) {
     <label class="check"><input type="checkbox" data-ckb="hid" ${c.hid ? "checked" : ""} /> Contar também os tokens escondidos</label>
     ${!(c.zones || []).length && !(t.zones || []).length ? '<span class="hint warn">⚠ Sem zona: escolha a área onde contar (sem ela a condição é ignorada).</span>' : ""}`;
   else if (c.type === "has") body = `<div class="row">${so("op", [["==", "tem"], ["!=", "não tem"]], c.op)}<input type="text" data-ck="name" value="${esc(c.name)}" placeholder="nome do item (ex.: Cartão de acesso)" /></div>
-    <span class="hint">O item precisa estar preso (attachment) no personagem que ativou, como no Restrito.</span>`;
+    <span class="hint">O item precisa estar preso (attachment) no personagem que ativou, ou guardado no Inventário de mesa do jogador dele (como no Restrito).</span>`;
   return `<div class="cond" data-cid="${c.id}">${head}${body}</div>`;
 }
 
@@ -315,13 +315,13 @@ function card(t) {
         <span class="hint">(0 = de qualquer lugar)</span>
       </div>
       <div class="row"><span class="hint">Quem pode usar:</span><select data-k="canUse">${CAN_USE.map(([v, l]) => `<option value="${v}" ${(t.canUse || "all") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-      <div class="sub">🔒 Restrito (opcional): só funciona se o personagem tiver preso nele o item</div>
+      <div class="sub">🔒 Restrito (opcional): só funciona se o personagem tiver o item (preso nele ou no inventário)</div>
       <input type="text" data-k="reqItem" value="${esc(t.reqItem || "")}" placeholder="nome do item (ex.: Cartão de acesso)" />
       ${String(t.reqItem || "").trim() ? `<input type="text" data-k="reqMsg" value="${esc(t.reqMsg || "")}" placeholder="${esc(REQ_DEFAULT)}" />
       <div class="row"><span class="hint">Sem o item, mostrar como:</span><select data-k="reqShow">${REQ_SHOW.map(([v, l]) => `<option value="${v}" ${(t.reqShow || "aviso") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
       <div class="row"><label class="inline">gasta <input type="number" data-k="reqUses" min="0" step="1" value="${t.reqUses || 0}" /> uso(s) do item</label><span class="hint">(0 = não gasta; no último uso o item some)</span></div>
       <div class="sub">Cartão clonado: libera sem o item se este nó da Matriz estiver hackeado: ${chips(t.reqNodes, "reqNodes")}</div>
-      <span class="hint">Prenda o item (ex.: a imagem do cartão) no token do personagem: selecione o item, botão direito → Attach (prender), ou use o efeito Pegar item. Vale se o nome do item contiver esse texto. Só o jogador que tentou vê a mensagem; {item} e {quem} viram o nome do item e do personagem. O mestre usa sem o item. O nó é da extensão Vigilância (botão direito no item → Virar nó da Matriz).</span>` : ""}
+      <span class="hint">Vale o item preso no token ou guardado no <b>Inventário de mesa</b> do jogador (extensão Inventário, botão <i>Da cena</i> guarda e tira da cena; o inventário só é lido do jogador que controla o token). Para prender:  selecione o item, botão direito → Attach (prender), ou use o efeito Pegar item. Vale se o nome do item contiver esse texto. Só o jogador que tentou vê a mensagem; {item} e {quem} viram o nome do item e do personagem. O mestre usa sem o item. O nó é da extensão Vigilância (botão direito no item → Virar nó da Matriz).</span>` : ""}
       <div class="row">
         <label class="check"><input type="checkbox" data-k="glow" ${t.glow !== false ? "checked" : ""} /> Destacar com brilho</label>
         <input type="color" data-k="glowColor" value="${esc(t.glowColor || "#ffd34d")}" title="Cor do brilho" />

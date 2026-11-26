@@ -145,3 +145,22 @@ const fxg = buildAbility({ ab: { nome: "G", forma: "alvo", visual: "linha_fogo",
 ok("efeito sem origem: um em cada alvo, no tamanho pedido", [fxg.videos.length, fxg.videos.map((v) => v.position), Math.round(fxg.videos[0].dpi)], [2, [{ x: 300, y: 300 }, { x: 600, y: 0 }], 600]);
 const fxs = buildAbility({ ab: { nome: "G", forma: "alvo", visual: "linha_fogo" }, from: { x: 0, y: 0 }, aim: { targets: [{ id: "b", at: { x: 0, y: 600 }, half: 50 }] }, cell }, () => true).videos[0];
 ok("linha num alvo: o efeito inteiro sai do NPC e chega no alvo", [fxs.rotation, Math.round(fxs.dpi)], [90, Math.round(1200 / 5.7)]);
+
+// camada (sob os tokens) e luz colorida da habilidade
+import { normLuz, luzPoint, setCamada, setLuz, CAMADA_SOB } from "../src/abil.js";
+const baseAb = { nome: "Nuvem", forma: "area", visual: "nevoa", area: 3, alcance: 9, duracao: 20 };
+const cnv = { ab: baseAb, from: { x: 0, y: 0 }, aim: { point: { x: 600, y: 300 }, targets: [] }, cell: 150, mpc: 1.5 };
+const por_cima = buildAbility(cnv, () => true);
+ok("padrão: por cima (sem camada própria)", [por_cima.persist.length, por_cima.persist.every((v) => !v.layer)], [1, true]);
+const por_baixo = buildAbility({ ...cnv, ab: { ...baseAb, camada: "sob" } }, () => true);
+ok("camada sob: os vídeos que ficam vão para a camada abaixo dos tokens", por_baixo.persist.map((v) => v.layer), [CAMADA_SOB]);
+ok("normalize guarda camada sob e ignora outros valores", [normalize({ habilidades: [{ nome: "A", camada: "sob" }, { nome: "B", camada: "xyz" }] }).dossie.habilidades.map((h) => h.camada)], [["sob", undefined]]);
+ok("luz: cor por nome, limites e padrões", normLuz({ cor: "laranja", raio: 500, intens: 5, dur: "fim", anim: "tocha?" }), { cor: "#ff8a1f", raio: 60, intens: 1, dur: "fim", fade: 0.8 });
+ok("luz: anim válida e cor hex", normLuz({ cor: "#35E0FF", raio: 4, anim: "strobe", dur: 2, fade: 0 }), { cor: "#35e0ff", raio: 4, intens: 0.7, anim: "strobe", dur: 2, fade: 0 });
+ok("luz sem cor válida = sem luz", [normLuz({ cor: "xx" }), normLuz(null)], [null, null]);
+const dos = normalize({ habilidades: [{ nome: "Boom", luz: { cor: "amarelo", raio: 6, dur: 1, fade: 1 } }] }).dossie;
+ok("dossiê guarda a luz normalizada", dos.habilidades[0].luz, { cor: "#f5d742", raio: 6, intens: 0.7, dur: 1, fade: 1 });
+ok("setLuz liga e desliga", [setLuz(dos, "Boom", null).habilidades[0].luz, setLuz(dos, "Boom", { cor: "azul" }).habilidades[0].luz.cor], [undefined, "#4fa8ff"]);
+ok("setCamada liga e desliga", [setCamada(dos, "Boom", "sob").habilidades[0].camada, setCamada(setCamada(dos, "Boom", "sob"), "Boom", "").habilidades[0].camada], ["sob", undefined]);
+const evL = (ab, extra) => ({ ab, from: { x: 10, y: 10 }, aim: { point: { x: 500, y: 400 }, targets: [{ id: "t", at: { x: 700, y: 700 }, half: 50 }], ...extra } });
+ok("luz acende: no ponto mirado > no alvo > em quem usa", [luzPoint(evL({ forma: "area" })), luzPoint(evL({ forma: "alvo" }, { point: null })), luzPoint(evL({ forma: "si" })), luzPoint(evL({ forma: "area", luz: { onde: "origem" } }))], [{ x: 500, y: 400 }, { x: 700, y: 700 }, { x: 10, y: 10 }, { x: 10, y: 10 }]);

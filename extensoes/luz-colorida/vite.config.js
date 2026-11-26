@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Luz Colorida",
-        version: "1.2.5",
+        version: "1.3.0",
         manifest_version: 1,
         author: "Yuri",
         description: "Dá cor às luzes do Dynamic Fog, respeitando as paredes.",

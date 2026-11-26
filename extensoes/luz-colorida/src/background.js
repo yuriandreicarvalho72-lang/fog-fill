@@ -3,6 +3,7 @@ import OBR, { buildEffect } from "@owlbear-rodeo/sdk";
 import { buildSksl, buildUniforms, MAX_LIGHTS, animId } from "./shader.js";
 import { ID, CFG, SETTINGS, DEFAULT_SETTINGS, DF_LIGHT } from "./shared.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
+import { setupPontuais } from "./pontuais.js";
 
 const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 const rad = (deg) => (deg * Math.PI) / 180;
@@ -232,6 +233,7 @@ OBR.onReady(async () => {
     schedule(0);
   };
   perf = readPerf();
+  setupPontuais({ getSettings: () => settings, getPerf: () => perf }).catch((e) => console.error(`[${ID}] pontuais`, e));
   onPerf((p) => { perf = p; schedule(0); });
   onClean(() => start());
   if (await OBR.scene.isReady()) await start();

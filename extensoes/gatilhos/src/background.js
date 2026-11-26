@@ -6,7 +6,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
-import { ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -167,11 +167,20 @@ async function syncMenu() {
   } finally { menuBusy = false; }
 }
 
+/** Inventário de mesa de cada jogador na sala: { idDoJogador: [nomes] } (metadado publicado pela extensão Inventário). */
+async function inventories() {
+  const out = {};
+  const put = (id, md) => { const l = md?.[INV_META]; if (id && Array.isArray(l)) out[id] = l.map(String); };
+  try { put(await OBR.player.getId(), await OBR.player.getMetadata()); } catch { /* sem sala */ }
+  try { for (const p of await OBR.party.getPlayers()) put(p.id, p.metadata); } catch { /* sem sala */ }
+  return out;
+}
+
 /** As condições do gatilho valem agora? */
 async function checkConds(trigger, ctx) {
   const [items, md] = await Promise.all([OBR.scene.items.getItems(), OBR.scene.getMetadata()]);
   const actorIds = (trigger.conds || []).some((c) => c.type === "has") ? (await actors(trigger, ctx).catch(() => [])).map((i) => i.id) : [];
-  return condsOk(trigger, { alert: alertLevel(md), items, groups: Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [], dpi, zones: trigger.zones || [], actorIds });
+  return condsOk(trigger, { alert: alertLevel(md), items, groups: Array.isArray(md[ESTADOS]) ? md[ESTADOS] : [], dpi, zones: trigger.zones || [], actorIds, inv: actorIds.length ? await inventories() : {} });
 }
 
 /** Executa os efeitos de um gatilho. ctx: { by (token), at (entrada), from } */
@@ -423,7 +432,8 @@ async function handleInteract(itemId, userId, senderRole) {
     let spend = null; // item do restrito que se gasta nesta passagem
     const hacked = nodeHacked(items, tr.reqNodes); // cartão clonado: o nó da Matriz hackeado libera sem o item
     if (String(tr.reqItem || "").trim() && senderRole !== "GM" && !hacked) {
-      const withItem = pool.filter((t) => hasRequired(t.id, items, tr.reqItem));
+      const inv = await inventories();
+      const withItem = pool.filter((t) => hasRequired(t.id, items, tr.reqItem, inv));
       const r2 = withItem.length ? pickReacher(withItem, shape, reach, dpi) : { ok: false };
       if (!r2.ok) {
         const who = r.token ? names(r.token) : "";

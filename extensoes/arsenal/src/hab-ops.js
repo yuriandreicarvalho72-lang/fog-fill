@@ -1,17 +1,23 @@
 // Habilidades: operações com o SDK, usadas pelo painel e pelo segundo plano.
 // Só o mestre usa. O dossiê fica no token; a mira (habilidade ativa, alvos, ponto) fica no metadado do jogador.
 import OBR from "@owlbear-rodeo/sdk";
-import { DOSSIE, HAB_USO, CH_HAB, normalize, canUse, markUse, numbers, shapeOf, caughtIn, setVisual, setVideo, setDuracao, buildAbility, keyOf, registerLink, parseDuracao, giroOf } from "./abil.js";
+import { DOSSIE, HAB_USO, CH_HAB, normalize, canUse, markUse, numbers, shapeOf, caughtIn, setVisual, setVideo, setDuracao, buildAbility, keyOf, registerLink, parseDuracao, giroOf, setCamada, setLuz, normLuz } from "./abil.js";
 import { prepareCustom, loadMeus } from "./meus.js";
 import { addAtivo } from "./ativos.js";
 import { halfSize } from "./cover.js";
 import { ID, metersPerUnit, itemName, isToken } from "./shared.js";
+import { luzRequest, sendLuz } from "./luz.js";
 
 export const HAB_TOOL = `${ID}/habilidades`;
 export const HAB_MODE = `${ID}/hab-mira`;
 export const HAB_PANEL = `${ID}/hab-painel`;
 export const HAB_AIM = `${ID}/hab-ativa`;   // metadado do jogador: { token, nome, targets: [id], point }
 export const HAB_LAST = `${ID}/hab-ultimo`; // metadado do jogador: { nome, text, caught: [nomes], at }
+export const FX_MODE = `${ID}/fx-mapa`;       // modo da ferramenta: clique no mapa solta o efeito armado
+export const FX_LIVRE = `${ID}/fx-livre`;     // metadado do jogador: { spec, repetir } = efeito armado para o próximo clique
+export const BIBLIOTECA = `${ID}/biblioteca`; // metadado da sala: efeitos guardados [{ id, nome, visual, tamanho, dur, camada, luz }]
+export const CH_INV_ARMA = `${ID}/inventario-arma`;     // LOCAL, vindo do Inventário: { nome } = usar esta arma no Arsenal
+export const CH_INV_EFEITO = `${ID}/inventario-efeito`; // LOCAL, vindo do Inventário: { nome } = usar o efeito da biblioteca com este nome
 export const HAB_PREVIEW = `${ID}/hab-previa`; // marca dos itens locais da prévia
 
 export const dossieOf = (it) => it?.metadata?.[DOSSIE] || null;
@@ -35,6 +41,10 @@ export const setVisualOn = (tokenId, nome, vis) => OBR.scene.items.updateItems([
 export const setVideoOn = (tokenId, nome, video) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) if (it.metadata[DOSSIE]) it.metadata[DOSSIE] = setVideo(it.metadata[DOSSIE], nome, video); });
 /** Duração do efeito da habilidade (null = uma vez, segundos, ou "fim" = até encerrar). */
 export const setDuracaoOn = (tokenId, nome, dur) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) if (it.metadata[DOSSIE]) it.metadata[DOSSIE] = setDuracao(it.metadata[DOSSIE], nome, dur); });
+/** Camada do efeito da habilidade: "sob" (por baixo dos tokens) ou "" (por cima). */
+export const setCamadaOn = (tokenId, nome, c) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) if (it.metadata[DOSSIE]) it.metadata[DOSSIE] = setCamada(it.metadata[DOSSIE], nome, c); });
+/** Luz colorida da habilidade ({ cor, raio, ... } ou null). */
+export const setLuzOn = (tokenId, nome, l) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) if (it.metadata[DOSSIE]) it.metadata[DOSSIE] = setLuz(it.metadata[DOSSIE], nome, l); });
 export const setUso = (tokenId, fn) => OBR.scene.items.updateItems([tokenId], (d) => { for (const it of d) it.metadata[HAB_USO] = fn(it.metadata[HAB_USO] || {}); });
 
 /** Metros por quadrado da cena. */
@@ -46,6 +56,7 @@ export async function metersPerCell() {
 /** Manda a animação para todos e, se a habilidade tem duração, guarda os vídeos que ficam no mapa. */
 export async function sendAbility(ev, { tag, by } = {}) {
   await OBR.broadcast.sendMessage(CH_HAB, ev, { destination: "ALL" });
+  await sendLuz(luzRequest(ev, tag)).catch(() => {}); // luz colorida da habilidade (Luz Colorida)
   if (!ev.ab.duracao) return;
   await prepareCustom(ev.ab, ev.subs); // vídeos próprios: tamanho lido do arquivo antes de guardar
   const { persist } = buildAbility(ev, () => true, (n) => ev.subs?.[n]);
@@ -107,17 +118,20 @@ export async function playFx(d = {}) {
     ab.video = { url: String(d.video.url).trim(), tipo: d.video.tipo };
     const g = giroOf(d.video.giro); if (g) ab.video.giro = g;
   } else ab.visual = semAc(d.visual).replace(/\s+/g, "_");
-  if (!keyOf(ab)) return { error: `o visual "${d.visual || ""}" não existe (a lista está no painel Habilidades do Arsenal).` };
+  const luz = normLuz(d.luz); if (luz) ab.luz = luz;
+  if (!keyOf(ab) && !luz) return { error: `o visual "${d.visual || ""}" não existe (a lista está no painel Habilidades do Arsenal).` };
   const dur = parseDuracao(d.dur); if (dur) ab.duracao = dur;
   if (Number(d.tamanho) > 0) ab.tamanho = Math.min(40, Number(d.tamanho));
+  if (d.camada === "sob") ab.camada = "sob";
   const cell = await OBR.scene.grid.getDpi().catch(() => 150);
   const all = await OBR.scene.items.getItems();
   const byId = new Map(all.map((i) => [i.id, i]));
   const src = d.from ? byId.get(d.from) : null;
   const tgs = (d.targets || []).map((id) => byId.get(id)).filter((i) => i && i.id !== d.from);
+  const pt = d.point && Number.isFinite(d.point.x) && Number.isFinite(d.point.y) ? { x: d.point.x, y: d.point.y } : null; // efeito num ponto do mapa (sem token)
   const list = tgs.length ? tgs : src ? [src] : [];
-  if (!list.length) return { error: "o efeito visual está sem alvo." };
-  const targets = list.map((i) => ({ id: i.id, at: i.position, half: halfSize(i, cell) || cell / 2 }));
+  if (!list.length && !pt) return { error: "o efeito visual está sem alvo." };
+  const targets = pt ? [{ id: "ponto", at: pt, half: cell / 2 }] : list.map((i) => ({ id: i.id, at: i.position, half: halfSize(i, cell) || cell / 2 }));
   const ev = { token: src?.id || null, ab, subs: {}, from: src ? src.position : targets[0].at, semOrigem: !src, aim: { targets, point: null }, cell, mpc: await metersPerCell(), selfHalf: src ? halfSize(src, cell) || cell / 2 : cell / 2, seed: Math.floor(Math.random() * 2 ** 31) };
   await sendAbility(ev, { tag: ab.nome, by: d.origem || "Gatilhos" });
   return { ok: true };

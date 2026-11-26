@@ -5,8 +5,8 @@ import { CH_HAB, CH_FX, CH_FX_END, CH_HAB_USE, DOSSIE, buildAbility, shapeOf } f
 import { setupAtivos, endByTag } from "./ativos.js";
 import { halfSize } from "./cover.js";
 import { loadMeus, prepareCustom } from "./meus.js";
-import { url, isToken, itemName } from "./shared.js";
-import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger } from "./hab-ops.js";
+import { url, isToken, itemName, ACTIVE, WEAPONS, weaponFrom, decodeCatalog } from "./shared.js";
+import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger, FX_MODE, FX_LIVRE, BIBLIOTECA, CH_INV_ARMA, CH_INV_EFEITO } from "./hab-ops.js";
 
 /** play(anim, base), base = pasta dos vídeos, has() = função "o vídeo está disponível" (ou null), isLeader() = este é o mestre que executa pedidos. */
 export async function setupHabilities({ play, base, has, isLeader }) {
@@ -42,6 +42,50 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     if (!(await isLeader())) return;
     const r = await useFromTrigger(e.data || {}).catch((err) => ({ error: err.message }));
     if (r.error) warn(e.data, r.error);
+  });
+
+  // ---------- vindo do Inventário de mesa (mesmo navegador) ----------
+  const nm = (x) => String(x || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  OBR.broadcast.onMessage(CH_INV_ARMA, async (e) => {
+    const nome = nm(e.data?.nome);
+    if (!nome) return;
+    const raw = (await import("./catalog.json")).default;
+    const all = decodeCatalog(raw);
+    // o nome do item contém o da arma (ou o contrário); vence o nome mais comprido
+    const hit = all.filter((w) => { const n = nm(w.n); return n && (nome.includes(n) || n.includes(nome)); }).sort((a, b) => b.n.length - a.n.length)[0];
+    if (!hit) return OBR.notification.show(`Arsenal: não achei "${e.data.nome}" no catálogo. Crie a arma própria no painel do Arsenal.`, "WARNING");
+    const md = await OBR.player.getMetadata();
+    const items = await OBR.scene.items.getItems();
+    const id = await OBR.player.getId();
+    const act = md[ACTIVE] || {};
+    const shooter = items.find((i) => i.id === act.shooter) || items.find((i) => isToken(i) && i.createdUserId === id);
+    if (!shooter) return OBR.notification.show("Arsenal: escolha um atirador (token) primeiro.", "WARNING");
+    let w = (shooter.metadata?.[WEAPONS] || []).find((x) => nm(x.name) === nm(hit.n));
+    if (!w) {
+      w = weaponFrom(hit);
+      await OBR.scene.items.updateItems([shooter.id], (d) => { for (const it of d) it.metadata[WEAPONS] = [...(it.metadata[WEAPONS] || []), w]; })
+        .catch(() => OBR.notification.show("Arsenal: você não tem permissão para mudar este token.", "WARNING"));
+    }
+    await OBR.player.setMetadata({ [ACTIVE]: { ...act, shooter: shooter.id, weapon: w.id, mode: w.mode } });
+    OBR.notification.show(`Arsenal: ${hit.n} na mão de ${itemName(shooter)}. Abra o Arsenal e mire.`, "SUCCESS");
+  });
+  OBR.broadcast.onMessage(CH_INV_EFEITO, async (e) => {
+    const nome = nm(e.data?.nome);
+    const lib = (await OBR.room.getMetadata())[BIBLIOTECA] || [];
+    const f = lib.find((x) => nm(x.nome) === nome) || lib.find((x) => nm(x.nome).includes(nome) || nome.includes(nm(x.nome)));
+    if (!f) return OBR.notification.show(`Arsenal: não há efeito "${e.data?.nome}" na biblioteca (página Efeitos).`, "WARNING");
+    const spec = { visual: f.visual || "", tamanho: Number(f.tamanho) || 0, dur: f.dur === "" || f.dur == null ? 0 : f.dur === "fim" ? "fim" : Number(f.dur) || 0, camada: f.camada === "sob" ? "sob" : "", luz: f.luz || null, tag: f.nome || f.visual };
+    if (role === "GM") {
+      await OBR.player.setMetadata({ [FX_LIVRE]: { spec, repetir: false } });
+      await OBR.tool.activateMode(HAB_TOOL, FX_MODE).catch(() => {});
+      return OBR.notification.show(`Efeitos: "${spec.tag}" armado. Clique no mapa para soltar.`, "INFO");
+    }
+    // jogador: o efeito cai nos tokens selecionados (ou no dele); o mestre líder executa
+    const id = await OBR.player.getId();
+    let targets = (await OBR.player.getSelection()) || [];
+    if (!targets.length) targets = (await OBR.scene.items.getItems((i) => isToken(i) && i.createdUserId === id)).map((i) => i.id).slice(0, 1);
+    if (!targets.length) return OBR.notification.show("Efeitos: selecione um token para receber o efeito.", "WARNING");
+    await OBR.broadcast.sendMessage(CH_FX, { ...spec, targets, origem: "Inventário" }, { destination: "ALL" });
   });
 
   // ---------- painel ----------
@@ -144,6 +188,23 @@ export async function setupHabilities({ play, base, has, isLeader }) {
       if (ev.key === "Enter") await fireNow();
       else if (ev.key === "Escape") { const a = await getAim(); await setAim({ token: a.token }, true); }
     },
+  });
+  // efeito solto no mapa (sem NPC): o painel Efeitos arma, o clique solta
+  const armed = async () => (await OBR.player.getMetadata())[FX_LIVRE] || null;
+  await controls.tool.createMode({
+    id: FX_MODE,
+    icons: [{ icon: url("fire.svg"), label: "Efeito no mapa (clique: solta o efeito armado · Esc: desarmar)", filter: { activeTools: [HAB_TOOL] } }],
+    cursors: [{ cursor: "crosshair" }],
+    onToolClick: async (_ctx, ev) => {
+      const a = await armed();
+      if (!a?.spec) { OBR.notification.show("Efeitos: escolha um efeito no painel do Arsenal (página Efeitos) e use \"Soltar no mapa\".", "INFO"); return false; }
+      const r = await playFx({ ...a.spec, point: ev.pointerPosition, origem: "Efeitos" }).catch((e) => ({ error: e.message }));
+      if (r.error) OBR.notification.show(`Efeitos: ${r.error}`, "WARNING");
+      else if (!a.repetir) await OBR.player.setMetadata({ [FX_LIVRE]: null });
+      return false;
+    },
+    onKeyDown: async (_ctx, ev) => { if (ev.key === "Escape") await OBR.player.setMetadata({ [FX_LIVRE]: null }); },
+    onDeactivate: () => OBR.player.setMetadata({ [FX_LIVRE]: null }).catch(() => {}),
   });
   await controls.tool.createAction({
     id: `${HAB_TOOL}/usar`,

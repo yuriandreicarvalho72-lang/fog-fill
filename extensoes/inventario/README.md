@@ -11,3 +11,9 @@ Para desenvolver, use npm ci e npm run build. Para testes locais, sirva dist em 
 Use o menu ☰ para alternar entre Inventário, Manipular peças e Decorar em camadas. As ferramentas atuam sobre um Prop ou Attachment selecionado no mapa. Guardar adiciona a referência ao inventário pessoal e retira a peça da cena. Desfazer usa o histórico de cena do Owlbear. A ordem de desenho é ajustada dentro da camada atual de cada peça.
 
 Se o seletor da coleção falhar, arraste a peça para o mapa, selecione-a e use **Da cena** no inventário. O item permanece no mapa e o painel abre a aba correspondente.
+
+## Integrações (1.5.0)
+
+- **Da cena** agora guarda a peça no inventário **e a tira da cena** (peças bloqueadas ou com outras peças presas nelas ficam no mapa).
+- Os nomes do inventário ficam no metadado do jogador (`fog-fill.inventario/itens`): o Gatilhos lê no Restrito, então "ter o cartão de acesso" pode ser só tê-lo no inventário.
+- Na ficha da peça: **Usar no Arsenal** (categoria "Equipamento (armas)") e **Usar habilidade** (se existe um efeito de mesmo nome na biblioteca do Arsenal).
