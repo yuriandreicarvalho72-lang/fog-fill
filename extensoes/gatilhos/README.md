@@ -55,3 +55,7 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
 ## Restrito e inventário (1.18.0)
 
 O Restrito (e a condição "tem item") vale também para o item guardado no **Inventário de mesa** do jogador que controla o token (a extensão Inventário publica os nomes no metadado do jogador). Continua valendo o item preso (attachment) no token. Item de inventário não é gasto pelos "usos" do Restrito (só o preso no token).
+
+## Mostrar handout (1.19.0)
+
+Efeito **Mostrar handout (Handouts)**: abre a janela da extensão **Handouts** (imagem por link + texto) para quem você escolher: **só quem ativou** (o jogador dono do token que usou o objeto), **todos** ou **só o mestre**. Dá para usar um handout da biblioteca pelo nome (o painel sugere os nomes) ou escrever título, link da imagem e texto no próprio efeito; o que for escrito vence a biblioteca. `{quem}` vira o nome de quem ativou. Se quem ativou não tem jogador dono (token do mestre), vai só para o mestre, com aviso. Exemplo: objeto interagível "Quadro de avisos" + efeito Mostrar handout "Cartaz de procurado" para quem ativou. Canal para outras extensões: `handouts/mostrar` `{ nome?, titulo?, imagem?, texto?, para: "todos"|"gm"|[userId] }`.

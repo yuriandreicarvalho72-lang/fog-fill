@@ -32,6 +32,8 @@ export const VISION_MODES = [["termica", "térmica"], ["baixa", "baixa luz"], ["
 export const ARSENAL_DESTROYED = "arsenal/destruido"; // Arsenal -> todos: { id, name, at, by (token que atirou) }
 export const ARSENAL_BLAST = "arsenal/explodiu";      // Arsenal -> todos: { id, at, radius, by, caught: [tokens] }
 export const ARSENAL_DETONATE = "arsenal/detonar";    // { ids, op: "detonar"|"desarmar", from } pede ao Arsenal
+export const HANDOUTS_SHOW = "handouts/mostrar"; // { nome?, titulo?, imagem?, texto?, para: "todos"|"gm"|[userId], origem } mostra um handout (extensão Handouts)
+export const HANDOUTS_BIB = "handouts/biblioteca"; // metadado da sala: [{ id, titulo, imagem, texto }]
 export const ARSENAL_FX = "arsenal/efeito";           // { visual? | video: { url, tipo, giro }, from?, targets, dur, tamanho?, tag, origem } vídeo no mapa
 export const ARSENAL_FX_END = "arsenal/efeito-fim";   // { tag ("" = todos), origem } encerra efeitos que ficaram
 export const ARSENAL_HAB_USE = "arsenal/habilidade-usar"; // { token, nome, targets, origem } habilidade do dossiê de um NPC
@@ -238,6 +240,7 @@ export const ACTIONS = [
   { id: "attach", label: "Pegar item: prender no token de quem ativou (cartão, chave…)", need: ["targets", "attach"] },
   { id: "fx", label: "Efeito visual (Arsenal): vídeo no mapa", need: ["shooter", "targets", "fx"] },
   { id: "fxEnd", label: "Encerrar efeito visual (Arsenal)", need: ["fxEnd"] },
+  { id: "handout", label: "Mostrar handout (Handouts): imagem por link + texto", need: ["handout"] },
   { id: "npcAbility", label: "Habilidade de NPC (Arsenal)", need: ["shooter", "targets", "ability"] },
   { id: "alarm", label: "Alerta: mudar o nível", need: ["alarm"] },
   { id: "cancel", label: "Cancelar sequência pendente (efeitos com atraso)", need: ["triggerAny"] },
@@ -267,7 +270,8 @@ export function newEffect(action = "show") {
   return { id: uid(), action, targets: [], dest: null, text: "", audience: "all", color: "#ff2a2a", anim: "pulse", trigger: "", channel: "", group: "", to: "next", who: "actor", shooter: "", weapon: "", mode: "", hit: "hit", image: "next", power: "off", nodeState: "hackeado", carry: true, visionMode: "termica", visionOn: "on", chargeOp: "detonar", delay: 0,
     fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar",
     attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true, alarmOp: "up", alarmTo: "",
-    vfxOpen: "", vfxClose: "", vfxWait: 0, imgOpen: "next", imgClosed: "prev", doorImgs: [] };
+    vfxOpen: "", vfxClose: "", vfxWait: 0, imgOpen: "next", imgClosed: "prev", doorImgs: [],
+    hoPara: "actor", hoNome: "", hoTitulo: "", hoImg: "", hoTexto: "" };
 }
 
 // quem o teleporte leva
@@ -308,4 +312,12 @@ export function applyTheme(theme) {
   if (theme.text?.primary) r.setProperty("--fg", theme.text.primary);
   if (theme.text?.secondary) r.setProperty("--muted", theme.text.secondary);
   if (theme.primary?.main) r.setProperty("--accent", theme.primary.main);
+}
+
+/** Para quem vai um handout: "actor" = só o dono do(s) token(s) de quem ativou; sem dono (token do mestre) cai para o mestre. */
+export function handoutPara(modo, atores = []) {
+  if (modo === "all") return { para: "todos" };
+  if (modo === "gm") return { para: "gm" };
+  const ids = [...new Set(atores.map((a) => a?.createdUserId).filter(Boolean))];
+  return ids.length ? { para: ids } : { para: "gm", semDono: true };
 }

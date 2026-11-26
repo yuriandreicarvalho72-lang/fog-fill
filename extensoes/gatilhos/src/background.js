@@ -6,7 +6,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
-import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -371,6 +371,17 @@ async function doEffect(e, ctx, depth, trigger) {
         from: e.shooter || undefined, targets: ids.filter((id) => id !== e.shooter), dur, tamanho: Number(e.fxSize) > 0 ? Number(e.fxSize) : undefined,
         tag: (e.fxTag || "").trim() || trigger.name, origem: trigger.name,
       }, { destination: "ALL" });
+    }
+    case "handout": {
+      // a extensão Handouts abre a janela (imagem por link + texto) para quem deve ver
+      const nome = (e.hoNome || "").trim(), titulo = (e.hoTitulo || "").trim(), imagem = (e.hoImg || "").trim(), texto = e.hoTexto || "";
+      if (!nome && !titulo && !imagem && !texto.trim()) return warn(`"${trigger.name}": o handout está vazio (escolha um da biblioteca ou escreva título, imagem ou texto).`);
+      if (imagem && !/^https?:\/\/\S+$/i.test(imagem)) return warn(`"${trigger.name}": o link da imagem do handout precisa começar com http:// ou https://.`);
+      const who = (e.hoPara || "actor") === "actor" ? await actors(trigger, ctx) : [];
+      const to = handoutPara(e.hoPara || "actor", who);
+      if (to.semDono) warn(`"${trigger.name}": quem ativou não tem jogador dono; o handout foi só para o mestre.`);
+      const list = who.map(names), quem = list.length > 1 ? `${list.slice(0, -1).join(", ")} e ${list[list.length - 1]}` : list[0] || "alguém";
+      return OBR.broadcast.sendMessage(HANDOUTS_SHOW, { nome, titulo: titulo.replaceAll("{quem}", quem), imagem, texto: texto.replaceAll("{quem}", quem), para: to.para, origem: trigger.name }, { destination: "ALL" });
     }
     case "fxEnd":
       return OBR.broadcast.sendMessage(ARSENAL_FX_END, { tag: (e.fxTag || "").trim(), origem: trigger.name }, { destination: "ALL" });

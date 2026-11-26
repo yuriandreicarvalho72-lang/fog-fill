@@ -4,6 +4,7 @@ export const extensions = {
   "clima": ["Clima",320,420],
   "estados": ["Estados",380,640],
   "gatilhos": ["Gatilhos",380,640],
+  "handouts": ["Handouts",400,640],
   "inventario": ["Inventário de mesa",390,510],
   "luz-colorida": ["Luz Colorida",320,560],
   "otimizador": ["Otimizador",360,620],

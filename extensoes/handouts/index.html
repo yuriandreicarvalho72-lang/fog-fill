@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Handouts</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Handouts</h1>
+      <div id="gm" hidden>
+        <p class="hint">Imagem por link e texto, mostrados aos jogadores numa janela. A imagem não usa o armazenamento do Owlbear. Dá para disparar também pelos Gatilhos (efeito "Mostrar handout").</p>
+        <section class="card">
+          <label>Título <input type="text" id="f-titulo" maxlength="80" placeholder="ex.: Cartaz de procurado" /></label>
+          <label>Link da imagem <input type="text" id="f-img" placeholder="https://…/imagem.png" /></label>
+          <div id="prevbox" class="foto mini" hidden><img id="prev" alt="" /><small id="preverro" hidden></small></div>
+          <label>Texto <textarea id="f-texto" rows="5" maxlength="4000" placeholder="O que os jogadores leem. **negrito** e _itálico_ funcionam."></textarea></label>
+          <div class="btns">
+            <button type="button" class="primary" id="b-todos">Mostrar para todos</button>
+            <button type="button" id="b-eu" title="Só você vê, para conferir">Ver (só eu)</button>
+          </div>
+          <details id="quem"><summary>Mostrar só para alguns jogadores</summary>
+            <div id="jogadores"></div>
+            <div class="btns"><button type="button" id="b-sel">Mostrar para os marcados</button></div>
+          </details>
+          <div class="btns"><button type="button" id="b-guardar">💾 Guardar na biblioteca</button><button type="button" id="b-novo" hidden>Novo</button></div>
+          <small id="nota"></small>
+        </section>
+        <h2>Biblioteca (<span id="nbib">0</span>)</h2>
+        <div id="bib" class="mlist"></div>
+      </div>
+      <h2>Diário (<span id="ndia">0</span>)</h2>
+      <p class="hint" id="diahint">Tudo o que apareceu para você fica aqui; clique para ler de novo.</p>
+      <div id="dia" class="mlist"></div>
+    </main>
+    <script type="module" src="./src/panel.js"></script>
+  </body>
+</html>

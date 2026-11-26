@@ -1,0 +1,40 @@
+:root { --fg: #e8eef5; --muted: #a9b4c2; --line: rgba(255,255,255,.12); --btn: rgba(255,255,255,.08); --btn-h: rgba(255,255,255,.16); --accent: #ffb35a; }
+:root.light { --fg: #1d2129; --muted: #5b6573; --line: rgba(0,0,0,.12); --btn: rgba(0,0,0,.06); --btn-h: rgba(0,0,0,.12); --accent: #c46a00; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; color: var(--fg); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+main { padding: 12px 14px 16px; }
+h1 { font-size: 16px; margin: 0 0 4px; }
+h2 { font-size: 12px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+small, .hint { color: var(--muted); display: block; margin: 2px 0 4px; }
+small.why { color: #ff9a8a; }
+label { display: block; margin: 8px 0 2px; }
+label.check { display: flex; gap: 6px; align-items: center; margin: 3px 0; }
+input[type=text], textarea { width: 100%; margin-top: 3px; background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
+textarea { resize: vertical; }
+button { background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; }
+button:hover { background: var(--btn-h); }
+button.primary { background: var(--accent); color: #111; border-color: transparent; font-weight: 600; }
+button.danger { color: #ff7a7a; }
+.mini { padding: 1px 7px; font-size: 12px; }
+.btns { display: flex; gap: 6px; margin-top: 8px; }
+.btns button { flex: 1; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px 10px; margin: 8px 0; }
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--muted); }
+.mlist { display: flex; flex-direction: column; gap: 4px; }
+.mrow { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }
+.mname { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mname small { display: block; margin: 0; }
+button.lnk { background: none; border: 0; padding: 2px; color: var(--fg); }
+.thumb { width: 38px; height: 38px; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); flex: none; }
+.thumb.vazio { display: grid; place-items: center; background: var(--btn); font-size: 18px; }
+.foto { margin: 8px 0; text-align: center; }
+.foto img { max-width: 100%; border-radius: 6px; border: 1px solid var(--line); cursor: zoom-in; }
+.foto.mini img { max-height: 160px; cursor: default; }
+/* janela do handout */
+body.modal main { padding: 16px 18px 14px; display: flex; flex-direction: column; max-height: 100vh; }
+body.modal h1 { font-size: 20px; margin: 0 0 8px; }
+body.modal .foto { overflow: auto; flex: 0 1 auto; min-height: 0; }
+body.modal .foto img { max-height: 55vh; object-fit: contain; }
+body.modal .foto.real img { max-width: none; max-height: none; cursor: zoom-out; }
+body.modal .texto { overflow: auto; font-size: 14px; line-height: 1.55; margin: 4px 0 8px; }

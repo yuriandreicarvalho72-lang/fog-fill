@@ -2,7 +2,7 @@ import "./visibility.js";
 import "./compact.js";
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme } from "./shared.js";
+import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
@@ -16,6 +16,7 @@ let itemVig = new Map();     // câmeras e nós da Vigilância: id -> { cam, nod
 let itemHabs = new Map();    // habilidades do dossiê do Arsenal de cada NPC: id -> [{ nome, forma }]
 let itemDoor = new Map();    // portas da névoa: id -> { open, locked }
 let visuais = [];            // visuais do Arsenal por grupo (arsenal/visuais.json): [[grupo, [nomes]]]
+let handoutsLib = [];     // biblioteca da extensão Handouts (metadado da sala)
 let estados = [];         // grupos da extensão Estados
 let alertNow = 0;         // nível de alerta atual
 const logLines = [];
@@ -103,6 +104,19 @@ function fxRow(e) {
       <label class="inline" title="0 = tamanho padrão do vídeo">tam. <input type="number" data-ek="fxSize" min="0" step="0.5" value="${e.fxSize || 0}" /> q</label></div>
     ${(e.targets || []).length || e.shooter ? "" : '<span class="hint warn">⚠ Sem alvo: escolha os itens onde o efeito aparece, ou "+ quem ativou".</span>'}
     <span class="hint">Sem "Sai de", o vídeo fica em cima de cada item. Com "Sai de", projétil, linha e cone saem dele até cada item. Para encerrar um efeito em loop: efeito "Encerrar efeito visual" com o mesmo nome, ou ✕ no painel Habilidades do Arsenal. Precisa da extensão Arsenal.</span>`;
+}
+
+/** Mostrar um handout (extensão Handouts): da biblioteca por nome, ou escrito aqui. */
+function handoutRow(e) {
+  const nome = (e.hoNome || "").trim();
+  const falta = nome && handoutsLib.length && !handoutsLib.some((h) => String(h.titulo).toLowerCase().includes(nome.toLowerCase()));
+  return `<div class="row"><span class="hint">Quem vê:</span><select data-ek="hoPara"><option value="actor" ${(e.hoPara || "actor") === "actor" ? "selected" : ""}>só quem ativou</option><option value="all" ${e.hoPara === "all" ? "selected" : ""}>todos os jogadores</option><option value="gm" ${e.hoPara === "gm" ? "selected" : ""}>só o mestre</option></select></div>
+    <input type="text" data-ek="hoNome" list="gat-handouts" value="${esc(e.hoNome)}" placeholder="da biblioteca do Handouts (nome)" />
+    ${falta ? '<span class="hint warn">⚠ Não há handout com esse nome na biblioteca.</span>' : ""}
+    <input type="text" data-ek="hoTitulo" value="${esc(e.hoTitulo)}" placeholder="título (opcional se usar a biblioteca)" />
+    <input type="text" data-ek="hoImg" value="${esc(e.hoImg)}" placeholder="https://…/imagem.png (link direto)" />
+    <textarea data-ek="hoTexto" rows="4" placeholder="texto ({quem} = nome de quem ativou)">${esc(e.hoTexto)}</textarea>
+    <span class="hint">O que você escrever aqui vence o que vem da biblioteca. Funciona com "interagir": o jogador usa o objeto e só ele vê a imagem e a nota. Precisa da extensão Handouts.</span>`;
 }
 
 /** Encerrar efeitos que ficaram no mapa (pelo nome; vazio = todos). */
@@ -263,6 +277,7 @@ function effectRow(t, e) {
     ${need.has("attach") ? attachRow(t, e) : ""}
     ${need.has("fx") ? fxRow(e) : ""}
     ${need.has("fxEnd") ? fxEndRow(e) : ""}
+    ${need.has("handout") ? handoutRow(e) : ""}
     ${need.has("ability") ? abilityRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
@@ -413,7 +428,7 @@ function card(t) {
         e[el.dataset.ek] = el.type === "number" ? Number(el.value) : el.value;
         save();
         if (el.dataset.ek === "weapon") e.mode = "";
-        if (["action", "group", "who", "weapon", "fxSrc", "fxDur", "fxVis", "attachOp"].includes(el.dataset.ek)) render();
+        if (["action", "group", "who", "weapon", "fxSrc", "fxDur", "fxVis", "attachOp", "hoNome"].includes(el.dataset.ek)) render();
       });
     }
     for (const el of row.querySelectorAll("[data-ekb]")) el.addEventListener("change", () => { e[el.dataset.ekb] = el.checked; save(); });
@@ -438,6 +453,7 @@ function render() {
   if (!list.length) box.innerHTML = '<p class="hint">Nenhum gatilho. Selecione no mapa a zona (uma armadilha escondida, uma forma, uma linha de "fio") e clique em <b>Novo gatilho com a seleção</b>, ou use o botão direito → <b>Criar gatilho com esta zona</b>.</p>';
   for (const t of list) box.appendChild(card(t));
   if (visuais.length) box.insertAdjacentHTML("beforeend", `<datalist id="gat-visuais">${visuais.flatMap(([, l]) => l).map((v) => `<option value="${esc(v)}"></option>`).join("")}</datalist>`);
+  if (handoutsLib.length) box.insertAdjacentHTML("beforeend", `<datalist id="gat-handouts">${handoutsLib.map((h) => `<option value="${esc(h.titulo)}"></option>`).join("")}</datalist>`);
   $("log").innerHTML = logLines.length ? logLines.map((l) => `<div>${esc(l)}</div>`).join("") : '<span class="hint">Nada disparou ainda.</span>';
 }
 
@@ -446,6 +462,9 @@ OBR.onReady(async () => {
   if ((await OBR.player.getRole()) !== "GM") return playerView();
   // lista de visuais do Arsenal (mesmo site): sugestões no efeito visual
   fetch(new URL("../arsenal/visuais.json", window.location.href), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (Array.isArray(j?.grupos)) { visuais = j.grupos; render(); } }).catch(() => {});
+  const loadHandouts = (m) => { const l = Array.isArray(m[HANDOUTS_BIB]) ? m[HANDOUTS_BIB] : []; if (JSON.stringify(l.map((h) => h.titulo)) !== JSON.stringify(handoutsLib.map((h) => h.titulo))) { handoutsLib = l; render(); } };
+  OBR.room.getMetadata().then(loadHandouts).catch(() => {});
+  OBR.room.onMetadataChange(loadHandouts);
   const load = async () => {
     await refreshNames();
     const md = await OBR.scene.getMetadata();
