@@ -14,3 +14,5 @@ Novo modo da barra (✋), ao lado do "Mover personagem", que continua igual.
 - **Botão direito** (ou Enter) confirma: o token anda ponto a ponto pelo caminho, como no modo original (Smoke & Spectre, Gatilhos e terreno difícil continuam valendo). **Esc** cancela e o token fica onde estava.
 - A sombra e o "levantar" têm uma opção no painel ("Sombra e levantar o token enquanto segura"). "Confirmar com: duplo clique ou Enter" vale também aqui (sem a camada transparente, o botão direito não confirma).
 - A lógica fica em `src/grab.js` (testada em `test/grab.mjs`); o desenho do token levantado está em `liftLook` (`src/geom.js`).
+
+1.6.1: o modo segurar e soltar guarda o token do "down" (o evento de arrastar nem sempre traz o item) e avisa na tela se algo falhar.

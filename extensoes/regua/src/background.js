@@ -11,6 +11,7 @@ let ruler = null;   // medição / movimento no modo nativo
 let area = null;    // área sendo desenhada
 let grab = null;    // segurar e soltar (modo nativo, sem a camada do botão direito)
 let role = "PLAYER";
+let grabDownTarget = null;
 
 // metadado da ferramenta: muda o cursor (measuring) e qual ícone de "fixar" aparece na barra (pin)
 const toolMeta = { measuring: false, pin: true };
@@ -157,13 +158,22 @@ const grabMode = {
   ],
   // o token não anda sozinho: quem move é a régua (o mapa continua arrastável pelo chão)
   preventDrag: { target: [{ key: "type", value: "IMAGE" }] },
+  // o alvo vem do "down" (o evento de arrastar nem sempre traz o item sob o ponteiro)
+  onToolDown: (_ctx, event) => { grabDownTarget = event.target || null; },
   onToolDragStart: async (_ctx, event) => {
-    if (area) return;
-    if (grab) { await grab.down(event.pointerPosition, event.altKey); return; }
-    if (movableToken(event.target, role)) await grabStart(event.target, event.pointerPosition, event.altKey);
+    try {
+      if (area) return;
+      if (grab) { await grab.down(event.pointerPosition, event.altKey); return; }
+      const t = event.target || grabDownTarget;
+      if (movableToken(t, role)) await grabStart(t, event.pointerPosition, event.altKey);
+      else OBR.notification.show("Segurar e soltar: arraste um token seu (modo ✋).", "DEFAULT").catch(() => {});
+    } catch (e) { console.error(`[${ID}] segurar e soltar`, e); OBR.notification.show(`Régua: erro ao pegar o token (${e?.message || e})`, "ERROR").catch(() => {}); endGrab(); }
   },
   onToolDragMove: (_ctx, event) => { if (grab) grab.move(event.pointerPosition, event.altKey); },
-  onToolDragEnd: async (_ctx, event) => { if (grab) await grabRelease(event.pointerPosition, event.altKey); },
+  onToolDragEnd: async (_ctx, event) => {
+    try { if (grab) await grabRelease(event.pointerPosition, event.altKey); }
+    catch (e) { console.error(`[${ID}] segurar e soltar`, e); OBR.notification.show(`Régua: erro ao soltar (${e?.message || e})`, "ERROR").catch(() => {}); endGrab(); }
+  },
   onToolDragCancel: () => endGrab(),
   onToolClick: async (_ctx, event) => {
     // modo nativo, com marcas feitas: um clique no chão acrescenta um ponto
