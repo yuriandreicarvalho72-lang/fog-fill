@@ -59,3 +59,17 @@ O Restrito (e a condição "tem item") vale também para o item guardado no **In
 ## Mostrar handout (1.19.0)
 
 Efeito **Mostrar handout (Handouts)**: abre a janela da extensão **Handouts** (imagem por link + texto) para quem você escolher: **só quem ativou** (o jogador dono do token que usou o objeto), **todos** ou **só o mestre**. Dá para usar um handout da biblioteca pelo nome (o painel sugere os nomes) ou escrever título, link da imagem e texto no próprio efeito; o que for escrito vence a biblioteca. `{quem}` vira o nome de quem ativou. Se quem ativou não tem jogador dono (token do mestre), vai só para o mestre, com aviso. Exemplo: objeto interagível "Quadro de avisos" + efeito Mostrar handout "Cartaz de procurado" para quem ativou. Canal para outras extensões: `handouts/mostrar` `{ nome?, titulo?, imagem?, texto?, para: "todos"|"gm"|[userId] }`.
+
+## Mapa lógico (1.20.0)
+
+Botão **🗺 Mapa lógico** no topo do painel: abre uma janela grande com o diagrama de quem dispara quem.
+- Cada gatilho é uma caixa (borda verde = armado, tracejada = desarmado). As setas: **dispara** (corrente, azul), **rearma** (verde tracejada), **cancela** (vermelha), **alerta** (laranja: quem mexe no alerta → gatilhos "o nível de alerta mudou"), **nó da Matriz** (roxa) e **ruído** (amarela). O atraso aparece na seta (+2s).
+- **Problemas** (lista à direita, clique para ir ao gatilho): causa sem zona, efeito sem alvo, corrente para gatilho apagado (erro), item apagado do mapa, gatilho desarmado que nada rearma, ciclos (laço sem parar = erro; com atraso = aviso; só "uma vez" = info), conflitos (mostrar × esconder o mesmo item na mesma causa), gatilho que só dispara à mão.
+- **E se?**: clique num gatilho → "▶ E se este disparar agora?" mostra a linha do tempo (com atrasos, correntes, mudança de alerta e cancelamentos) **sem executar nada**. Escolha o nível de alerta de partida. As condições ("Só se") são supostas cumpridas. "Disparar de verdade" pede confirmação.
+- A lógica está em `src/mapa.js` (testada em `test/mapa.mjs`).
+
+## Ruído (1.20.0, com a Vigilância 1.2)
+
+- Causa **Um guarda/câmera ouve um ruído**: escolha os guardas (vazio = qualquer um); quem ativou = o guarda que ouviu.
+- Efeito **Fazer barulho**: sai do lugar de cada item escolhido, com o alcance em quadrados; a Vigilância calcula quem ouve (paredes abafam). Se o ruído estiver desligado na Vigilância, ninguém ouve.
+- Canais: `vigilancia/ruido` { x, y, raio, origem, quem } e `vigilancia/ouviu` { camera, name, x, y, origem, raio }.

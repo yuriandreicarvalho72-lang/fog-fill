@@ -6,7 +6,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
-import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -395,6 +395,14 @@ async function doEffect(e, ctx, depth, trigger) {
       if (!ids.length) return warn(`"${trigger.name}": ${e.action === "camPower" ? "ligar/desligar câmera" : "mudar estado do nó"} está sem alvo.`);
       const state = e.action === "camPower" ? (e.power === "on" ? "ativo" : "desativado") : e.nodeState || "hackeado";
       return OBR.broadcast.sendMessage(VIG_SET, { targets: ids, state, from: trigger.name }, { destination: "ALL" });
+    }
+    case "noise": {
+      // barulho no lugar de cada item escolhido (ou de quem ativou); a Vigilância calcula quem ouve
+      const src = ids.length ? await OBR.scene.items.getItems(ids) : [];
+      if (!src.length) return warn(`"${trigger.name}": fazer barulho está sem item (escolha de onde sai o barulho).`);
+      const raio = Math.max(1, Number(e.noiseRaio) || 10);
+      for (const s of src) OBR.broadcast.sendMessage(VIG_NOISE, { x: s.position.x, y: s.position.y, raio, origem: trigger.name, quem: s.id }, { destination: "ALL" }).catch(() => {});
+      return;
     }
     case "chain":
     case "rearm": {
@@ -788,6 +796,15 @@ OBR.onReady(async () => {
       if (!tr.armed || tr.cause !== "cameraSees" || !(tr.zones || []).includes(d.camera)) continue;
       if (tr.once) tr.armed = false;
       run(tr, { on: d.tokens || [], cause: "cameraSees" });
+    }
+  });
+  OBR.broadcast.onMessage(VIG_HEARD, async (e) => {
+    const d = e.data || {};
+    if (role !== "GM" || !d.camera || !(await isLeader())) return;
+    for (const tr of triggers) {
+      if (!tr.armed || tr.cause !== "heard" || ((tr.zones || []).length && !(tr.zones || []).includes(d.camera))) continue;
+      if (tr.once) tr.armed = false;
+      run(tr, { cause: "heard", on: [d.camera] });
     }
   });
   OBR.broadcast.onMessage(VIG_NODE, async (e) => {

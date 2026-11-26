@@ -2,8 +2,9 @@ import "./visibility.js";
 import "./compact.js";
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
+import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, ID, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
+import { controls } from "./visibility.js";
 import { tryInteract, usableTriggers } from "./interact.js";
 
 const $ = (id) => document.getElementById(id);
@@ -117,6 +118,13 @@ function handoutRow(e) {
     <input type="text" data-ek="hoImg" value="${esc(e.hoImg)}" placeholder="https://…/imagem.png (link direto)" />
     <textarea data-ek="hoTexto" rows="4" placeholder="texto ({quem} = nome de quem ativou)">${esc(e.hoTexto)}</textarea>
     <span class="hint">O que você escrever aqui vence o que vem da biblioteca. Funciona com "interagir": o jogador usa o objeto e só ele vê a imagem e a nota. Precisa da extensão Handouts.</span>`;
+}
+
+/** Fazer barulho: de onde sai e até onde chega. */
+function noiseRow(e) {
+  return `<div class="row"><label class="inline">alcance <input type="number" data-ek="noiseRaio" min="1" step="1" value="${Number(e.noiseRaio) || 10}" /> quadrados</label></div>
+    ${(e.targets || []).length ? "" : '<span class="hint warn">⚠ Sem item: escolha de onde sai o barulho.</span>'}
+    <span class="hint">Os guardas e câmeras com "Ouve ruídos" (Vigilância) ligado, perto o bastante (as paredes abafam), reagem: avisam o mestre, vão investigar se estão em ronda, e disparam gatilhos com a causa "ouve um ruído". Precisa da extensão Vigilância, com o ruído ligado.</span>`;
 }
 
 /** Encerrar efeitos que ficaram no mapa (pelo nome; vazio = todos). */
@@ -278,6 +286,7 @@ function effectRow(t, e) {
     ${need.has("fx") ? fxRow(e) : ""}
     ${need.has("fxEnd") ? fxEndRow(e) : ""}
     ${need.has("handout") ? handoutRow(e) : ""}
+    ${need.has("noise") ? noiseRow(e) : ""}
     ${need.has("ability") ? abilityRow(e) : ""}
     ${need.has("who") ? `<div class="row"><span class="hint">Quem vai:</span><select data-ek="who">${WHO.map(([v, l]) => `<option value="${v}" ${(e.who || "actor") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>` : ""}
     ${need.has("who") && (e.who || "actor") === "actor" && !MOVING.includes(t.cause) && t.cause !== "standAll" ? '<span class="hint">Sem movimento, "quem ativou" = quem está em cima da zona; se ela estiver vazia, os tokens que você tiver selecionado.</span>' : ""}
@@ -316,7 +325,7 @@ function card(t) {
       ${t.cause === "near" ? `<label class="inline">raio <input type="number" data-k="radius" min="0.5" step="0.5" value="${t.radius ?? 2}" /> quadrados</label>` : ""}
       ${t.cause === "alertLevel" ? `<div class="row"><span class="hint">Quando o nível:</span><select data-k="alertDir">${ALERT_DIRS.map(([v, l]) => `<option value="${v}" ${(t.alertDir || "any") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
         <span class="hint">para</span><select data-k="alertTo"><option value="">qualquer nível</option>${Array.from({ length: ALERT_MAX + 1 }, (_, n) => `<option value="${n}" ${String(t.alertTo ?? "") === String(n) ? "selected" : ""}>${n}</option>`).join("")}</select></div>
-        <p class="hint">Dispara quando o alerta da cena muda (efeito "Alerta: mudar o nível", ou os botões 🚨 no topo do painel). Use "Só se" para casos como "só se alguma porta estiver aberta".</p>` : `<div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : t.cause === "destroyed" ? "Objeto(s) destrutível(is)" : t.cause === "chargeBlew" ? "Perto de (vazio = qualquer carga)" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>`}
+        <p class="hint">Dispara quando o alerta da cena muda (efeito "Alerta: mudar o nível", ou os botões 🚨 no topo do painel). Use "Só se" para casos como "só se alguma porta estiver aberta".</p>` : `<div class="sub">${t.cause === "interact" ? "Objeto(s) que o jogador usa" : t.cause === "cameraSees" ? "Câmera(s)" : t.cause === "nodeState" ? "Nó(s) da Matriz" : t.cause === "heard" ? "Guarda(s)/câmera(s) que ouvem (vazio = qualquer um)" : t.cause === "destroyed" ? "Objeto(s) destrutível(is)" : t.cause === "chargeBlew" ? "Perto de (vazio = qualquer carga)" : `Zona(s)${t.cause === "manual" ? " (opcional: quem estiver em cima conta como quem ativou)" : ""}`}: ${chips(t.zones, "zones")}</div>`}
       ${t.cause === "cameraSees" ? `<p class="hint">Dispara quando a câmera (extensão Vigilância) vê alguém entrar no cone. "Quem ativou" = quem foi visto.</p>
         ${(t.zones || []).length && !(t.zones || []).some((id) => itemVig.get(id)?.cam) ? '<span class="hint warn">⚠ Nenhum desses itens é câmera (botão direito → Virar câmera).</span>' : ""}` : ""}
       ${t.cause === "destroyed" ? '<p class="hint">Dispara quando o objeto quebra no Arsenal (tiros pesados, explosões, cargas). "Quem ativou" = quem atirou ou plantou a carga.</p>' : ""}
@@ -459,6 +468,7 @@ function render() {
 
 OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
+  $("mapa").addEventListener("click", () => controls.modal.open({ id: `${ID}/mapa`, url: new URL(`${import.meta.env.BASE_URL}mapa.html`, window.location.href).href, width: 1040, height: 700 }).catch(() => OBR.notification.show("Não consegui abrir o mapa lógico.", "WARNING")));
   if ((await OBR.player.getRole()) !== "GM") return playerView();
   // lista de visuais do Arsenal (mesmo site): sugestões no efeito visual
   fetch(new URL("../arsenal/visuais.json", window.location.href), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (Array.isArray(j?.grupos)) { visuais = j.grupos; render(); } }).catch(() => {});

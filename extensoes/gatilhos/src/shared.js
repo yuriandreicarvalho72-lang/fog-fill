@@ -26,6 +26,8 @@ export const VIG_NODE = "vigilancia/no-mudou";  // Vigilância -> todos: { id, n
 export const VIG_SET = "vigilancia/mudar";      // { targets: [id], state, from } pede a troca de estado à Vigilância
 export const VIG_CAM = "vigilancia/camera";     // metadado do item: é câmera
 export const VIG_NODE_META = "vigilancia/no";   // metadado do item: é nó da Matriz
+export const VIG_NOISE = "vigilancia/ruido";    // { x, y, raio (quadrados), origem, quem? } faz um barulho (a Vigilância calcula quem ouve)
+export const VIG_HEARD = "vigilancia/ouviu";    // Vigilância -> todos: { camera, name, x, y, origem, raio }
 export const VIG_VISION = "vigilancia/visao";   // { targets, mode: "termica"|"baixa"|"todos", on, from } liga/desliga visão especial
 export const VISION_MODES = [["termica", "térmica"], ["baixa", "baixa luz"], ["todos", "todos os modos"]];
 // extensão Arsenal: cenário destrutível e cargas plantadas
@@ -206,6 +208,7 @@ export const CAUSES = [
   { id: "interact", label: "Interagir: o jogador clica no objeto (alavanca, porta, botão…)" },
   { id: "cameraSees", label: "Uma câmera vê alguém (Vigilância)" },
   { id: "nodeState", label: "Nó da Matriz muda de estado (Vigilância)" },
+  { id: "heard", label: "Um guarda/câmera ouve um ruído (Vigilância)" },
   { id: "destroyed", label: "Um objeto foi destruído (Arsenal)" },
   { id: "chargeBlew", label: "Uma carga explodiu (Arsenal)" },
   { id: "alertLevel", label: "O nível de alerta mudou" },
@@ -235,6 +238,7 @@ export const ACTIONS = [
   { id: "camPower", label: "Ligar/desligar câmera (Vigilância)", need: ["targets", "power"] },
   { id: "nodeSet", label: "Mudar estado do nó da Matriz (Vigilância)", need: ["targets", "nodeState"] },
   { id: "vision", label: "Ligar/desligar modo de visão (Vigilância)", need: ["targets", "vision"] },
+  { id: "noise", label: "Fazer barulho (Vigilância): guardas que ouvem reagem", need: ["targets", "noise"] },
   { id: "charge", label: "Carga (Arsenal): detonar ou desarmar", need: ["targets", "chargeOp"] },
   { id: "door", label: "Porta da névoa: abrir / fechar (Smoke & Spectre)", need: ["targets", "doorOp"] },
   { id: "attach", label: "Pegar item: prender no token de quem ativou (cartão, chave…)", need: ["targets", "attach"] },
@@ -271,7 +275,7 @@ export function newEffect(action = "show") {
     fxSrc: "lista", fxVis: "", fxUrl: "", fxTipo: "area", fxGiro: 0, fxDur: "once", fxSecs: 10, fxTag: "", fxSize: 0, ability: "", doorOp: "alternar",
     attachOp: "prender", attachPlace: "canto", attachWho: "actor", attachShow: true, attachLock: true, attachGive: true, alarmOp: "up", alarmTo: "",
     vfxOpen: "", vfxClose: "", vfxWait: 0, imgOpen: "next", imgClosed: "prev", doorImgs: [],
-    hoPara: "actor", hoNome: "", hoTitulo: "", hoImg: "", hoTexto: "" };
+    hoPara: "actor", hoNome: "", hoTitulo: "", hoImg: "", hoTexto: "", noiseRaio: 10 };
 }
 
 // quem o teleporte leva
@@ -283,7 +287,7 @@ export const WHO = [
 export const ARSENAL_MODES = { single: "tiro único", burst: "rajada", auto: "automático", supp: "supressão", spray: "jato" };
 export const ACTOR = "@quem"; // item especial nas listas de itens: quem ativou
 export const MOVING = ["enter", "leave", "near"]; // causas com movimento (dá para barrar)
-export const VIG_CAUSES = ["cameraSees", "nodeState"]; // causas que chegam da Vigilância
+export const VIG_CAUSES = ["cameraSees", "nodeState", "heard"]; // causas que chegam da Vigilância
 export const ALERT_CAUSES = ["alertLevel"]; // causa que chega do próprio alerta (mudança do nível)
 // quem pode usar um objeto interagível
 export const CAN_USE = [["all", "jogadores e mestre"], ["players", "só jogadores"], ["gm", "só o mestre"]];

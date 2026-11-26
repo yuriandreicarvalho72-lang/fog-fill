@@ -1,0 +1,29 @@
+body.mapa { background: #10151c; color: var(--fg); height: 100vh; margin: 0; display: flex; flex-direction: column; }
+body.mapa header { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+body.mapa header h1 { margin: 0; font-size: 15px; }
+body.mapa header .hint { flex: 1; margin: 0; }
+.cols { flex: 1; display: flex; min-height: 0; }
+.diagrama { flex: 1; overflow: auto; padding: 10px; }
+.diagrama svg { display: block; }
+aside#lateral { width: 330px; border-left: 1px solid var(--line); overflow: auto; padding: 10px 12px 18px; }
+aside h2 { margin-top: 12px; }
+.leg { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; font-size: 11px; color: var(--muted); }
+.leg i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 4px; }
+.prob { padding: 5px 8px; border-radius: 6px; margin: 4px 0; cursor: pointer; border-left: 4px solid; background: rgba(255,255,255,.04); }
+.prob.erro { border-color: #ff5c5c; } .prob.aviso { border-color: #ffb347; } .prob.info { border-color: #4fc3ff; }
+.prob:hover { background: rgba(255,255,255,.09); }
+.ef { margin: 3px 0; padding-left: 8px; border-left: 2px solid var(--line); }
+.tl { margin: 2px 0; padding: 3px 6px; border-radius: 5px; background: rgba(255,255,255,.04); }
+.tl.gatilho { background: rgba(255,179,90,.12); font-weight: 600; }
+.tl.alerta { background: rgba(255,92,92,.15); }
+.tl.talvez, .tl.limite { color: var(--muted); font-style: italic; }
+.tl.cancelado { text-decoration: line-through; opacity: .5; }
+.tl .t { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.no rect { fill: #1b222c; stroke: #3b4656; stroke-width: 1.5; }
+.no.arm rect { stroke: #3ddc84; }
+.no.sel rect { stroke: var(--accent); stroke-width: 3; }
+.no.alc rect { fill: #2a2412; }
+.no text { fill: var(--fg); font: 12px system-ui, sans-serif; pointer-events: none; }
+.no .sub { fill: var(--muted); font-size: 10.5px; }
+.no { cursor: pointer; }
+.btn-warn { border-color: #ff5c5c; color: #ff8c8c; }

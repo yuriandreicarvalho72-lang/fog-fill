@@ -1,11 +1,11 @@
 {
   "name": "gatilhos",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "test": "node test/engine.mjs && node test/inventario.mjs && node test/handout.mjs"
+    "test": "node test/engine.mjs && node test/inventario.mjs && node test/handout.mjs && node test/mapa.mjs"
   },
   "dependencies": {
     "@owlbear-rodeo/sdk": "^3.1.0"
