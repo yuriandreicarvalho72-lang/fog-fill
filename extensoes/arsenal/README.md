@@ -86,7 +86,7 @@ Mire (ferramenta Arsenal ou botão direito → Atirar aqui) e atire: todos veem 
 
 - **Camada do efeito**: no 🎨 de cada habilidade (painel Habilidades) há "Desenhar por baixo dos tokens". O Owlbear não deixa mudar a transparência de uma imagem, então a névoa/área não fica "mais fraca": ela passa a ficar **por baixo** dos tokens (camada logo abaixo dos personagens) e ninguém some debaixo dela. Efeitos que ficaram no mapa têm o botão ▴ sobre / ▾ sob na página Efeitos para trocar na hora. No dossiê: `"camada": "sob"`.
 - **Luz colorida nas habilidades**: no 🎨, "Acende uma luz colorida": cor, raio (m), brilho, animação (fixa, tocha, estrobo, giroflex…), duração e quanto tempo leva para apagar. A luz acende no ponto mirado (ou no alvo, ou em quem usa) e é desenhada pela extensão **Luz Colorida** (precisa estar instalada). Explosão: duração 1 s, apaga em 1 s. Giroflex: "até encerrar". No dossiê: `"luz": { "cor": "laranja", "raio": 6, "intens": 0.8, "anim": "flicker", "dur": 1.5, "fade": 1 }`.
-- **Página Efeitos (☰, só o mestre)**: solte um efeito (vídeo e/ou luz) em qualquer ponto do mapa sem precisar de NPC: monte, clique em **Soltar no mapa** e clique no mapa (ferramenta Habilidades, modo "Efeito no mapa"). Guarde os que você repete na **biblioteca** (fica na sala). "Nos selecionados" solta em cima dos tokens escolhidos.
+- **Página Efeitos (☰, só o mestre)**: solte um efeito (vídeo e/ou luz) em qualquer ponto do mapa sem precisar de NPC: monte e clique em **Soltar no mapa**: aparece um marcador 🎯 no centro da tela (só o mestre vê); arraste até o ponto e use **Soltar aqui** (lista "Marcadores no mapa" ou botão direito no marcador). Guarde os que você repete na **biblioteca** (fica na sala). "Nos selecionados" solta em cima dos tokens escolhidos.
 - **Dossiê com etiquetas**: ataque, resistência, dano, cura e condição viram etiquetas coloridas; cada forma tem um ícone.
 - **Inventário**: itens do Inventário de mesa com a categoria "Equipamento (armas)" ganham **Usar no Arsenal** (põe a arma do catálogo na mão do seu atirador); itens com o mesmo nome de um efeito da biblioteca ganham **Usar habilidade**. O jogador solta o efeito nos tokens selecionados (o mestre executa).
 
@@ -111,3 +111,8 @@ repositórios oficiais (JB2A: https://github.com/Jules-Bens-Aa/JB2A_DnD5e, commi
 para `public/jb2a/`,
 e eles são publicados junto com a extensão. Uso não comercial; o crédito aparece no painel da extensão.
 Se o download falhar, o build continua e o Arsenal usa os efeitos desenhados.
+
+## Efeitos: marcador e link de vídeo (1.9.1)
+
+- **Soltar no mapa** não depende mais de clique de ferramenta: cria um marcador 🎯 (item oculto, só o mestre vê) no centro da tela. Arraste-o e solte o efeito ali pelo botão **▶ Soltar aqui** (página Efeitos) ou pelo botão direito no marcador. "Manter o marcador" permite repetir. O efeito da biblioteca (🎯) e o do Inventário usam o mesmo marcador.
+- **Vídeo próprio por link** na página Efeitos, igual ao dossiê: link direto para .webm, tipo (alvo, área, em si, projétil, linha, cone, golpe) e para onde o vídeo aponta. O link vence o visual da lista e pode ser guardado na biblioteca.

@@ -6,7 +6,7 @@ import { setupAtivos, endByTag } from "./ativos.js";
 import { halfSize } from "./cover.js";
 import { loadMeus, prepareCustom } from "./meus.js";
 import { url, isToken, itemName, ACTIVE, WEAPONS, weaponFrom, decodeCatalog } from "./shared.js";
-import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger, FX_MODE, FX_LIVRE, BIBLIOTECA, CH_INV_ARMA, CH_INV_EFEITO } from "./hab-ops.js";
+import { HAB_TOOL, HAB_MODE, HAB_PANEL, HAB_AIM, HAB_PREVIEW, getAim, setAim, useAbility, dossieOf, metersPerCell, playFx, useFromTrigger, FX_MARCA, colocarMarcador, soltarMarcador, BIBLIOTECA, CH_INV_ARMA, CH_INV_EFEITO } from "./hab-ops.js";
 
 /** play(anim, base), base = pasta dos vídeos, has() = função "o vídeo está disponível" (ou null), isLeader() = este é o mestre que executa pedidos. */
 export async function setupHabilities({ play, base, has, isLeader }) {
@@ -76,9 +76,8 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     if (!f) return OBR.notification.show(`Arsenal: não há efeito "${e.data?.nome}" na biblioteca (página Efeitos).`, "WARNING");
     const spec = { visual: f.visual || "", tamanho: Number(f.tamanho) || 0, dur: f.dur === "" || f.dur == null ? 0 : f.dur === "fim" ? "fim" : Number(f.dur) || 0, camada: f.camada === "sob" ? "sob" : "", luz: f.luz || null, tag: f.nome || f.visual };
     if (role === "GM") {
-      await OBR.player.setMetadata({ [FX_LIVRE]: { spec, repetir: false } });
-      await OBR.tool.activateMode(HAB_TOOL, FX_MODE).catch(() => {});
-      return OBR.notification.show(`Efeitos: "${spec.tag}" armado. Clique no mapa para soltar.`, "INFO");
+      await colocarMarcador(spec, false);
+      return OBR.notification.show(`Efeitos: "${spec.tag}" no centro da tela. Arraste o marcador e use "Soltar efeito aqui" (botão direito).`, "INFO");
     }
     // jogador: o efeito cai nos tokens selecionados (ou no dele); o mestre líder executa
     const id = await OBR.player.getId();
@@ -153,16 +152,6 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     await setAim({ token: aim.token }, true);
   };
 
-  // efeito armado pela página Efeitos: o próximo clique no mapa (em qualquer modo da ferramenta Habilidades) solta
-  const castArmed = async (point) => {
-    const a = (await OBR.player.getMetadata())[FX_LIVRE] || null;
-    if (!a?.spec) return false;
-    const r = await playFx({ ...a.spec, point, origem: "Efeitos" }).catch((e) => ({ error: e.message }));
-    if (r.error) OBR.notification.show(`Efeitos: ${r.error}`, "WARNING");
-    else if (!a.repetir) await OBR.player.setMetadata({ [FX_LIVRE]: null });
-    return true;
-  };
-
   // ---------- ferramenta (ícone próprio, só o mestre) ----------
   await controls.tool.create({ id: HAB_TOOL, icons: [{ icon: url("hab.svg"), label: "Habilidades (dossiê dos NPCs)", filter: { roles: ["GM"] } }], defaultMode: HAB_MODE });
   await controls.tool.createMode({
@@ -172,7 +161,6 @@ export async function setupHabilities({ play, base, has, isLeader }) {
     onActivate: () => openPanel(),
     onDeactivate: async () => { controls.popover.close(HAB_PANEL).catch(() => {}); const a = await getAim(); if (a.armed) await setAim({ token: a.token }, true); },
     onToolClick: async (_ctx, ev) => {
-      if (await castArmed(ev.pointerPosition)) return false;
       const aim = await getAim();
       const it = ev.target;
       // sem habilidade armada: clicar num NPC com dossiê escolhe ele
@@ -200,17 +188,14 @@ export async function setupHabilities({ play, base, has, isLeader }) {
       else if (ev.key === "Escape") { const a = await getAim(); await setAim({ token: a.token }, true); }
     },
   });
-  // efeito solto no mapa (sem NPC): o painel Efeitos arma, o clique solta
-  await controls.tool.createMode({
-    id: FX_MODE,
-    icons: [{ icon: url("fire.svg"), label: "Efeito no mapa (clique: solta o efeito armado · Esc: desarmar)", filter: { activeTools: [HAB_TOOL] } }],
-    cursors: [{ cursor: "crosshair" }],
-    onToolClick: async (_ctx, ev) => {
-      if (!(await castArmed(ev.pointerPosition))) OBR.notification.show("Efeitos: escolha um efeito na página Efeitos do painel do Arsenal e use \"Soltar no mapa\".", "INFO");
-      return false;
+  // marcador de efeito (criado na página Efeitos): botão direito nele solta o efeito ali
+  await controls.contextMenu.create({
+    id: `${HAB_TOOL}/solta`,
+    icons: [{ icon: url("fire.svg"), label: "Soltar efeito aqui", filter: { roles: ["GM"], max: 1, every: [{ key: ["metadata", FX_MARCA], value: undefined, operator: "!=" }] } }],
+    onClick: async (ctx) => {
+      const r = await soltarMarcador(ctx.items[0].id);
+      if (r.error) OBR.notification.show(`Efeitos: ${r.error}`, "WARNING");
     },
-    onKeyDown: async (_ctx, ev) => { if (ev.key === "Escape") await OBR.player.setMetadata({ [FX_LIVRE]: null }); },
-    onDeactivate: () => OBR.player.setMetadata({ [FX_LIVRE]: null }).catch(() => {}),
   });
   await controls.tool.createAction({
     id: `${HAB_TOOL}/usar`,

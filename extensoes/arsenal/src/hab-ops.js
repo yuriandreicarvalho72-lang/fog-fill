@@ -1,6 +1,6 @@
 // Habilidades: operações com o SDK, usadas pelo painel e pelo segundo plano.
 // Só o mestre usa. O dossiê fica no token; a mira (habilidade ativa, alvos, ponto) fica no metadado do jogador.
-import OBR from "@owlbear-rodeo/sdk";
+import OBR, { buildShape } from "@owlbear-rodeo/sdk";
 import { DOSSIE, HAB_USO, CH_HAB, normalize, canUse, markUse, numbers, shapeOf, caughtIn, setVisual, setVideo, setDuracao, buildAbility, keyOf, registerLink, parseDuracao, giroOf, setCamada, setLuz, normLuz } from "./abil.js";
 import { prepareCustom, loadMeus } from "./meus.js";
 import { addAtivo } from "./ativos.js";
@@ -13,8 +13,7 @@ export const HAB_MODE = `${ID}/hab-mira`;
 export const HAB_PANEL = `${ID}/hab-painel`;
 export const HAB_AIM = `${ID}/hab-ativa`;   // metadado do jogador: { token, nome, targets: [id], point }
 export const HAB_LAST = `${ID}/hab-ultimo`; // metadado do jogador: { nome, text, caught: [nomes], at }
-export const FX_MODE = `${ID}/fx-mapa`;       // modo da ferramenta: clique no mapa solta o efeito armado
-export const FX_LIVRE = `${ID}/fx-livre`;     // metadado do jogador: { spec, repetir } = efeito armado para o próximo clique
+export const FX_MARCA = `${ID}/fx-marca`;     // metadado do marcador no mapa: { spec, repetir } = efeito que cai onde o marcador está
 export const BIBLIOTECA = `${ID}/biblioteca`; // metadado da sala: efeitos guardados [{ id, nome, visual, tamanho, dur, camada, luz }]
 export const CH_INV_ARMA = `${ID}/inventario-arma`;     // LOCAL, vindo do Inventário: { nome } = usar esta arma no Arsenal
 export const CH_INV_EFEITO = `${ID}/inventario-efeito`; // LOCAL, vindo do Inventário: { nome } = usar o efeito da biblioteca com este nome
@@ -152,4 +151,26 @@ export async function useFromTrigger(d = {}) {
   if (ab.forma === "alvo" && !aim.targets.length) return { error: `${ab.nome}: escolha o(s) alvo(s) no gatilho (ou "+ quem ativou").` };
   if (!aim.point && aim.targets.length === 0 && !["si", "aura"].includes(ab.forma) && !(ab.forma === "area" && !ab.alcance) && ab.secao !== "passiva") return { error: `${ab.nome}: escolha um alvo no gatilho (a habilidade aponta para ele).` };
   return useAbility(tok.id, ab.nome, aim);
+}
+
+/** Marcador de efeito: um círculo (só o mestre vê) que se arrasta até o ponto certo; "Soltar" toca o efeito ali. */
+export async function colocarMarcador(spec, repetir = false) {
+  const [pos, sc, w, h, cell] = await Promise.all([OBR.viewport.getPosition(), OBR.viewport.getScale(), OBR.viewport.getWidth(), OBR.viewport.getHeight(), OBR.scene.grid.getDpi().catch(() => 150)]);
+  const at = { x: (w / 2 - pos.x) / sc, y: (h / 2 - pos.y) / sc };
+  const d = cell * 0.9;
+  const m = buildShape().shapeType("CIRCLE").width(d).height(d).position(at).fillColor("#ff5a4a").fillOpacity(0.25).strokeColor("#ff5a4a").strokeWidth(Math.max(3, cell / 25)).strokeDash([cell / 8, cell / 12])
+    .layer("PROP").name(`🎯 ${spec.tag || "Efeito"}`).visible(false).disableAttachmentBehavior(true).metadata({ [FX_MARCA]: { spec, repetir: !!repetir } }).build();
+  await OBR.scene.items.addItems([m]);
+  await OBR.player.select([m.id]);
+  return m.id;
+}
+export const marcadoresOf = (items) => items.filter((i) => i.metadata?.[FX_MARCA]);
+/** Toca o efeito do marcador onde ele está; apaga o marcador (a não ser que seja repetível). */
+export async function soltarMarcador(id) {
+  const [m] = await OBR.scene.items.getItems([id]);
+  const a = m?.metadata?.[FX_MARCA];
+  if (!a?.spec) return { error: "o marcador não existe mais." };
+  const r = await playFx({ ...a.spec, point: { x: m.position.x, y: m.position.y }, origem: "Efeitos" }).catch((e) => ({ error: e.message }));
+  if (!r.error && !a.repetir) await OBR.scene.items.deleteItems([id]).catch(() => {});
+  return r;
 }
