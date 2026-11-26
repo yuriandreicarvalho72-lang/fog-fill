@@ -39,14 +39,14 @@ ok("anel na marca (item extra)", [items().length, items()[5].commands.length > 1
 ok("soltou: marcado e pousado", [g.phase, g.points.length, g.s.lifted, g.ready], ["pending", 2, false, true]);
 ok("pousado: o token fica no ponto", [items()[4].position, items()[4].scale], [{ x: 525, y: 75 }, { x: 1, y: 1 }]);
 await g.down({ x: 540, y: 80 });   // perto da última marca: pega de novo
-ok("pegou a marca de novo", [g.phase, g.points.length], ["drag", 1]);
+ok("pegou de novo: a marca anterior continua e o trecho sai dela", [g.phase, g.points.length, g.s.points[1]], ["drag", 2, { x: 525, y: 75 }]);
 await g.up({ x: 450, y: 375 });
-ok("mudou a marca", [g.phase, g.points.length, g.last], ["pending", 2, { x: 525, y: 375 }]);
+ok("soltou noutro ponto: nova marca depois da anterior", [g.phase, g.points.length, g.last], ["pending", 3, { x: 525, y: 375 }]);
 await g.down({ x: 900, y: 375 });  // longe: novo ponto
-ok("clique longe acrescenta um ponto", [g.phase, g.points.length, g.last], ["pending", 3, { x: 975, y: 375 }]);
+ok("clique longe acrescenta um ponto", [g.phase, g.points.length, g.last], ["pending", 4, { x: 975, y: 375 }]);
 await g.undo();
-ok("backspace tira a última marca", [g.points.length, g.phase], [2, "pending"]);
-await g.undo();
+ok("backspace tira a última marca", [g.points.length, g.phase], [3, "pending"]);
+await g.undo(); await g.undo();
 ok("sem marcas volta a esperar", [g.points.length, g.phase, g.ready], [1, "idle", false]);
 await g.down({ x: 300, y: 75 }); await g.up({ x: 300, y: 75 + 300 }); await g.down({ x: 900, y: 375 });
 let handed = null;

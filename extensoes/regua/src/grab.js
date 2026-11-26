@@ -40,8 +40,7 @@ export class GrabController {
       await this.s.move(p, alt);
     } else if (this.phase === "pending") {
       if (this.near(p)) {
-        // pega de novo a última marca para mudar o destino
-        if (this.s.points.length > 1) await this.s.undoPoint();
+        // pega de novo o token na última marca: o próximo trecho sai DESSA marca (Backspace desfaz a marca)
         this.phase = "drag";
         this.s.setLifted(true);
         await this.s.move(p, alt);
