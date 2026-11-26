@@ -183,6 +183,39 @@ export function dotsToCommands(points, radius, n = 16) {
   return cmds;
 }
 
+/** Elipse como comandos de Path (4 curvas cúbicas): 0=MOVE 4=CUBIC 5=CLOSE. */
+export function ellipseCommands(cx, cy, rx, ry) {
+  const k = 0.5522847498;
+  return [
+    [0, cx + rx, cy],
+    [4, cx + rx, cy + ry * k, cx + rx * k, cy + ry, cx, cy + ry],
+    [4, cx - rx * k, cy + ry, cx - rx, cy + ry * k, cx - rx, cy],
+    [4, cx - rx, cy - ry * k, cx - rx * k, cy - ry, cx, cy - ry],
+    [4, cx + rx * k, cy - ry, cx + rx, cy - ry * k, cx + rx, cy],
+    [5],
+  ];
+}
+
+/** Largura e altura (em pixels do mapa) que um token ocupa na grade atual. */
+export function tokenSizePx(item, dpi) {
+  const g = item?.grid?.dpi || dpi;
+  const w = (item?.image?.width ?? dpi) * Math.abs(item?.scale?.x ?? 1) * (dpi / g);
+  const h = (item?.image?.height ?? dpi) * Math.abs(item?.scale?.y ?? 1) * (dpi / g);
+  return { w, h };
+}
+
+/** Aparência do token "levantado" (sombra no chão + token subindo) ou "pousado". */
+export function liftLook(token, at, dpi, lifted) {
+  const { w, h } = tokenSizePx(token, dpi);
+  const base = Math.min(w, h);
+  const up = lifted ? base * 0.2 : 0;
+  return {
+    ghost: { x: at.x, y: at.y - up },
+    scale: lifted ? 1.08 : 1,
+    shadow: { cx: at.x, cy: at.y + base * 0.3, rx: base * (lifted ? 0.34 : 0.4), ry: base * (lifted ? 0.11 : 0.15), opacity: lifted ? 0.36 : 0.55 },
+  };
+}
+
 /** Junta os quadrados num único caminho (comandos de Path do Owlbear: 0=MOVE 1=LINE 5=CLOSE). */
 export function cellsToCommands(cells, dpi) {
   const cmds = [];

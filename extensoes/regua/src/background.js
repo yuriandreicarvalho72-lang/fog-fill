@@ -2,12 +2,14 @@ import { controls } from "./visibility.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { ID, META_AREA, TOOL_ID, MODES, MODAL_ID, TRAIL_CHANNEL, url, loadGrid, loadSettings, saveSettings, shouldPin } from "./shared.js";
 import { RulerSession, movableToken, showTrail } from "./session.js";
+import { GrabController } from "./grab.js";
 import { AreaSession, areaOrigin, clearAreas } from "./area.js";
 import { toggleDifficult } from "./terrain.js";
 import { VisionSession, loadObstacles, sceneTokens, COVER_KEY, PEEKABOO_KEY } from "./vision.js";
 
 let ruler = null;   // medição / movimento no modo nativo
 let area = null;    // área sendo desenhada
+let grab = null;    // segurar e soltar (modo nativo, sem a camada do botão direito)
 let role = "PLAYER";
 
 // metadado da ferramenta: muda o cursor (measuring) e qual ícone de "fixar" aparece na barra (pin)
@@ -18,6 +20,7 @@ const syncPin = () => { toolMeta.pin = !!loadSettings().pin; pushMeta(); };
 
 function endRuler() { if (ruler) { ruler.cancel(); ruler = null; } setMeasuring(false); }
 function endArea() { if (area) { area.cancel(); area = null; } setMeasuring(false); }
+function endGrab() { if (grab) { grab.cancel(); grab = null; } setMeasuring(false); }
 
 /** Começa um movimento (token) ou uma medição (chão). */
 async function startRuler(kind, event) {
@@ -118,6 +121,65 @@ function areaMode(kind, icon, label) {
   };
 }
 
+// ---------- Segurar e soltar ----------
+async function grabStart(token, p, alt) {
+  const settings = loadSettings();
+  const [grid, color, owner] = await Promise.all([loadGrid(), OBR.player.getColor(), OBR.player.getId()]);
+  grab = new GrabController({ grid, start: token.position, token, color, trailMs: settings.trailMs, stepMs: settings.stepMs, persist: shouldPin(settings, "move"), owner, cellRule: settings.cellRule, shadow: settings.liftShadow !== false });
+  await grab.begin();
+  setMeasuring(true);
+  await grab.down(p, alt);
+}
+
+/** Soltou: no modo "botão direito", a camada transparente assume (para receber o direito); senão, segue nativo. */
+async function grabRelease(p, alt) {
+  const g = grab;
+  await g.up(p, alt);
+  const settings = loadSettings();
+  if (settings.confirm !== "right" || !g.ready) return;
+  const q = new URLSearchParams({ kind: "move", grab: "1", token: g.s.token.id, pts: JSON.stringify(g.points.map((q2) => [Math.round(q2.x * 100) / 100, Math.round(q2.y * 100) / 100])) });
+  try {
+    await controls.modal.open({ id: MODAL_ID, url: url(`overlay.html?${q}`), fullScreen: true, hideBackdrop: true, hidePaper: true });
+    grab = null;            // a camada cuida do resto
+    setTimeout(() => g.cancel(), 450); // some com a prévia do background depois que a camada desenhar a sua
+    setMeasuring(false);
+  } catch (e) { console.warn(`[${ID}] camada indisponível, segurar e soltar fica no modo nativo`, e); }
+}
+
+const grabMode = {
+  id: MODES.grab,
+  icons: [{ icon: url("mode-grab.svg"), label: "Mover: segurar e soltar (solte para marcar, direito confirma)", filter: { activeTools: [TOOL_ID] } }],
+  cursors: [
+    { cursor: "grabbing", filter: { dragging: true } },
+    { cursor: "grab", filter: { target: [{ key: "type", value: "IMAGE" }, { key: "layer", value: "CHARACTER" }] } },
+    { cursor: "grab", filter: { target: [{ key: "type", value: "IMAGE" }, { key: "layer", value: "MOUNT" }] } },
+    { cursor: "default" },
+  ],
+  // o token não anda sozinho: quem move é a régua (o mapa continua arrastável pelo chão)
+  preventDrag: { target: [{ key: "type", value: "IMAGE" }] },
+  onToolDragStart: async (_ctx, event) => {
+    if (area) return;
+    if (grab) { await grab.down(event.pointerPosition, event.altKey); return; }
+    if (movableToken(event.target, role)) await grabStart(event.target, event.pointerPosition, event.altKey);
+  },
+  onToolDragMove: (_ctx, event) => { if (grab) grab.move(event.pointerPosition, event.altKey); },
+  onToolDragEnd: async (_ctx, event) => { if (grab) await grabRelease(event.pointerPosition, event.altKey); },
+  onToolDragCancel: () => endGrab(),
+  onToolClick: async (_ctx, event) => {
+    // modo nativo, com marcas feitas: um clique no chão acrescenta um ponto
+    if (grab && grab.phase === "pending") await grab.down(event.pointerPosition, event.altKey);
+    return false;
+  },
+  onToolDoubleClick: () => { if (grab && grab.ready) { const g = grab; grab = null; setMeasuring(false); g.confirm(); } return false; },
+  onKeyDown: (_ctx, e) => {
+    if (!grab) return;
+    if (e.key === "Escape") endGrab();
+    else if ((e.key === "Enter" || e.key === " ") && grab.ready) { const g = grab; grab = null; setMeasuring(false); g.confirm(); }
+    else if (e.key === "Backspace") grab.undo();
+  },
+  onDeactivate: () => endGrab(),
+};
+
 // ---------- Visão e cobertura ----------
 let vision = null;       // { s: VisionSession, locked }
 function endVision() { if (vision) { vision.s.stop(); vision = null; } setMeasuring(false); }
@@ -170,6 +232,7 @@ OBR.onReady(async () => {
 
   await Promise.all([
     controls.tool.createMode(rulerMode("move", "mode-move.svg", "Mover personagem")),
+    controls.tool.createMode(grabMode),
     controls.tool.createMode(rulerMode("measure", "mode-measure.svg", "Medir distância")),
     controls.tool.createMode(visionMode),
     controls.tool.createMode(areaMode("circle", "mode-circle.svg", "Área: círculo / esfera (raio)")),
@@ -275,5 +338,5 @@ OBR.onReady(async () => {
   });
 
   // se a cena trocar no meio de uma medição, descarta tudo
-  OBR.scene.onReadyChange((ready) => { if (!ready) { endRuler(); endArea(); endVision(); } });
+  OBR.scene.onReadyChange((ready) => { if (!ready) { endRuler(); endArea(); endVision(); endGrab(); } });
 });

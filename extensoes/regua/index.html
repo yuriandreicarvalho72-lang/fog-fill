@@ -46,6 +46,22 @@
       </section>
 
       <section>
+        <h2>Mover: segurar e soltar</h2>
+        <p class="hint">Outro jeito de mover, no modo da mão (✋) da barra. O modo "Mover personagem" continua igual.</p>
+        <div class="keys">
+          <span>Segurar o token</span><span>arrasta: ele sobe e deixa sombra no chão</span>
+          <span>Soltar</span><span>marca a posição (um ponto do caminho)</span>
+          <span>Segurar o token marcado</span><span>muda a última marca</span>
+          <span><kbd>Esquerdo</kbd> fora dele</span><span>acrescenta um ponto</span>
+          <span><kbd>Direito</kbd> / <kbd>Enter</kbd></span><span>confirma: o token anda pelo caminho</span>
+          <span><kbd>Esc</kbd></span><span>cancela, o token fica onde estava</span>
+          <span><kbd>Backspace</kbd></span><span>desfaz a última marca</span>
+        </div>
+        <label class="check"><input id="liftShadow" type="checkbox" /> Sombra e "levantar" o token enquanto segura</label>
+        <small>"Confirmar com" (acima) vale aqui também: com "duplo clique ou Enter", não há camada e o direito não confirma.</small>
+      </section>
+
+      <section>
         <h2>Visão e cobertura</h2>
         <p class="hint">1º clique: de onde se olha (num token, sai do centro dele). Passe o mouse no alvo: raios até os 4 cantos do quadrado, <span style="color:#5fd35f">livre</span>, <span style="color:#e0cc3a">½</span>, <span style="color:#e0903a">¾</span> ou <span style="color:#e05252">total</span>. 2º clique congela; <kbd>Esc</kbd> limpa.</p>
         <label class="check"><input id="visionShared" type="checkbox" /> Todos veem a checagem</label>

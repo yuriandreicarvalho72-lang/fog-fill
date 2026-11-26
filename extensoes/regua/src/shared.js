@@ -18,6 +18,7 @@ export const MODES = {
   square: `${ID}/mode-square`,
   cube: `${ID}/mode-cube`,
   line: `${ID}/mode-line`,
+  grab: `${ID}/mode-grab`,
 };
 
 export const DEFAULTS = {
@@ -36,6 +37,7 @@ export const DEFAULTS = {
   areaOpacity: 0.22,
   lineWidth: 1,       // largura da linha, em quadrados
   trailMs: 900,       // quanto tempo o caminho fica visível depois de confirmar (não prende a tela)
+  liftShadow: true,   // modo "segurar e soltar": o token sobe e deixa sombra no chão
   stepMs: 90,         // pausa entre um ponto e outro ao andar (dá tempo do Smoke & Spectre checar cada trecho)
 };
 

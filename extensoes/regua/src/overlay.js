@@ -6,12 +6,15 @@ import { controls } from "./visibility.js";
 import OBR from "@owlbear-rodeo/sdk";
 import { MODAL_ID, TRAIL_CHANNEL, loadGrid, loadSettings, shouldPin, ID } from "./shared.js";
 import { RulerSession } from "./session.js";
+import { GrabController } from "./grab.js";
 
 const q = new URLSearchParams(location.search);
 const kind = q.get("kind") === "move" ? "move" : "measure";
 const start = { x: Number(q.get("sx")), y: Number(q.get("sy")) };
 const firstPointer = { x: Number(q.get("px")), y: Number(q.get("py")) };
 const tokenId = q.get("token");
+const grabMode = q.get("grab") === "1";   // segurar e soltar: vem com as marcas já feitas
+const grabPts = (() => { try { return JSON.parse(q.get("pts") || "[]").map(([x, y]) => ({ x, y })); } catch { return []; } })();
 
 let session = null;
 let closing = false;
@@ -36,6 +39,7 @@ async function finish(confirm) {
   if (!session || session.done) return close();
   document.body.classList.add("ending");
   if (!confirm) { session.cancel(); return close(); }
+  if (grabMode && !session.ready) { session.cancel(); return close(); }
   // anda com o token pelo caminho e passa o rastro para o background, que continua vivo depois que a camada fecha
   await session.confirm((trail) => OBR.broadcast.sendMessage(TRAIL_CHANNEL, trail, { destination: "LOCAL" }).catch(() => {}));
   close();
@@ -46,13 +50,20 @@ function onMove(e) {
   if (raf) return;
   raf = requestAnimationFrame(() => {
     raf = 0;
+    if (grabMode && !held.on) return; // segurar e soltar: o token só acompanha o ponteiro enquanto está seguro
     if (session && last.has) session.move(toWorld(last.x, last.y), last.alt);
   });
 }
+const held = { on: false };
 
 let pan = null;
 async function onDown(e) {
   if (!session || session.done) return;
+  if (grabMode && e.button === 0) {
+    held.on = true;
+    await session.down(toWorld(e.clientX, e.clientY), e.altKey);
+    return;
+  }
   if (e.button === 0) {
     await session.move(toWorld(e.clientX, e.clientY), e.altKey);
     await session.addPoint();
@@ -64,7 +75,10 @@ async function onDown(e) {
     pan = { x: e.clientX, y: e.clientY, ox: view.ox, oy: view.oy };
   }
 }
-function onUp(e) { if (e.button === 1) pan = null; }
+async function onUp(e) {
+  if (e.button === 1) pan = null;
+  if (grabMode && e.button === 0 && held.on) { held.on = false; await session?.up(toWorld(e.clientX, e.clientY), e.altKey); }
+}
 async function onPanMove(e) {
   if (!pan) return;
   view.ox = pan.ox + (e.clientX - pan.x);
@@ -91,7 +105,7 @@ async function onWheel(e) {
 function onKey(e) {
   if (e.key === "Escape") { e.preventDefault(); finish(false); }
   else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); finish(true); }
-  else if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); session?.undoPoint(); }
+  else if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); if (grabMode) session?.undo(); else session?.undoPoint(); }
 }
 
 OBR.onReady(async () => {
@@ -101,11 +115,18 @@ OBR.onReady(async () => {
     let token = null;
     if (tokenId) [token] = await OBR.scene.items.getItems([tokenId]);
     if (kind === "move" && !token) return close();
-    session = new RulerSession({ kind, grid, start, token, color, trailMs: settings.trailMs, stepMs: settings.stepMs, persist: shouldPin(settings, kind), owner, cellRule: settings.cellRule });
-    await session.begin();
-    await session.move(firstPointer, false);
-    document.getElementById("hud-move").hidden = kind !== "move";
-    document.getElementById("hud-measure").hidden = kind === "move";
+    if (grabMode) {
+      if (grabPts.length < 2) return close();
+      session = new GrabController({ grid, token, color, trailMs: settings.trailMs, stepMs: settings.stepMs, persist: shouldPin(settings, "move"), owner, cellRule: settings.cellRule, points: grabPts, shadow: settings.liftShadow !== false });
+      await session.begin();
+      document.getElementById("hud-grab").hidden = false;
+    } else {
+      session = new RulerSession({ kind, grid, start, token, color, trailMs: settings.trailMs, stepMs: settings.stepMs, persist: shouldPin(settings, kind), owner, cellRule: settings.cellRule });
+      await session.begin();
+      await session.move(firstPointer, false);
+      document.getElementById("hud-move").hidden = kind !== "move";
+      document.getElementById("hud-measure").hidden = kind === "move";
+    }
   } catch (e) {
     console.error(`[${ID}]`, e);
     return close();

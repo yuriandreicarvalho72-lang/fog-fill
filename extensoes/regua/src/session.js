@@ -3,7 +3,7 @@
 import OBR, { buildCurve, buildLabel, buildPath } from "@owlbear-rodeo/sdk";
 import { Keeper, ID, PATH_CHANNEL, HALT_CHANNEL } from "./shared.js";
 import { persistRuler } from "./persist.js";
-import { pathCells, pathCost, formatDistance, snapRelative, snapCenter, dotsToCommands } from "./geom.js";
+import { pathCells, pathCost, formatDistance, snapRelative, snapCenter, dotsToCommands, ellipseCommands, liftLook } from "./geom.js";
 import { loadDifficult } from "./terrain.js";
 
 export class RulerSession {
@@ -18,8 +18,9 @@ export class RulerSession {
    */
   constructor(o) {
     Object.assign(this, o);
-    this.points = [o.start];
-    this.cursor = o.start;
+    this.points = o.points ? o.points.map((p) => ({ ...p })) : [o.start];
+    this.cursor = o.cursor || this.points[this.points.length - 1];
+    this.lifted = o.lift ? o.lifted !== false : false; // modo "segurar e soltar": o token sobe e deixa sombra
     this.fixedDist = 0;       // grades não quadradas: soma dos trechos fixos
     this.lastDist = 0;
     this.seq = 0;
@@ -81,8 +82,32 @@ export class RulerSession {
       .cornerRadius(8).pointerDirection("DOWN").pointerHeight(8).pointerWidth(12)
       .layer("RULER").locked(true).disableHit(true).build();
     const items = [line, dots, label];
-    if (this.token) items.push({ ...this.token, position: this.cursor });
+    if (this.token && this.lift) {
+      const lk = liftLook(this.token, this.cursor, d, this.lifted);
+      const sh = lk.shadow;
+      if (this.shadow !== false) {
+        items.push(buildPath().id(`${ID}/shadow-${Math.random().toString(36).slice(2, 8)}`).commands(ellipseCommands(sh.cx, sh.cy, sh.rx, sh.ry))
+          .fillColor("#000000").fillOpacity(sh.opacity).strokeOpacity(0).strokeWidth(0).layer("MOUNT").locked(true).disableHit(true).position({ x: 0, y: 0 }).build());
+      } else items.push(buildPath().id(`${ID}/shadow-off`).commands(ellipseCommands(0, 0, 1, 1)).fillOpacity(0).strokeOpacity(0).layer("MOUNT").locked(true).disableHit(true).position({ x: 0, y: 0 }).build());
+      items.push({ ...this.token, position: lk.ghost, scale: { x: (this.token.scale?.x ?? 1) * lk.scale, y: (this.token.scale?.y ?? 1) * lk.scale } });
+    } else if (this.token) items.push({ ...this.token, position: this.cursor });
     return items;
+  }
+
+  /** Atualiza o token-fantasma (e a sombra, no modo levantar) na interação em andamento. */
+  paintGhost(draft) {
+    if (!this.token) return;
+    if (!this.lift) { if (draft[3]) draft[3].position = this.cursor; return; }
+    const lk = liftLook(this.token, this.cursor, this.grid.dpi, this.lifted);
+    const sh = lk.shadow;
+    if (draft[3]) { draft[3].commands = ellipseCommands(sh.cx, sh.cy, sh.rx, sh.ry); draft[3].style = { ...(draft[3].style || {}), fillOpacity: sh.opacity }; draft[3].fillOpacity = sh.opacity; }
+    if (draft[4]) { draft[4].position = lk.ghost; draft[4].scale = { x: (this.token.scale?.x ?? 1) * lk.scale, y: (this.token.scale?.y ?? 1) * lk.scale }; }
+  }
+
+  /** Levanta (true) ou pousa (false) o token-fantasma. */
+  setLifted(v) {
+    this.lifted = !!v;
+    this.keeper.update((draft) => this.paintGhost(draft));
   }
 
   labelPos() { return { x: this.cursor.x, y: this.cursor.y - this.grid.dpi * 0.55 }; }
@@ -110,7 +135,7 @@ export class RulerSession {
       draft[0].points = all;
       draft[2].text.plainText = text;
       draft[2].position = pos;
-      if (draft[3]) draft[3].position = c;
+      this.paintGhost(draft);
     });
   }
 
