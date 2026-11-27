@@ -249,6 +249,7 @@ export const ACTIONS = [
   { id: "alarm", label: "Alerta: mudar o nível", need: ["alarm"] },
   { id: "cancel", label: "Cancelar sequência pendente (efeitos com atraso)", need: ["triggerAny"] },
   { id: "animDoor", label: "Porta animada: vídeo (VFX) + troca a imagem + abre a porta da névoa", need: ["animDoor"] },
+  { id: "imgDoor", label: "Porta com imagem: troca a imagem (próxima/anterior) + abre a porta da névoa, sem vídeo", need: ["animDoor"] },
   { id: "chain", label: "Disparar outro gatilho (use \"depois de N s\" para atrasar)", need: ["trigger"] },
   { id: "rearm", label: "Rearmar um gatilho", need: ["trigger"] },
   { id: "broadcast", label: "Mensagem para outra extensão", need: ["channel", "text"] },

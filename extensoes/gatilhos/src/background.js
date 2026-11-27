@@ -310,7 +310,10 @@ async function doEffect(e, ctx, depth, trigger) {
       const go = doors.filter((d) => !stuck.includes(d)).map((d) => d.id);
       return go.length ? OBR.scene.items.updateItems(go, (d) => { for (const it of d) setDoor(it, op); }) : null;
     }
+    case "imgDoor":
     case "animDoor": {
+      // imgDoor = a mesma porta animada, mas sem vídeo: troca a imagem na hora (próxima ao abrir, anterior ao fechar)
+      if (e.action === "imgDoor") e = { ...e, vfxOpen: "", vfxClose: "", vfxWait: 0 };
       // porta animada: toca o vídeo (VFX do Arsenal), espera a animação, troca a imagem (Trocador) e abre/fecha a linha da porta da névoa
       const lines = (ids.length ? await OBR.scene.items.getItems(ids) : []).filter(isFogDoor);
       const imgIds = (e.doorImgs || []).filter(Boolean);

@@ -42,6 +42,7 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
   "Colored Rings") com a lista desses gatilhos: **●/○** arma e rearma, **⚡** ativa na hora (ignora as condições; o personagem selecionado
   conta como "quem ativou"), e **Armar todos / Desarmar todos**. Vale para zona, alvo de efeito, destino, atirador, nó, item de condição e token da
   lista. A lista segue a seleção e as edições do painel. Só o mestre vê. (Na 1.15 eram uma linha por gatilho no menu; a 1.16 troca por este submenu. A 1.16.1 corrige o filtro: com mais de um item em gatilhos o submenu não aparecia.)
+- **Porta com imagem** (1.21): o mesmo efeito da porta animada, **sem vídeo**. Escolha a linha da porta e/ou a imagem (Trocador); ao ativar, troca a imagem na hora (próxima ao abrir, anterior ao fechar, ou as artes que você escolher) e abre/fecha a linha da porta, alternando pelo estado. Porta trancada no Smoke não abre. Efeito "Porta com imagem" na lista de efeitos; para o jogador usar, causa "Interagir" na imagem. Teste: `tools/emulador/exemplos/gatilhos-porta-imagem.cjs`.
 - **Porta animada** (1.17): efeito único que junta tudo: toca um **vídeo (VFX) por link .webm** em cima da imagem da porta (o mesmo motor de
   efeitos do Arsenal), espera "a porta muda N s depois" (a duração da animação), **troca a imagem** da porta no Trocador (fechada → aberta) e
   **abre ou fecha a linha** da porta do Smoke & Spectre (Enable Door) ou da névoa do Owlbear. **Alterna** conforme o estado: aberta usa o
