@@ -39,7 +39,7 @@ export function applyTo(d, generic) {
     if (!raw.real) {
       raw.real = faceOf(d); changed = true;
       // trava preventiva: o item fica bloqueado (jogador não consegue arrastar); o mestre destrava à mão se precisar mover
-      if (cfg.trava !== false) { raw.prevLocked = !!d.locked; d.locked = true; }
+      if (cfg.trava !== false) { raw.prevLocked = !!d.locked; d.locked = true; raw.prevLayer = d.layer; d.layer = "MAP"; }
     }
     const want = desiredFace(cfg, raw.real, generic);
     if (d.name !== want.name) { d.name = want.name; changed = true; }
@@ -50,6 +50,7 @@ export function applyTo(d, generic) {
     if (d.name !== r.name) { d.name = r.name; changed = true; }
     if (r.text != null && d.text && d.text.plainText !== r.text) { setText(d.text, r.text); changed = true; }
     if (r.url != null && d.image && d.image.url !== r.url) { d.image.url = r.url; changed = true; }
+    if (raw.prevLayer !== undefined) { d.layer = raw.prevLayer; delete raw.prevLayer; }
     if (raw.prevLocked !== undefined) { d.locked = !!raw.prevLocked; delete raw.prevLocked; }
     delete raw.real; changed = true;
   }

@@ -55,4 +55,14 @@ revert(mexido, snap);
 ok("revert devolve posição, nome e o anonimato ligado", [mexido.position, mexido.name, mexido.metadata[ANON].on, sameSnap(snap, snapOf(mexido))], [{ x: 10, y: 20 }, "???", true, true]);
 const gms = new Set(["gm1"]);
 ok("quem mexeu: jogador x mestre x ninguém", [byPlayer({ lastModifiedUserId: "ana" }, gms), byPlayer({ lastModifiedUserId: "gm1" }, gms), byPlayer({}, gms)], [true, false, false]);
+{
+  const d = { name: "K", layer: "CHARACTER", locked: false, metadata: { [ANON]: { on: true, trava: true } } };
+  applyTo(d, "g");
+  ok("anonimizar manda para a camada MAP e trava", [d.layer, d.locked], ["MAP", true]);
+  d.metadata[ANON].on = false; applyTo(d, "g");
+  ok("revelar devolve camada e cadeado", [d.layer, d.locked, d.metadata[ANON].prevLayer], ["CHARACTER", false, undefined]);
+  const e = { name: "K", layer: "CHARACTER", metadata: { [ANON]: { on: true, trava: false } } };
+  applyTo(e, "g");
+  ok("sem trava fica na camada original", e.layer, "CHARACTER");
+}
 process.exit(bad ? 1 : 0);

@@ -38,7 +38,7 @@ function render() {
       <label>Nome que os jogadores veem<input type="text" id="nome" value="${esc(c.nome)}" placeholder="???" /></label>
       ${c.modo === "imagem" ? `<label>Imagem que os jogadores veem<input type="text" id="imagem" value="${esc(c.imagem)}" placeholder="link da imagem (vazio = silhueta padrão)" /></label>
       <p class="hint">Imagem quadrada funciona melhor: ela ocupa o mesmo espaço do token.</p>` : ""}
-      <label class="check"><input type="checkbox" id="trava" ${c.trava !== false ? "checked" : ""} /> Jogadores não conseguem mexer neste item (mover, girar, apagar o anonimato)</label>
+      <label class="check"><input type="checkbox" id="trava" ${c.trava !== false ? "checked" : ""} /> Travar: vai para a camada de mapa e fica com cadeado (jogadores não selecionam nem mexem)</label>
       ${picked.length > 1 ? '<p class="hint">As mudanças valem para todos os selecionados.</p>' : ""}`;
     const ids = picked.map((i) => i.id);
     $("on").onchange = (e) => edit(ids, (x) => ({ ...x, on: e.target.checked }));
