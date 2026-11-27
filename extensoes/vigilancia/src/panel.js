@@ -16,12 +16,25 @@ const asked = new Map(); // jogador: nó -> ação pedida (para mostrar "aguarda
 const busy = () => ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName) && document.activeElement.type !== "checkbox";
 const chip = (st) => `<span class="chip" style="background:${STATE_COLOR[st] || "#888"};color:#111">${esc(stateLabel(st))}</span>`;
 
+// Só redesenha se algo que o painel mostra mudou. Mover itens (ronda dos guardas, tokens, qualquer coisa do mapa)
+// dispara onChange várias vezes por segundo: redesenhar a cada um faz o painel piscar sem parar.
+let lastSig = "";
+function panelSig(list, selection, md, plist) {
+  const keep = (m) => Object.fromEntries(Object.entries(m || {}).filter(([k]) => k.startsWith("vigilancia/") && k !== "vigilancia/olhar"));
+  return JSON.stringify([
+    list.map((i) => [i.id, i.name, i.layer, i.visible, i.createdUserId, i.text?.plainText, keep(i.metadata)]),
+    selection, md, plist.map((p) => [p.id, p.name, p.role]),
+  ]);
+}
 async function load() {
   [items, sel, players] = await Promise.all([OBR.scene.items.getItems(), OBR.player.getSelection().then((s) => s || []), OBR.party.getPlayers().catch(() => [])]);
   const md = await OBR.scene.getMetadata();
   pending = Array.isArray(md[PENDING]) ? md[PENDING] : [];
   access = await getAccess();
   ruido = ruidoCfg(md);
+  const sig = panelSig(items, sel, [pending, access, ruido], players);
+  if (sig === lastSig) return;
+  lastSig = sig;
   render();
 }
 const render = () => (role === "GM" ? renderGM() : renderPlayer());

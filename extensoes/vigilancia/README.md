@@ -49,6 +49,10 @@ pelo mestre. "Limpar sobras" apaga e redesenha cones, nós e filtros.
 - O mestre vê um círculo do alcance por alguns segundos e recebe o aviso "👂 Guarda ouviu…". O barulho de um andar não chega ao outro (Estados).
 - Se o guarda está em ronda e "Vai investigar ruídos" está ligado, ele deixa a rota, anda até o local, espera e volta.
 
+## Painel sem piscar (1.3.2)
+
+O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, rondas, nomes, seleção, jogadores). Mover ou girar itens (a ronda dos guardas, tokens) não o redesenha mais. Antes, cada movimento de qualquer item do mapa refazia o painel inteiro e ele piscava sem parar. Teste: `tools/emulador/exemplos/vigilancia-painel-sem-piscar.cjs`.
+
 ## Ronda de guardas (1.2)
 
 - Selecione o guarda → **Criar ronda**. **＋ Ponto** põe um marcador de rota (o primeiro na posição do guarda, os outros no centro da tela); arraste os marcadores. Os pontos e a rota (linha laranja com números) só o mestre vê.
