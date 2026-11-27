@@ -37,7 +37,7 @@ export function shotRaio(data, cfg) {
 }
 
 // ---------------- ronda ----------------
-export const DEFAULT_RONDA = { on: false, speed: 1.5, pausa: 2, modo: "ciclo", girar: true, parar: 5, investiga: true, espera: 6 };
+export const DEFAULT_RONDA = { on: false, speed: 1.5, pausa: 2, modo: "ciclo", girar: true, portas: "fecha", parar: 5, investiga: true, espera: 6 };
 export const rondaOf = (it) => (it?.metadata?.[RONDA] ? { ...DEFAULT_RONDA, ...it.metadata[RONDA] } : null);
 
 /** Pontos da rota de um guarda, na ordem. */
@@ -132,4 +132,41 @@ export function etiquetaVisivel(e, itemPos, { gm = false, playerId = "", decks =
   const r = Number(e.alcance) || 0;
   if (r <= 0 || !decks.length) return true;
   return decks.some((p) => Math.hypot(p.x - itemPos.x, p.y - itemPos.y) <= r * cell);
+}
+
+// ---------------- portas na ronda ----------------
+// O guarda abre a porta (Smoke & Spectre, linha com isDoor) ao chegar perto e, depois de passar, a fecha ou a deixa aberta.
+// cfg.portas: "nao" (ignora) | "fecha" (fecha depois de passar) | "deixa" (deixa aberta).
+export const SMOKE_PREFIX = "com.battle-system.smoke/";
+export const isDoorLine = (i) => i?.metadata?.[`${SMOKE_PREFIX}isDoor`] === true && (i.type === "LINE" || i.type === "CURVE");
+export const doorOpenNow = (i) => i?.metadata?.[`${SMOKE_PREFIX}doorOpen`] === true;
+export const doorLockedNow = (i) => i?.metadata?.[`${SMOKE_PREFIX}isDoorLocked`] === true;
+/** Menor distância do ponto p ao segmento a-b. */
+export function distSeg(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2)) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+const distDoor = (p, d) => Math.min(...d.segs.map((s) => distSeg(p, s.a, s.b)));
+/**
+ * doors: [{ id, segs: [{ a, b }], open, locked }] (em coordenadas do mapa). st.abri = portas que ESTE guarda abriu.
+ * Devolve { abrir: [ids], fechar: [ids], st }. Perto = a até 1 quadrado; longe = a mais de 1,6 quadrado.
+ */
+export function portasStep(st0, pos, doors, cfg, cell) {
+  const st = { ...st0, abri: [...(st0.abri || [])] };
+  const out = { abrir: [], fechar: [], st };
+  if (!cfg || cfg.portas === "nao") return out;
+  for (const d of doors) {
+    const dist = distDoor(pos, d);
+    if (dist <= cell && !d.open && !d.locked) { out.abrir.push(d.id); if (!st.abri.includes(d.id)) st.abri.push(d.id); }
+  }
+  if (cfg.portas !== "deixa") {
+    for (const id of [...st.abri]) {
+      const d = doors.find((x) => x.id === id);
+      if (!d) { st.abri = st.abri.filter((x) => x !== id); continue; }
+      if (out.abrir.includes(id)) continue;
+      if (distDoor(pos, d) > cell * 1.6) { if (d.open) out.fechar.push(id); st.abri = st.abri.filter((x) => x !== id); }
+    }
+  } else st.abri = [];
+  return out;
 }

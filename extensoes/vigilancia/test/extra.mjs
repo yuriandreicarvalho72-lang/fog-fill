@@ -76,4 +76,28 @@ ok("alcance: perto vê, longe não", [etiquetaVisivel(e1, at, { playerId: "a", d
 ok("vale o token mais perto", etiquetaVisivel(e1, at, { playerId: "a", decks: [{ x: 900, y: 0 }, { x: 0, y: 300 }], cell: 100 }), true);
 ok("marcado sem token com commlink: vê sempre", etiquetaVisivel(e1, at, { playerId: "a", decks: [], cell: 100 }), true);
 ok("só para: fora da lista não vê", [etiquetaVisivel({ ...et, para: ["ana"] }, at, { playerId: "bob" }), etiquetaVisivel({ ...et, para: ["ana"] }, at, { playerId: "ana" })], [false, true]);
+
+// ---- portas na ronda ----
+{
+  const { portasStep } = await import("../src/extra.js");
+  const door = { id: "d", segs: [{ a: { x: 500, y: 0 }, b: { x: 500, y: 150 } }], open: false, locked: false };
+  const cfgF = { portas: "fecha" };
+  let r = portasStep({}, { x: 100, y: 50 }, [door], cfgF, 150);
+  ok("longe da porta: nada", [r.abrir, r.fechar], [[], []]);
+  r = portasStep(r.st, { x: 400, y: 50 }, [door], cfgF, 150);
+  ok("perto: abre", r.abrir, ["d"]);
+  const open = { ...door, open: true };
+  r = portasStep(r.st, { x: 600, y: 50 }, [open], cfgF, 150);
+  ok("passou mas ainda perto: não fecha", r.fechar, []);
+  r = portasStep(r.st, { x: 800, y: 50 }, [open], cfgF, 150);
+  ok("longe depois de passar: fecha", r.fechar, ["d"]);
+  const rd = portasStep({}, { x: 400, y: 50 }, [door], { portas: "deixa" }, 150);
+  const rd2 = portasStep(rd.st, { x: 900, y: 50 }, [open], { portas: "deixa" }, 150);
+  ok("deixa aberta: não fecha", rd2.fechar, []);
+  ok("ignora: não abre", portasStep({}, { x: 400, y: 50 }, [door], { portas: "nao" }, 150).abrir, []);
+  ok("trancada: não abre", portasStep({}, { x: 400, y: 50 }, [{ ...door, locked: true }], cfgF, 150).abrir, []);
+  const op = portasStep({}, { x: 400, y: 50 }, [open], cfgF, 150);
+  ok("já estava aberta: guarda não fecha depois", portasStep(op.st, { x: 900, y: 50 }, [open], cfgF, 150).fechar, []);
+}
+
 process.exit(bad ? 1 : 0);

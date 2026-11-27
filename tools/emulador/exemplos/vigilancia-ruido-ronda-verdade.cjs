@@ -41,6 +41,7 @@ const { chromium } = require('playwright');
     return [
       img('g', 'Guarda', 0, 0, { 'vigilancia/camera': { angle: 90, range: 6, ouve: true }, 'vigilancia/no': { name: 'Guarda', type: 'camera', state: 'ativo' }, 'vigilancia/ronda': { on: true, speed: 2, pausa: 0, modo: 'ciclo', girar: true, parar: 5, investiga: true, espera: 6 } }),
       ponto('p1', 1, 0, 0), ponto('p2', 2, 400, 0),
+      { id: 'porta', name: 'Porta', type: 'LINE', layer: 'DRAWING', visible: false, locked: true, createdUserId: 'gmU', position: { x: 200, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, startPosition: { x: 0, y: -100 }, endPosition: { x: 0, y: 100 }, metadata: { 'com.battle-system.smoke/isVisionLine': true, 'com.battle-system.smoke/isDoor': true } },
       img('atirador', 'Atirador', 0, 900), img('surdo', 'Surdo', 1500, 500, { 'vigilancia/camera': { angle: 90, range: 4 } }),
       img('espelho', 'Espelho', 700, 700, { 'vigilancia/verdade': { on: true, versoes: [{ para: ['ana'], imagem: 'falso.png', texto: 'Aliado' }, { para: '*', esconder: true }] } }, { visible: false }),
     ];
@@ -48,13 +49,19 @@ const { chromium } = require('playwright');
   const gm = await open('GM', 'gmU', 'gm1', scene);
   const sent = (p, ch) => p.evaluate((c) => window.sent.filter((s) => s[0] === c).map((s) => s[1]), ch);
   const pos = (p, id) => p.evaluate((id) => window.items.find((i) => i.id === id).position, id);
-  const rot = (p) => p.evaluate(() => window.items.find((i) => i.id === 'g').rotation);
+  const rot = (p) => p.evaluate(() => window.items.find((i) => i.id === 'g').metadata['vigilancia/olhar'] ?? 0);
 
   // ronda: anda em direção ao ponto 2 (2 quadrados/s = 200 px/s), olhando para ele
   await gm.waitForTimeout(1200);
   const a = await pos(gm, 'g');
   ok('o guarda anda pela rota (para a direita)', [a.x > 100, Math.round(a.y)], [true, 0]);
   ok('e olha para onde anda', Math.round(await rot(gm)), 0);
+  const doorMd = () => gm.evaluate(() => { const m = window.items.find((i) => i.id === 'porta').metadata; return [m['com.battle-system.smoke/doorOpen'] === true, m['com.battle-system.smoke/disabled'] === true]; });
+  ok('a ronda abriu a porta ao chegar perto', await doorMd(), [true, true]);
+  ok('a imagem não girou nem espelhou (olha para a direita)', await gm.evaluate(() => { const g = window.items.find((i) => i.id === 'g'); return [g.rotation, g.scale.x, g.metadata['vigilancia/olhar']]; }), [0, 1, 0]);
+  let fechou = false;
+  for (let i = 0; i < 40 && !fechou; i++) { await gm.waitForTimeout(150); fechou = !(await doorMd())[0]; }
+  ok('depois de passar (longe da porta), a ronda fechou a porta', fechou, true);
   // tiro a 9 quadrados (900 px): o guarda ouve (alcance 15), o "surdo" (sem "ouve") não
   await gm.evaluate(() => { window.sent = []; window.emit('OBR_BROADCAST_MESSAGE_arsenal/disparo', { data: { spec: { from: { x: 0, y: 900 } }, shooter: 'atirador', shooterName: 'Atirador' }, connectionId: 'p1' }); });
   await gm.waitForTimeout(300);

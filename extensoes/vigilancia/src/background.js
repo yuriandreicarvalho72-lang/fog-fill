@@ -4,12 +4,12 @@ import { controls } from "./visibility.js";
 // - no mestre líder: vê quem entrou nos cones, avisa e manda o evento para o Gatilhos; aplica pedidos de hack.
 import OBR, { buildPath, buildLabel, buildShape, buildEffect, buildCurve } from "@owlbear-rodeo/sdk";
 import {
-  CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, OLHAR, olharOf, conePolygon, seenBy, wallsFrom,
+  CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, toWorld, OLHAR, olharOf, conePolygon, seenBy, wallsFrom,
   hasAccess, nodeChanges, doorLock, iconOf, stateLabel,
   VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS, sameFloor,
 } from "./core.js";
 import {
-  ruidoCfg, hears, shotRaio, rondaOf, routeOf, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel,
+  ruidoCfg, hears, shotRaio, rondaOf, routeOf, portasStep, isDoorLine, doorOpenNow, doorLockedNow, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel,
 } from "./extra.js";
 import {
   CH_RUIDO, CH_OUVIU, ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
@@ -361,11 +361,28 @@ function onStepNoise(e) {
 
 // ---------- ronda (líder): move os guardas pela rota ----------
 let lastPatrol = 0;
+const SMK = "com.battle-system.smoke/";
+function doorList() {
+  return items.filter(isDoorLine).map((it) => {
+    const segs = it.type === "LINE" ? [{ a: toWorld(it, it.startPosition), b: toWorld(it, it.endPosition) }]
+      : (it.points || []).slice(1).map((p, i) => ({ a: toWorld(it, it.points[i]), b: toWorld(it, p) }));
+    return { id: it.id, segs: segs.length ? segs : [{ a: it.position, b: it.position }], open: doorOpenNow(it), locked: doorLockedNow(it) };
+  });
+}
+function setDoors(ids, open) {
+  OBR.scene.items.updateItems(ids, (d) => {
+    for (const it of d) {
+      if (open) { it.metadata[`${SMK}doorOpen`] = true; it.metadata[`${SMK}disabled`] = true; }
+      else { delete it.metadata[`${SMK}doorOpen`]; delete it.metadata[`${SMK}disabled`]; }
+    }
+  }).catch(() => {});
+}
 function patrolTick() {
   if (!leader || !ready) return;
   const now = Date.now(), dt = Math.min(1000, now - (lastPatrol || now - 250));
   lastPatrol = now;
   const upd = [];
+  const doorOps = [];
   const alive = new Set();
   for (const it of items) {
     const rd = rondaOf(it);
@@ -375,6 +392,18 @@ function patrolTick() {
     if (!route.length && !patrols.get(it.id)?.inv) continue;
     const st = patrols.get(it.id) || patrolInit(it.position, route);
     const r = patrolStep(st, it.position, route, rd, dt, dpi);
+    // portas: abre ao chegar perto e fecha (ou deixa aberta) depois de passar
+    if (rd.portas !== "nao") {
+      const doors = doorList();
+      if (doors.length) {
+        const had = new Set(r.st.abri || []);
+        const pr = portasStep(r.st, r.pos, doors, rd, dpi);
+        r.st = pr.st;
+        if (pr.abrir.some((id) => !had.has(id))) r.st.wait = Math.max(r.st.wait || 0, 600);
+        if (pr.abrir.length) doorOps.push({ ids: pr.abrir, open: true });
+        if (pr.fechar.length) doorOps.push({ ids: pr.fechar, open: false });
+      }
+    }
     patrols.set(it.id, r.st);
     const moved = r.pos.x !== it.position.x || r.pos.y !== it.position.y;
     // não gira a imagem: guarda só para onde olha (cone) e espelha a imagem quando olha para a esquerda
@@ -388,6 +417,7 @@ function patrolTick() {
     if (moved || turned || flip != null) upd.push({ id: it.id, pos: r.pos, rot: r.rotation, flip });
   }
   for (const id of [...patrols.keys()]) if (!alive.has(id)) patrols.delete(id);
+  for (const op of doorOps) setDoors(op.ids, op.open);
   if (!upd.length) return;
   const by = new Map(upd.map((u) => [u.id, u]));
   OBR.scene.items.updateItems(upd.map((u) => u.id), (d) => {

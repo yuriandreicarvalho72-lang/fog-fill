@@ -53,6 +53,7 @@ pelo mestre. "Limpar sobras" apaga e redesenha cones, nós e filtros.
 
 - Selecione o guarda → **Criar ronda**. **＋ Ponto** põe um marcador de rota (o primeiro na posição do guarda, os outros no centro da tela); arraste os marcadores. Os pontos e a rota (linha laranja com números) só o mestre vê.
 - Marque **Em ronda**: o mestre líder move o token pela rota (velocidade em quadrados/s, pausa em cada ponto, ciclo ou vai e volta). (1.2.1) A imagem do token **não gira**: o guarda só guarda para onde olha (metadado `vigilancia/olhar`, o cone segue isso) e a imagem é **espelhada** (esquerda/direita) quando ele olha para a esquerda; a arte deve estar virada para a direita. Deixe a direção da câmera em 0°. Sem "gira", o cone usa a rotação do token como antes.
+- **Portas (1.3.1):** o guarda abre a porta (Smoke & Spectre, linha com Enable Door) ao chegar a 1 quadrado e, depois de passar (a mais de 1,6 quadrado), a **fecha** ou a **deixa aberta**, conforme a opção "Portas" da ronda (ou **ignora**). Ele faz uma pausa curta ao abrir. Porta trancada ele não abre; porta que já estava aberta ele não fecha. A névoa do próprio Owlbear ainda não é aberta pela ronda.
 - **Para ao ver alguém** por alguns segundos (0 = não para) e **investiga ruídos**.
 - Só um mestre move os guardas (o líder). Desmarcar "Em ronda" para o guarda onde está.
 
