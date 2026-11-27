@@ -86,8 +86,10 @@ export function blocked(a, b, walls) {
 }
 
 /** Direção do cone agora (graus): rotação do item + direção da câmera + varredura (vai e volta). */
+export const OLHAR = "vigilancia/olhar"; // metadado do item: para onde o guarda em ronda olha (graus), sem girar a imagem
+export const olharOf = (it) => (typeof it?.metadata?.[OLHAR] === "number" ? it.metadata[OLHAR] : null);
 export function coneDir(it, cam, now = Date.now()) {
-  let d = (it.rotation ?? 0) + (cam.dir ?? 0);
+  let d = (olharOf(it) ?? it.rotation ?? 0) + (cam.dir ?? 0);
   if (cam.sweep > 0 && cam.period > 0) d += (cam.sweep / 2) * Math.sin((2 * Math.PI * now) / (cam.period * 1000));
   return d;
 }

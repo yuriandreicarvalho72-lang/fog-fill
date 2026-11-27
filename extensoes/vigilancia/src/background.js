@@ -4,7 +4,7 @@ import { controls } from "./visibility.js";
 // - no mestre líder: vê quem entrou nos cones, avisa e manda o evento para o Gatilhos; aplica pedidos de hack.
 import OBR, { buildPath, buildLabel, buildShape, buildEffect, buildCurve } from "@owlbear-rodeo/sdk";
 import {
-  CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, conePolygon, seenBy, wallsFrom,
+  CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, OLHAR, olharOf, conePolygon, seenBy, wallsFrom,
   hasAccess, nodeChanges, doorLock, iconOf, stateLabel,
   VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS, sameFloor,
 } from "./core.js";
@@ -377,14 +377,24 @@ function patrolTick() {
     const r = patrolStep(st, it.position, route, rd, dt, dpi);
     patrols.set(it.id, r.st);
     const moved = r.pos.x !== it.position.x || r.pos.y !== it.position.y;
-    const turned = r.rotation != null && Math.abs(((r.rotation - (it.rotation ?? 0) + 540) % 360) - 180) > 0.5;
-    if (moved || turned) upd.push({ id: it.id, pos: r.pos, rot: r.rotation });
+    // não gira a imagem: guarda só para onde olha (cone) e espelha a imagem quando olha para a esquerda
+    const cur = olharOf(it) ?? it.rotation ?? 0;
+    const turned = r.rotation != null && Math.abs(((r.rotation - cur + 540) % 360) - 180) > 0.5;
+    let flip = null;
+    if (r.rotation != null) {
+      const c = Math.cos((r.rotation * Math.PI) / 180), left = (it.scale?.x ?? 1) < 0;
+      if (c < -0.2 && !left) flip = true; else if (c > 0.2 && left) flip = false;
+    }
+    if (moved || turned || flip != null) upd.push({ id: it.id, pos: r.pos, rot: r.rotation, flip });
   }
   for (const id of [...patrols.keys()]) if (!alive.has(id)) patrols.delete(id);
   if (!upd.length) return;
   const by = new Map(upd.map((u) => [u.id, u]));
   OBR.scene.items.updateItems(upd.map((u) => u.id), (d) => {
-    for (const it of d) { const u = by.get(it.id); it.position = u.pos; if (u.rot != null) it.rotation = u.rot; }
+    for (const it of d) { const u = by.get(it.id); it.position = u.pos;
+      if (u.rot != null) it.metadata[OLHAR] = u.rot;
+      if (u.flip != null) it.scale = { ...it.scale, x: (u.flip ? -1 : 1) * Math.abs(it.scale?.x ?? 1) };
+    }
   }).catch(() => {});
 }
 

@@ -114,7 +114,7 @@ function rondaForm(it) {
     <div class="row"><label class="inline">velocidade <input type="number" data-rdn="speed" min="0.25" max="10" step="0.25" value="${r.speed}" /> quadrados/s</label></div>
     <div class="row"><label class="inline">pausa em cada ponto <input type="number" data-rdn="pausa" min="0" step="1" value="${r.pausa}" /> s</label></div>
     <div class="row"><select data-rds="modo"><option value="ciclo" ${r.modo !== "vaivem" ? "selected" : ""}>Ciclo (volta ao primeiro ponto)</option><option value="vaivem" ${r.modo === "vaivem" ? "selected" : ""}>Vai e volta</option></select></div>
-    <label class="check"><input type="checkbox" data-rd="girar" ${r.girar !== false ? "checked" : ""} /> Gira o token (e o cone) para onde anda</label>
+    <label class="check"><input type="checkbox" data-rd="girar" ${r.girar !== false ? "checked" : ""} /> O guarda olha para onde anda (cone gira; a imagem só espelha para a esquerda/direita)</label>
     <div class="row"><label class="inline">para ao ver alguém por <input type="number" data-rdn="parar" min="0" step="1" value="${r.parar}" /> s (0 = não para)</label></div>
     <label class="check"><input type="checkbox" data-rd="investiga" ${r.investiga ? "checked" : ""} /> Vai investigar ruídos que ouve (precisa de "Ouve ruídos" na câmera)</label>
     <div class="row"><label class="inline">espera no local do ruído <input type="number" data-rdn="espera" min="0" step="1" value="${r.espera}" /> s</label></div>
