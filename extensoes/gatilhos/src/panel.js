@@ -2,7 +2,7 @@ import "./visibility.js";
 import "./compact.js";
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, ID, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
+import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, ID, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, fogDoorCount, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { controls } from "./visibility.js";
 import { tryInteract, usableTriggers } from "./interact.js";
@@ -30,7 +30,7 @@ async function refreshNames() {
   itemNames = new Map(items.map((i) => [i.id, i.text?.plainText || i.name || i.type]));
   itemWeapons = new Map(items.map((i) => [i.id, i.metadata?.[ARSENAL_WEAPONS] || []]));
   itemImages = new Map(items.filter((i) => Array.isArray(i.metadata?.[TROCADOR_IMAGES])).map((i) => [i.id, i.metadata[TROCADOR_IMAGES].map((v) => v.name)]));
-  itemDoor = new Map(items.filter(isFogDoor).map((i) => [i.id, { open: doorIsOpen(i), locked: doorIsLocked(i) }]));
+  itemDoor = new Map(items.filter(isFogDoor).map((i) => [i.id, { open: doorIsOpen(i), locked: doorIsLocked(i), n: fogDoorCount(i) }]));
   itemHabs = new Map(items.filter((i) => Array.isArray(i.metadata?.[ARSENAL_DOSSIE]?.habilidades)).map((i) => [i.id, i.metadata[ARSENAL_DOSSIE].habilidades.map((h) => ({ nome: h.nome, forma: h.forma, secao: h.secao }))]));
   itemVig = new Map(items.filter((i) => i.metadata?.[VIG_CAM] || i.metadata?.[VIG_NODE_META]).map((i) => [i.id, { cam: !!i.metadata[VIG_CAM], node: !!i.metadata[VIG_NODE_META] }]));
 }
@@ -70,7 +70,8 @@ function doorRow(e) {
   const bad = tg.length && !tg.some((id) => itemDoor.has(id));
   return `<div class="row"><span class="hint">Porta:</span><select data-ek="doorOp">${DOOR_OPS.map(([v, l]) => `<option value="${v}" ${(e.doorOp || "alternar") === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
     ${tg.length ? `<div class="hint">${tg.filter((id) => itemDoor.has(id)).map((id) => `${esc(nameOf(id))}: ${itemDoor.get(id).open ? "aberta" : "fechada"}${itemDoor.get(id).locked ? " (trancada)" : ""}`).join(" · ")}</div>` : '<span class="hint warn">⚠ Sem porta: selecione a linha da porta (Smoke & Spectre) e clique em "usar seleção".</span>'}
-    ${bad ? '<span class="hint warn">⚠ Nenhum desses itens é porta da névoa (no Smoke & Spectre: botão direito na linha → Enable Door).</span>' : ""}
+    ${bad ? '<span class="hint warn">⚠ Nenhum desses itens é porta da névoa (Smoke & Spectre: botão direito na linha → Enable Door; fog do Owlbear: ferramenta Door).</span>' : ""}
+    ${(() => { const n = Math.max(0, ...tg.map((id) => itemDoor.get(id)?.n || 0)); return n > 1 ? `<div class="row"><span class="hint">Qual porta deste fog:</span><select data-ek="doorIdx"><option value="">todas (${n})</option>${Array.from({ length: n }, (_, k) => `<option value="${k}" ${String(e.doorIdx ?? "") === String(k) ? "selected" : ""}>porta ${k + 1}</option>`).join("")}</select></div><span class="hint">Um fog do Owlbear pode ter várias portas; "porta 1, 2…" segue a ordem em que você as criou. Teste e ajuste.</span>` : ""; })()}
     <span class="hint">Para os jogadores abrirem: causa "Interagir" na própria linha da porta (ou botão direito na linha → <b>Gatilhos: jogadores abrem e fecham esta porta</b>). Porta trancada no Smoke não abre.</span>`;
 }
 

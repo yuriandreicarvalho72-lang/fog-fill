@@ -6,7 +6,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
-import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, OBR_FOG_DOORS, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -302,13 +302,13 @@ async function doEffect(e, ctx, depth, trigger) {
     case "door": {
       // porta da névoa (Smoke & Spectre, ou a névoa do próprio Owlbear): abre/fecha a linha para todos
       const doors = (ids.length ? await OBR.scene.items.getItems(ids) : []).filter(isFogDoor);
-      if (!doors.length) return warn(`"${trigger.name}": nenhum desses itens é porta da névoa (no Smoke & Spectre: botão direito na linha → Enable Door).`);
+      if (!doors.length) return warn(`"${trigger.name}": nenhum desses itens é porta da névoa (Smoke & Spectre: botão direito na linha → Enable Door; fog do Owlbear: ferramenta Door).`);
       const op = e.doorOp || "alternar";
       // tranca do Smoke: porta trancada não abre por gatilho (use "destrancar" antes)
       const stuck = op === "abrir" || op === "alternar" ? doors.filter((d) => doorIsLocked(d) && !doorIsOpen(d)) : [];
       if (stuck.length) OBR.broadcast.sendMessage(CH_NOTE, { text: stuck.length > 1 ? "As portas estão trancadas." : "A porta está trancada.", audience: "all" }, { destination: "ALL" }).catch(() => {});
       const go = doors.filter((d) => !stuck.includes(d)).map((d) => d.id);
-      return go.length ? OBR.scene.items.updateItems(go, (d) => { for (const it of d) setDoor(it, op); }) : null;
+      return go.length ? OBR.scene.items.updateItems(go, (d) => { for (const it of d) setDoor(it, op, e.doorIdx); }) : null;
     }
     case "imgDoor":
     case "animDoor": {
@@ -645,15 +645,16 @@ OBR.onReady(async () => {
     }],
     onClick: (ctx) => { if (ctx.items[0]) tryInteract(ctx.items[0].id, gmUse); },
   });
-  // porta do Smoke & Spectre: um clique cria o gatilho "jogadores abrem e fecham esta porta"
+  // porta do Smoke & Spectre ou do fog do Owlbear: um clique cria o gatilho "jogadores abrem e fecham esta porta"
   await controls.contextMenu.create({
     id: `${ID}/porta-jogadores`,
     icons: [{
       icon: url("icon.svg"), label: "Gatilhos: jogadores abrem e fecham esta porta",
-      filter: { roles: ["GM"], every: [{ key: ["metadata", `${SMOKE}isDoor`], value: true }, { key: ["metadata", FLAG], value: undefined, operator: "==" }] },
+      // porta do Smoke & Spectre OU fog do Owlbear (Dynamic Fog) que tenha portas
+      filter: { roles: ["GM"], some: [{ key: ["metadata", `${SMOKE}isDoor`], value: true }, { key: ["metadata", OBR_FOG_DOORS], value: undefined, operator: "!=" }], every: [{ key: ["metadata", FLAG], value: undefined, operator: "==" }] },
     }],
     onClick: async (ctx) => {
-      const doors = ctx.items.filter(isSmokeDoor);
+      const doors = ctx.items.filter(isFogDoor);
       if (!doors.length) return;
       const t = newTrigger(doors.map((i) => i.id), doors.length > 1 ? `Portas da névoa (${doors.length})` : `Porta${doors[0].text?.plainText?.trim() ? `: ${doors[0].text.plainText.trim()}` : " da névoa"}`);
       t.cause = "interact"; t.once = false; t.reach = 1;

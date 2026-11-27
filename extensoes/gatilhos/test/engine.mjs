@@ -78,6 +78,12 @@ t1('destrancar', doorIsLocked(p1), false);
 const fog = { id: 'f', type: 'SHAPE', metadata: { 'rodeo.owlbear.dynamic-fog/doors': [{ start: { distance: 0 }, end: { distance: 50 } }, { start: { distance: 90 }, end: { distance: 120 }, open: false }] } };
 t1('névoa do Owlbear: abre todas as portas do contorno', [isFogDoor(fog), setDoor(fog, 'abrir'), fog.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [true, true, [true, true]]);
 
+const fog2 = { id: 'g', type: 'SHAPE', metadata: { 'rodeo.owlbear.dynamic-fog/doors': [{ open: false }, { open: false }, { open: true }] } };
+setDoor(fog2, 'abrir', 1);
+t1('névoa do Owlbear: abre só a porta escolhida', fog2.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open), [false, true, true]);
+t1('alternar uma porta usa o estado dela', [setDoor(fog2, 'alternar', 2), fog2.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [false, [false, true, false]]);
+t1('sem índice mexe em todas', [setDoor(fog2, 'fechar'), fog2.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [false, [false, false, false]]);
+
 // restrito: item preso (attachment) ao personagem
 import { hasRequired, attachmentsOf, denyText } from '../src/shared.js';
 const cena = [{ id: 'rex' }, { id: 'card', name: 'Cartão de Acesso Nível 3', attachedTo: 'rex' }, { id: 'bolsa', name: 'Bolsa', attachedTo: 'lia' }, { id: 'chave', text: { plainText: 'Chave mestra' }, attachedTo: 'bolsa' }, { id: 'lia' }];

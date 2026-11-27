@@ -54,6 +54,12 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
   um token ("Sai de"); uma vez, por N segundos ou em loop até encerrar; **Encerrar efeito visual** pelo nome (vazio = todos).
 - **Habilidade de NPC (Arsenal)**: usa uma habilidade do dossiê do NPC; os alvos dão a direção de cone, linha e área.
 
+## Portas do fog do Owlbear (1.23.0)
+O efeito **Porta** e a **Porta animada** já abriam a névoa do Owlbear (Dynamic Fog, ferramenta Door); agora também:
+- botão direito no fog que tem portas → **Gatilhos: jogadores abrem e fecham esta porta** (antes só no Smoke & Spectre);
+- um fog pode ter várias portas: no efeito aparece **Qual porta deste fog** (todas, ou porta 1, 2…, na ordem de criação). Alternar usa o estado da porta escolhida.
+Limites: a névoa do Owlbear não tem tranca; a numeração das portas segue a ordem de criação, então teste qual é qual.
+
 ## Restrito e inventário (1.18.0)
 
 O Restrito (e a condição "tem item") vale também para o item guardado no **Inventário de mesa** do jogador que controla o token (a extensão Inventário publica os nomes no metadado do jogador). Continua valendo o item preso (attachment) no token. Item de inventário não é gasto pelos "usos" do Restrito (só o preso no token).

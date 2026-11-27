@@ -54,10 +54,12 @@ export const DOOR_OPS = [["alternar", "abrir ou fechar (alterna)"], ["abrir", "a
 export const isSmokeDoor = (i) => i?.metadata?.[`${SMOKE}isDoor`] === true;
 const obrDoors = (i) => (Array.isArray(i?.metadata?.[OBR_FOG_DOORS]) ? i.metadata[OBR_FOG_DOORS] : []);
 export const isFogDoor = (i) => isSmokeDoor(i) || obrDoors(i).length > 0;
+/** Quantas portas a névoa nativa tem neste item (Smoke: 1 linha = 1 porta). */
+export const fogDoorCount = (i) => (isSmokeDoor(i) ? 1 : obrDoors(i).length);
 export const doorIsOpen = (i) => (isSmokeDoor(i) ? i.metadata[`${SMOKE}doorOpen`] === true : obrDoors(i).some((d) => d?.open === true));
 export const doorIsLocked = (i) => isSmokeDoor(i) && i.metadata[`${SMOKE}isDoorLocked`] === true;
 /** Muda a porta (rascunho do item). op: abrir | fechar | alternar | trancar | destrancar. Devolve o estado final (aberta?). */
-export function setDoor(it, op) {
+export function setDoor(it, op, idx) {
   const md = it.metadata;
   if (isSmokeDoor(it)) {
     if (op === "trancar") { md[`${SMOKE}isDoorLocked`] = true; return doorIsOpen(it); }
@@ -67,8 +69,11 @@ export function setDoor(it, op) {
     return open;
   }
   if (op === "trancar" || op === "destrancar") return doorIsOpen(it); // a névoa do Owlbear não tem tranca
-  const open = op === "abrir" ? true : op === "fechar" ? false : !doorIsOpen(it);
-  md[OBR_FOG_DOORS] = obrDoors(it).map((d) => ({ ...d, open }));
+  const cur = idx !== undefined && idx !== null && idx !== "" && obrDoors(it)[Number(idx)] ? obrDoors(it)[Number(idx)].open === true : doorIsOpen(it);
+  const open = op === "abrir" ? true : op === "fechar" ? false : !cur;
+  // névoa do Owlbear: um item pode ter várias portas; idx (0, 1, …) escolhe uma, vazio = todas
+  const one = idx !== undefined && idx !== null && idx !== "" && Number.isInteger(Number(idx)) ? Number(idx) : -1;
+  md[OBR_FOG_DOORS] = obrDoors(it).map((d, k) => (one < 0 || k === one ? { ...d, open } : d));
   return open;
 }
 // ---------- restrito: só usa quem tem o item preso (attachment) ao personagem ----------
