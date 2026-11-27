@@ -265,7 +265,7 @@ export function newTrigger(zones = [], name = "Gatilho") {
     id: uid(), name, armed: true, once: true, delay: 0,
     zones, cause: "enter", radius: 2,
     who: "chars", tokens: [], ignoreHidden: true, halt: false,
-    reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d", nodeTo: "",
+    reach: 1, canUse: "all", glow: true, glowColor: "#ffd34d", glowClick: true, glowD: 0, nodeTo: "",
     reqItem: "", reqMsg: "", reqShow: "aviso", reqUses: 0, reqNodes: [],
     conds: [], condAny: false, condMsg: "", alertTo: "", alertDir: "any",
     effects: [newEffect("show")],

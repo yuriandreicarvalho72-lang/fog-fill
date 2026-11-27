@@ -49,17 +49,26 @@ const rings = new Map(); // itemId -> { ringId, sig, near, color }
 let busy = false, again = false, timer = null;
 let state = { triggers: [], items: [], dpi: 150, role: "PLAYER", userId: "" };
 
-function ringItem(it, t, dpi) {
+/** Diâmetro do círculo de destaque: o escolhido no gatilho (em quadrados) ou, em 0, o automático em volta do objeto. */
+export function ringDiameter(t, box, dpi) {
+  const custom = Number(t?.glowD);
+  return custom > 0 ? custom * dpi : Math.max(box.width, box.height, dpi * 0.6) + dpi * 0.45;
+}
+/** O círculo é clicável (só para jogadores)? Padrão: sim. */
+export const ringClickable = (t, role) => role !== "GM" && t?.glowClick !== false;
+
+function ringItem(it, t, dpi, clickable) {
   const box = shapeBox(zoneShape(it, dpi));
-  const d = Math.max(box.width, box.height, dpi * 0.6) + dpi * 0.45;
+  const d = ringDiameter(t, box, dpi);
   return buildShape()
     .shapeType("CIRCLE").width(d).height(d).position(box.center)
     .strokeColor(t.glowColor || "#ffd34d").strokeWidth(Math.max(4, dpi / 22)).strokeOpacity(0.7)
     .strokeDash([dpi / 7, dpi / 11])
     .fillColor(t.glowColor || "#ffd34d").fillOpacity(0.06)
-    .attachedTo(it.id).layer("ATTACHMENT").locked(true).disableHit(true)
+    // clicável: fica na camada Prop (abaixo dos personagens, para não atrapalhar quem está em cima dele); senão, só enfeite
+    .attachedTo(it.id).layer(clickable ? "PROP" : "ATTACHMENT").locked(true).disableHit(!clickable)
     .disableAttachmentBehavior(["COPY", "LOCKED", "VISIBLE"]) // porta da névoa é uma linha escondida: o brilho aparece mesmo assim
-    .name("Interagível").metadata({ [GLOW_META]: true })
+    .name("Interagível").metadata({ [GLOW_META]: it.id })
     .build();
 }
 
@@ -84,13 +93,14 @@ async function reconcile() {
         const it = byId.get(id);
         const shape = zoneShape(it, dpi);
         const near = role !== "GM" && pickReacher(mine, shape, t.reach > 0 ? t.reach : 1, dpi).ok;
-        const sig = JSON.stringify([t.glowColor, it.type, it.image?.width, it.image?.height, it.width, it.height, it.grid?.dpi, dpi]);
+        const clickable = ringClickable(t, role);
+        const sig = JSON.stringify([t.glowColor, t.glowD, clickable, it.type, it.image?.width, it.image?.height, it.width, it.height, it.grid?.dpi, dpi]);
         const cur = rings.get(id);
         if (cur && cur.sig === sig) { cur.near = near; continue; }
         if (cur) del.push(cur.ringId);
-        const ring = ringItem(it, t, dpi);
+        const ring = ringItem(it, t, dpi, clickable);
         add.push(ring);
-        rings.set(id, { ringId: ring.id, sig, near, color: t.glowColor || "#ffd34d" });
+        rings.set(id, { ringId: ring.id, itemId: id, sig, near, color: t.glowColor || "#ffd34d" });
       }
       if (del.length) await OBR.scene.local.deleteItems(del).catch(() => {});
       if (add.length) await OBR.scene.local.addItems(add).catch(() => {});
@@ -149,8 +159,11 @@ export async function startInteract(onGM) {
     if (k === last) return;
     last = k;
     if (p.role === "GM" || sel.length !== 1) return;
-    if (!state.triggers.some((t) => isInteract(t) && (t.zones || []).includes(sel[0]))) return;
+    // clicou no círculo de destaque: vale como clicar no objeto
+    const ring = [...rings.values()].find((r) => r.ringId === sel[0]);
+    const target = ring ? ring.itemId : sel[0];
+    if (!state.triggers.some((t) => isInteract(t) && (t.zones || []).includes(target) && (!ring || ringClickable(t, state.role)))) return;
     OBR.player.deselect().catch(() => {});
-    tryInteract(sel[0], onGM);
+    tryInteract(target, onGM);
   });
 }

@@ -351,7 +351,12 @@ function card(t) {
       <div class="row">
         <label class="check"><input type="checkbox" data-k="glow" ${t.glow !== false ? "checked" : ""} /> Destacar com brilho</label>
         <input type="color" data-k="glowColor" value="${esc(t.glowColor || "#ffd34d")}" title="Cor do brilho" />
-      </div>` : ""}
+      </div>
+      <div class="row">
+        <label class="inline">círculo <input type="number" data-k="glowD" min="0" step="0.5" value="${Number(t.glowD) || 0}" /> quadrado(s) de diâmetro</label>
+        <span class="hint">(0 = automático, um pouco maior que o objeto)</span>
+      </div>
+      <label class="check"><input type="checkbox" data-k="glowClick" ${t.glowClick !== false ? "checked" : ""} /> Clicar no círculo de destaque também usa o objeto (não precisa acertar o objeto)</label>` : ""}
       ${["enter", "leave", "near", "standAll"].includes(t.cause) ? `
       <select data-k="who"><option value="chars" ${t.who !== "list" ? "selected" : ""}>qualquer token (personagens e montarias)</option><option value="list" ${t.who === "list" ? "selected" : ""}>só estes tokens…</option></select>
       ${t.who === "list" ? `<div class="sub">${chips(t.tokens, "tokens")}</div>` : ""}
