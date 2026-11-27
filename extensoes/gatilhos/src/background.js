@@ -2,11 +2,11 @@ import { controls } from "./visibility.js";
 // Motor dos Gatilhos. Roda no navegador do MESTRE e vê qualquer movimento da cena,
 // inclusive os que os jogadores fazem com os próprios tokens, sem depender de ferramenta especial.
 // Nos jogadores, só mostra as mensagens na tela.
-import OBR from "@owlbear-rodeo/sdk";
+import OBR, { buildShape } from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
-import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, OBR_FOG_DOORS, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, OBR_FOG_DOORS, OBR_FOG_DOOR_INDEX, resolveFogDoors, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -651,14 +651,25 @@ OBR.onReady(async () => {
     icons: [{
       icon: url("icon.svg"), label: "Gatilhos: jogadores abrem e fecham esta porta",
       // porta do Smoke & Spectre OU fog do Owlbear (Dynamic Fog) que tenha portas
-      filter: { roles: ["GM"], some: [{ key: ["metadata", `${SMOKE}isDoor`], value: true }, { key: ["metadata", OBR_FOG_DOORS], value: undefined, operator: "!=" }], every: [{ key: ["metadata", FLAG], value: undefined, operator: "==" }] },
+      filter: { roles: ["GM"], some: [{ key: ["metadata", `${SMOKE}isDoor`], value: true }, { key: ["metadata", OBR_FOG_DOORS], value: undefined, operator: "!=" }, { key: ["metadata", OBR_FOG_DOOR_INDEX], value: undefined, operator: "!=" }], every: [{ key: ["metadata", FLAG], value: undefined, operator: "==" }] },
     }],
     onClick: async (ctx) => {
-      const doors = ctx.items.filter(isFogDoor);
-      if (!doors.length) return;
-      const t = newTrigger(doors.map((i) => i.id), doors.length > 1 ? `Portas da névoa (${doors.length})` : `Porta${doors[0].text?.plainText?.trim() ? `: ${doors[0].text.plainText.trim()}` : " da névoa"}`);
+      // aceita a linha vermelha/ícone da porta do fog do Owlbear (item local) e usa o fog dono + o número da porta
+      const r = await resolveFogDoors(OBR, ctx.items.map((i) => i.id));
+      const doors = (r.ids.length ? await OBR.scene.items.getItems(r.ids) : []).filter(isFogDoor);
+      if (!doors.length) return OBR.notification.show("Gatilhos: não achei a porta. Selecione a linha da porta (Smoke & Spectre) ou o fog que tem a porta (Owlbear).", "WARNING");
+      // fog do Owlbear: o desenho do fog é enorme, então o ponto de uso vira um círculo pequeno no centro da porta escolhida
+      let zones = doors.map((i) => i.id);
+      if (r.pos && r.idx !== "") {
+        const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+        const m = buildShape().shapeType("CIRCLE").width(dpi * 1.2).height(dpi * 1.2).position(r.pos)
+          .fillColor("#ffe9a8").fillOpacity(0.12).strokeOpacity(0).layer("PROP").locked(true).name(`Porta ${Number(r.idx) + 1} (ponto de uso)`).build();
+        await OBR.scene.items.addItems([m]);
+        zones = [m.id];
+      }
+      const t = newTrigger(zones, doors.length > 1 ? `Portas da névoa (${doors.length})` : `Porta${doors[0].text?.plainText?.trim() ? `: ${doors[0].text.plainText.trim()}` : " da névoa"}`);
       t.cause = "interact"; t.once = false; t.reach = 1;
-      const fx = newEffect("door"); fx.targets = doors.map((i) => i.id); fx.doorOp = "alternar";
+      const fx = newEffect("door"); fx.targets = doors.map((i) => i.id); fx.doorOp = "alternar"; if (r.idx !== "") fx.doorIdx = String(r.idx);
       t.effects = [fx];
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show("Porta pronta: o jogador com um personagem ao lado usa pelo painel Gatilhos (botão Usar). Trancada no Smoke, ela não abre.", "SUCCESS");

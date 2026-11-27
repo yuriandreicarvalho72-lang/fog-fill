@@ -54,6 +54,26 @@ export const DOOR_OPS = [["alternar", "abrir ou fechar (alterna)"], ["abrir", "a
 export const isSmokeDoor = (i) => i?.metadata?.[`${SMOKE}isDoor`] === true;
 const obrDoors = (i) => (Array.isArray(i?.metadata?.[OBR_FOG_DOORS]) ? i.metadata[OBR_FOG_DOORS] : []);
 export const isFogDoor = (i) => isSmokeDoor(i) || obrDoors(i).length > 0;
+export const OBR_FOG_DOOR_INDEX = "rodeo.owlbear.dynamic-fog/door-index";
+/**
+ * Seleção → fog. No Dynamic Fog do Owlbear a linha vermelha com o ícone da porta é um desenho local preso ao fog
+ * (metadado door-index): ele não é um item da cena. Troca esse desenho pelo fog dono dele e guarda o número da porta.
+ * Devolve { ids: [...], idx: número da porta (se foi uma só) ou "" }.
+ */
+export async function resolveFogDoors(OBR, ids) {
+  const real = new Set((await OBR.scene.items.getItems(ids).catch(() => [])).map((i) => i.id));
+  const rest = ids.filter((id) => !real.has(id));
+  const local = rest.length ? await OBR.scene.local.getItems(rest).catch(() => []) : [];
+  const out = ids.filter((id) => real.has(id));
+  const idxs = [], pos = [];
+  for (const l of local) {
+    const k = l.metadata?.[OBR_FOG_DOOR_INDEX];
+    if (l.attachedTo && Number.isInteger(k)) { if (!out.includes(l.attachedTo)) out.push(l.attachedTo); if (!idxs.includes(k)) idxs.push(k); if (l.type === "BILLBOARD" || !pos.length) pos[0] = l.position; }
+    else if (!real.has(l.id)) out.push(l.id);
+  }
+  const lost = rest.filter((id) => !local.some((l) => l.id === id));
+  return { ids: [...out, ...lost], idx: idxs.length === 1 && out.length === 1 ? idxs[0] : "", pos: idxs.length === 1 ? pos[0] || null : null };
+}
 /** Quantas portas a névoa nativa tem neste item (Smoke: 1 linha = 1 porta). */
 export const fogDoorCount = (i) => (isSmokeDoor(i) ? 1 : obrDoors(i).length);
 export const doorIsOpen = (i) => (isSmokeDoor(i) ? i.metadata[`${SMOKE}doorOpen`] === true : obrDoors(i).some((d) => d?.open === true));

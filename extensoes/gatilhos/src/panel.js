@@ -2,7 +2,7 @@ import "./visibility.js";
 import "./compact.js";
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
-import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, ID, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, fogDoorCount, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
+import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, ID, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, fogDoorCount, resolveFogDoors, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { controls } from "./visibility.js";
 import { tryInteract, usableTriggers } from "./interact.js";
@@ -403,7 +403,12 @@ function card(t) {
         if (field === "dest") e.dest = sel[0] || null;
         else if (field === "doorImgs") e.doorImgs = sel;
         else if (field === "shooter") { e.shooter = sel[0] || ""; e.weapon = ""; e.mode = ""; if (e.action === "npcAbility") e.ability = ""; }
-        else e.targets = (e.targets || []).includes(ACTOR) ? [ACTOR, ...sel] : sel;
+        else {
+          // linha vermelha/ícone da porta do fog do Owlbear → o fog dono + o número da porta
+          const r = field === "targets" ? await resolveFogDoors(OBR, sel) : { ids: sel, idx: "" };
+          if (field === "targets" && r.idx !== "") e.doorIdx = String(r.idx);
+          e.targets = (e.targets || []).includes(ACTOR) ? [ACTOR, ...r.ids] : r.ids;
+        }
       }
       if (!sel.length) OBR.notification.show("Gatilhos: selecione itens no mapa primeiro (a seleção ficou vazia).", "WARNING");
       await refreshNames();

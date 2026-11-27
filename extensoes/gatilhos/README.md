@@ -58,6 +58,7 @@ Efeitos das outras extensões (cada uma precisa estar instalada; só um mestre e
 O efeito **Porta** e a **Porta animada** já abriam a névoa do Owlbear (Dynamic Fog, ferramenta Door); agora também:
 - botão direito no fog que tem portas → **Gatilhos: jogadores abrem e fecham esta porta** (antes só no Smoke & Spectre);
 - um fog pode ter várias portas: no efeito aparece **Qual porta deste fog** (todas, ou porta 1, 2…, na ordem de criação). Alternar usa o estado da porta escolhida.
+- **Linha vermelha da porta (1.24):** no Dynamic Fog a linha vermelha com o ícone da porta é um desenho local preso ao fog, não um item da cena. Agora, selecionando essa linha/ícone: o botão direito **Gatilhos: jogadores abrem e fecham esta porta** e o "usar seleção" do efeito trocam por **o fog dono + o número daquela porta**. No botão direito, o ponto de uso vira um círculo pequeno no centro da porta (o desenho do fog é enorme).
 Limites: a névoa do Owlbear não tem tranca; a numeração das portas segue a ordem de criação, então teste qual é qual.
 
 ## Restrito e inventário (1.18.0)

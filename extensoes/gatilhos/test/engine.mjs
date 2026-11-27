@@ -84,6 +84,18 @@ t1('névoa do Owlbear: abre só a porta escolhida', fog2.metadata['rodeo.owlbear
 t1('alternar uma porta usa o estado dela', [setDoor(fog2, 'alternar', 2), fog2.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [false, [false, true, false]]);
 t1('sem índice mexe em todas', [setDoor(fog2, 'fechar'), fog2.metadata['rodeo.owlbear.dynamic-fog/doors'].map((d) => d.open)], [false, [false, false, false]]);
 
+// seleção da linha vermelha/ícone da porta do fog do Owlbear (item local) → fog dono + número da porta
+import { resolveFogDoors } from '../src/shared.js';
+{
+  const scene = [{ id: 'fogX', type: 'SHAPE' }, { id: 'outro', type: 'IMAGE' }];
+  const local = [{ id: 'L1', type: 'BILLBOARD', attachedTo: 'fogX', position: { x: 10, y: 20 }, metadata: { 'rodeo.owlbear.dynamic-fog/door-index': 2 } }, { id: 'L2', type: 'PATH', attachedTo: 'fogX', position: { x: 0, y: 0 }, metadata: { 'rodeo.owlbear.dynamic-fog/door-index': 2 } }];
+  const OBRm = { scene: { items: { getItems: async (ids) => scene.filter((i) => ids.includes(i.id)) }, local: { getItems: async (ids) => local.filter((i) => ids.includes(i.id)) } } };
+  const a = await resolveFogDoors(OBRm, ['L1', 'L2']);
+  t1('linha/ícone da porta do fog → fog dono, porta 2 e posição do ícone', [a.ids, a.idx, a.pos], [['fogX'], 2, { x: 10, y: 20 }]);
+  const b = await resolveFogDoors(OBRm, ['fogX', 'outro']);
+  t1('item normal passa direto, sem porta escolhida', [b.ids, b.idx, b.pos], [['fogX', 'outro'], '', null]);
+}
+
 // restrito: item preso (attachment) ao personagem
 import { hasRequired, attachmentsOf, denyText } from '../src/shared.js';
 const cena = [{ id: 'rex' }, { id: 'card', name: 'Cartão de Acesso Nível 3', attachedTo: 'rex' }, { id: 'bolsa', name: 'Bolsa', attachedTo: 'lia' }, { id: 'chave', text: { plainText: 'Chave mestra' }, attachedTo: 'bolsa' }, { id: 'lia' }];
