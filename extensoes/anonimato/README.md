@@ -1,4 +1,4 @@
-# Anonimato 1.2.0
+# Anonimato 1.3.0
 
 Deixa **qualquer item do mapa** (token, objeto, forma, texto…) anônimo para os jogadores, **sem trocar o item**: luz, visão, anexos, névoa e as outras extensões continuam funcionando, porque o item é o mesmo.
 
@@ -17,3 +17,6 @@ O rosto verdadeiro (nome, texto, imagem) fica guardado em `metadata["anonimato/d
 - Extensões que filtram por nome (Gatilhos/Restrito) veem o nome falso.
 - Imagem genérica pode distorcer tokens não quadrados.
 - Não testado numa sala real do Owlbear (só no emulador).
+
+## Esconder a forma (1.3.0)
+Em formas/desenhos, marque "Esconder a forma": preenchimento e contorno ficam com opacidade 0 (o item continua existindo, então luz, anexos e gatilhos seguem funcionando). Só o mestre vê um contorno tracejado e o rótulo; para selecionar use o painel (🎯) ou arraste uma área. Desmarcar ou revelar devolve a aparência original.

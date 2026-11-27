@@ -4,7 +4,7 @@ import { controls } from "./visibility.js";
 // - O mestre líder (menor connectionId) aplica o rosto anônimo nos itens, devolve o verdadeiro ao desligar e desfaz o
 //   que um jogador mexer num item anônimo travado.
 // - Cada mestre vê um rótulo local com quem o item é de verdade (os jogadores não).
-import OBR, { buildText } from "@owlbear-rodeo/sdk";
+import OBR, { buildText, buildShape } from "@owlbear-rodeo/sdk";
 import { ANON, DEFAULT_CFG, cfgOf, needs, applyTo, realLabel, snapOf, sameSnap, revert, byPlayer } from "./core.js";
 
 const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
@@ -68,15 +68,15 @@ async function drawLabels() {
       if (role !== "GM") return;
       const want = new Map(items.filter((i) => cfgOf(i)?.on && cfgOf(i)?.real).map((i) => [i.id, i]));
       const del = [], add = [];
-      for (const [id, l] of labels) if (!want.has(id)) { del.push(l.id); labels.delete(id); }
+      for (const [id, l] of labels) if (!want.has(id)) { del.push(...l.ids); labels.delete(id); }
       for (const [id, it] of want) {
         const b = await OBR.scene.items.getItemBounds([id]).catch(() => null);
         if (!b) continue;
         const text = realLabel(it);
-        const sig = JSON.stringify([text, Math.round(b.width), Math.round(b.height)]);
+        const sig = JSON.stringify([text, Math.round(b.width), Math.round(b.height), cfgOf(it).esconder, it.position, it.rotation, it.width, it.height]);
         const cur = labels.get(id);
         if (cur && cur.sig === sig) continue;
-        if (cur) del.push(cur.id);
+        if (cur) del.push(...cur.ids);
         const w = dpi * 3;
         const t = buildText().plainText(text).textType("PLAIN").width(w).fontSize(Math.max(14, Math.round(dpi / 7)))
           .textAlign("CENTER").fillColor("#ffe9a8").strokeColor("#000000").strokeWidth(3)
@@ -85,7 +85,16 @@ async function drawLabels() {
           .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY", "LOCKED", "VISIBLE"])
           .metadata({ [LABEL]: id }).build();
         add.push(t);
-        labels.set(id, { id: t.id, sig });
+        const ids = [t.id];
+        // forma escondida: contorno tracejado só para o mestre (para achar e selecionar com facilidade)
+        if (cfgOf(it).esconder && it.type === "SHAPE") {
+          const o = buildShape().shapeType(it.shapeType).width(it.width).height(it.height).position(it.position).rotation(it.rotation)
+            .fillColor("#ffe9a8").fillOpacity(0.08).strokeColor("#ffe9a8").strokeOpacity(0.9).strokeWidth(3).strokeDash([14, 10])
+            .attachedTo(id).layer("MAP").locked(true).disableHit(true).name("Anonimato: contorno")
+            .disableAttachmentBehavior(["ROTATION", "SCALE", "COPY", "LOCKED", "VISIBLE"]).metadata({ [LABEL]: id }).build();
+          add.push(o); ids.push(o.id);
+        }
+        labels.set(id, { ids, sig });
       }
       if (del.length) await OBR.scene.local.deleteItems(del).catch(() => {});
       if (add.length) await OBR.scene.local.addItems(add).catch(() => {});
@@ -123,7 +132,7 @@ OBR.onReady(async () => {
   const start = async () => {
     dpi = await OBR.scene.grid.getDpi().catch(() => 150);
     snaps.clear();
-    for (const l of labels.values()) await OBR.scene.local.deleteItems([l.id]).catch(() => {});
+    for (const l of labels.values()) await OBR.scene.local.deleteItems(l.ids).catch(() => {});
     labels.clear();
     const old = await OBR.scene.local.getItems((i) => i.metadata?.[LABEL]).catch(() => []);
     if (old.length) await OBR.scene.local.deleteItems(old.map((i) => i.id)).catch(() => {});

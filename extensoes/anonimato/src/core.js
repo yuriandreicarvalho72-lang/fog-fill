@@ -5,7 +5,7 @@
 export const ID = "anonimato";
 export const ANON = `${ID}/dados`;   // metadado do item: { on, modo, nome, imagem, trava, real }
 export const MODOS = [["nome", "Só esconder nome e texto"], ["imagem", "Nome e texto + imagem genérica"]];
-export const DEFAULT_CFG = { on: true, modo: "nome", nome: "???", imagem: "", trava: true };
+export const DEFAULT_CFG = { on: true, modo: "nome", nome: "???", imagem: "", trava: true, esconder: false };
 
 export const cfgOf = (it) => (it?.metadata?.[ANON] ? { ...DEFAULT_CFG, ...it.metadata[ANON] } : null);
 export const isAnon = (it) => cfgOf(it)?.on === true;
@@ -45,7 +45,19 @@ export function applyTo(d, generic) {
     if (d.name !== want.name) { d.name = want.name; changed = true; }
     if (want.text != null && d.text && d.text.plainText !== want.text) { setText(d.text, want.text); changed = true; }
     if (want.url != null && d.image && d.image.url !== want.url) { d.image.url = want.url; changed = true; }
+    // esconder a forma: opacidade 0 (o item segue existindo, então luz, anexos e gatilhos continuam)
+    if (cfg.esconder && d.style) {
+      if (raw.prevStyle === undefined) { raw.prevStyle = { fo: d.style.fillOpacity ?? 1, so: d.style.strokeOpacity ?? 1 }; changed = true; }
+      if (d.style.fillOpacity !== 0 || d.style.strokeOpacity !== 0) { d.style.fillOpacity = 0; d.style.strokeOpacity = 0; changed = true; }
+    } else if (raw.prevStyle !== undefined) {
+      if (d.style) { d.style.fillOpacity = raw.prevStyle.fo; d.style.strokeOpacity = raw.prevStyle.so; }
+      delete raw.prevStyle; changed = true;
+    }
   } else if (raw.real) {
+    if (raw.prevStyle !== undefined) {
+      if (d.style) { d.style.fillOpacity = raw.prevStyle.fo; d.style.strokeOpacity = raw.prevStyle.so; }
+      delete raw.prevStyle;
+    }
     const r = raw.real;
     if (d.name !== r.name) { d.name = r.name; changed = true; }
     if (r.text != null && d.text && d.text.plainText !== r.text) { setText(d.text, r.text); changed = true; }
@@ -76,6 +88,7 @@ export function snapOf(it) {
     position: { x: it.position?.x ?? 0, y: it.position?.y ?? 0 }, rotation: it.rotation ?? 0,
     scale: { x: it.scale?.x ?? 1, y: it.scale?.y ?? 1 }, visible: it.visible !== false, layer: it.layer, locked: !!it.locked,
     name: it.name ?? "", text: it.text?.plainText ?? null, url: it.image?.url ?? null,
+    fo: it.style?.fillOpacity ?? null, so: it.style?.strokeOpacity ?? null,
     anon: JSON.stringify(it.metadata?.[ANON] ?? null),
   };
 }
@@ -84,6 +97,7 @@ export const sameSnap = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 export function revert(d, s) {
   d.position = { ...s.position }; d.rotation = s.rotation; d.scale = { ...s.scale }; d.visible = s.visible; d.layer = s.layer; d.locked = s.locked;
   d.name = s.name;
+  if (d.style && s.fo != null) { d.style.fillOpacity = s.fo; d.style.strokeOpacity = s.so; }
   if (s.text != null && d.text) setText(d.text, s.text);
   if (s.url != null && d.image) d.image.url = s.url;
   d.metadata[ANON] = JSON.parse(s.anon);

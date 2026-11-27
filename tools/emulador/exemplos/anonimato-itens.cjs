@@ -76,6 +76,13 @@ const { chromium } = require('playwright');
   k = await get('k');
   ok('revelar: tudo de volta e sem cópia do rosto', [k.name, k.text, k.url, k.md['anonimato/dados'].real], ['Kassandra', 'Kassandra', 'https://x/k.png', undefined]);
   ok('revelar: o rótulo do mestre some', await p.evaluate(() => window.local.filter((l) => l.metadata['anonimato/dados/rotulo'] === 'k').length), 0);
+  // forma escondida: transparente + contorno tracejado local; revelar devolve
+  await p.evaluate(() => { window.items.push({ id: 'f', name: 'Zona', type: 'SHAPE', layer: 'DRAWING', visible: true, locked: false, createdUserId: 'gmU', lastModifiedUserId: 'gmU', position: { x: 1200, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, shapeType: 'RECTANGLE', width: 200, height: 100, style: { fillColor: '#f00', fillOpacity: 0.5, strokeColor: '#f00', strokeOpacity: 1, strokeWidth: 4, strokeDash: [] }, metadata: { 'anonimato/dados': { on: true, esconder: true, trava: false } } }); window.change(); }); await wait(700);
+  const f = await p.evaluate(() => { const i = window.items.find((x) => x.id === 'f'); return [i.style.fillOpacity, i.style.strokeOpacity, i.metadata['anonimato/dados'].prevStyle]; });
+  ok('forma escondida: opacidade 0 e estilo guardado', f, [0, 0, { fo: 0.5, so: 1 }]);
+  ok('contorno tracejado local para o mestre', await p.evaluate(() => window.local.filter((l) => l.attachedTo === 'f').map((l) => l.type + ':' + (l.style?.strokeDash?.length > 0))), ['TEXT:false', 'SHAPE:true']);
+  await edit('f', (i) => { i.metadata['anonimato/dados'].on = false; i.lastModifiedUserId = 'gmU'; }); await wait(600);
+  ok('revelar devolve opacidade e some o contorno', await p.evaluate(() => [window.items.find((x) => x.id === 'f').style.fillOpacity, window.local.filter((l) => l.attachedTo === 'f').length]), [0.5, 0]);
   console.log('erros:', JSON.stringify(errs));
   await b.close();
 })();

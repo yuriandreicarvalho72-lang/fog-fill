@@ -65,4 +65,14 @@ ok("quem mexeu: jogador x mestre x ninguém", [byPlayer({ lastModifiedUserId: "a
   applyTo(e, "g");
   ok("sem trava fica na camada original", e.layer, "CHARACTER");
 }
+{
+  const f = { name: "Z", type: "SHAPE", layer: "DRAWING", style: { fillOpacity: 0.6, strokeOpacity: 1 }, metadata: { [ANON]: { on: true, esconder: true } } };
+  applyTo(f, "g");
+  ok("esconder: forma fica transparente e guarda o estilo", [f.style.fillOpacity, f.style.strokeOpacity, f.metadata[ANON].prevStyle], [0, 0, { fo: 0.6, so: 1 }]);
+  ok("esconder é idempotente", needs(f, "g"), false);
+  f.metadata[ANON].esconder = false; applyTo(f, "g");
+  ok("desmarcar devolve o estilo", [f.style.fillOpacity, f.style.strokeOpacity, f.metadata[ANON].prevStyle], [0.6, 1, undefined]);
+  f.metadata[ANON].esconder = true; applyTo(f, "g"); f.metadata[ANON].on = false; applyTo(f, "g");
+  ok("revelar devolve o estilo", [f.style.fillOpacity, f.metadata[ANON].prevStyle], [0.6, undefined]);
+}
 process.exit(bad ? 1 : 0);
