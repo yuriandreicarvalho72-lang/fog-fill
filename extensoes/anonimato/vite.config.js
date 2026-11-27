@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Anonimato",
-        version: "1.0.0",
+        version: "1.1.0",
         manifest_version: 1,
         author: "Yuri",
         description: "Deixa qualquer item anônimo para os jogadores (nome, texto e imagem) sem quebrar luz, visão e extensões.",

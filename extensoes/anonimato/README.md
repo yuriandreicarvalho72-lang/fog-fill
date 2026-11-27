@@ -1,11 +1,11 @@
-# Anonimato 1.0.0
+# Anonimato 1.1.0
 
 Deixa **qualquer item do mapa** (token, objeto, forma, texto…) anônimo para os jogadores, **sem trocar o item**: luz, visão, anexos, névoa e as outras extensões continuam funcionando, porque o item é o mesmo.
 
 ## Como usar
 - Botão direito no item (mestre) → **Anonimato: tornar anônimo** / **revelar**; ou abra o painel da extensão.
 - Por item: *só nome/texto* ou *nome + imagem genérica* (silhueta padrão ou um link seu).
-- **Trava para jogadores**: se um jogador mover, girar, renomear ou desligar o anonimato, o mestre desfaz na hora.
+- **Trava para jogadores**: o item também fica bloqueado (cadeado) ao anonimizar; para mover, o mestre destrava. Se um jogador se um jogador mover, girar, renomear ou desligar o anonimato ainda assim mexer, o mestre desfaz na hora (precisa do mestre online com a extensão ativa).
 - O mestre vê um rótulo `🕶 nome verdadeiro` em cima do item (local, os jogadores não veem).
 
 ## Como funciona

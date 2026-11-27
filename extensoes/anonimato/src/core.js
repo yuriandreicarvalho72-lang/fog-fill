@@ -36,7 +36,11 @@ export function applyTo(d, generic) {
   const cfg = { ...DEFAULT_CFG, ...raw };
   let changed = false;
   if (cfg.on) {
-    if (!raw.real) { raw.real = faceOf(d); changed = true; }
+    if (!raw.real) {
+      raw.real = faceOf(d); changed = true;
+      // trava preventiva: o item fica bloqueado (jogador não consegue arrastar); o mestre destrava à mão se precisar mover
+      if (cfg.trava !== false) { raw.prevLocked = !!d.locked; d.locked = true; }
+    }
     const want = desiredFace(cfg, raw.real, generic);
     if (d.name !== want.name) { d.name = want.name; changed = true; }
     if (want.text != null && d.text && d.text.plainText !== want.text) { setText(d.text, want.text); changed = true; }
@@ -46,6 +50,7 @@ export function applyTo(d, generic) {
     if (d.name !== r.name) { d.name = r.name; changed = true; }
     if (r.text != null && d.text && d.text.plainText !== r.text) { setText(d.text, r.text); changed = true; }
     if (r.url != null && d.image && d.image.url !== r.url) { d.image.url = r.url; changed = true; }
+    if (raw.prevLocked !== undefined) { d.locked = !!raw.prevLocked; delete raw.prevLocked; }
     delete raw.real; changed = true;
   }
   return changed;
