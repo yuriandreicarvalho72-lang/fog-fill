@@ -2,6 +2,7 @@ import "./visibility.js";
 import "./compact.js";
 // Painel dos Gatilhos (mestre): criar, editar, testar e rearmar.
 import OBR from "@owlbear-rodeo/sdk";
+import { pickItems } from "./picker.js";
 import { ALERT, ALERT_MAX, ALERT_OPS, ALERT_DIRS, alertLevel, CMP_OPS, COND_TYPES, DOOR_IS, newCond, LIST, CH_FIRE, CH_LOG, CAUSES, ACTIONS, ANIMS, ESTADOS, WHO, ACTOR, MOVING, CAN_USE, ARSENAL_WEAPONS, ARSENAL_MODES, TROCADOR_IMAGES, VIG_CAM, VIG_NODE_META, NODE_STATES, VISION_MODES, CHARGE_OPS, REQ_SHOW, REQ_DEFAULT, CH_GIVE, heldBy, canGive, nearby, itemLabel, ARSENAL_DOSSIE, ID, FX_TIPOS, FX_GIROS, DOOR_OPS, ATTACH_OPS, ATTACH_PLACES, ATTACH_WHO, isFogDoor, fogDoorCount, resolveFogDoors, doorIsOpen, doorIsLocked, isInteract, isToken, newTrigger, newEffect, applyTheme, HANDOUTS_BIB } from "./shared.js";
 import { zoneShape, pickReacher } from "./engine.js";
 import { controls } from "./visibility.js";
@@ -47,6 +48,7 @@ async function selection() { return (await OBR.player.getSelection()) || []; }
 function chips(ids, key, actor = false) {
   return `<div class="chips">${(ids || []).map((id) => `<span class="chip${id === ACTOR ? " actor" : ""}">${esc(nameOf(id))}</span>`).join("") || '<span class="hint">nenhum</span>'}
     <button type="button" class="mini" data-sel="${key}" title="Usar os itens selecionados no mapa">usar seleção</button>
+    <button type="button" class="mini" data-pick="${key}" title="Escolher numa lista: acha itens trancados, fog, mapa e escondidos">escolher da lista</button>
     ${actor ? `<button type="button" class="mini" data-actor="${key}" title="Inclui (ou tira) quem ativou o gatilho">${(ids || []).includes(ACTOR) ? "− quem ativou" : "+ quem ativou"}</button>` : ""}</div>`;
 }
 
@@ -389,10 +391,11 @@ function card(t) {
       if (["cause", "who", "armed", "name", "reqItem", "condAny"].includes(k)) render();
     });
   }
-  for (const btn of div.querySelectorAll("[data-sel]")) {
+  for (const btn of div.querySelectorAll("[data-sel],[data-pick]")) {
     btn.addEventListener("click", async () => {
-      const sel = await selection();
-      const key = btn.dataset.sel;
+      const sel = btn.dataset.pick ? await pickItems({ door: isFogDoor }) : await selection();
+      if (sel === null) return;
+      const key = btn.dataset.sel || btn.dataset.pick;
       if (key === "zones") t.zones = sel;
       else if (key === "reqNodes") t.reqNodes = sel;
       else if (key === "tokens") t.tokens = sel;

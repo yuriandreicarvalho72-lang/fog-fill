@@ -61,6 +61,9 @@ O efeito **Porta** e a **Porta animada** já abriam a névoa do Owlbear (Dynamic
 - **Linha vermelha da porta (1.24):** no Dynamic Fog a linha vermelha com o ícone da porta é um desenho local preso ao fog, não um item da cena. Agora, selecionando essa linha/ícone: o botão direito **Gatilhos: jogadores abrem e fecham esta porta** e o "usar seleção" do efeito trocam por **o fog dono + o número daquela porta**. No botão direito, o ponto de uso vira um círculo pequeno no centro da porta (o desenho do fog é enorme).
 Limites: a névoa do Owlbear não tem tranca; a numeração das portas segue a ordem de criação, então teste qual é qual.
 
+## Escolher da lista (1.25.0)
+Ao lado de **usar seleção** (zonas, alvos, atirador, portas…) há **escolher da lista**: abre uma janela com **todos os itens da cena**, com busca (nome, tipo, camada) e filtros **Mapa, Fog, 🔒 Trancados, Escondidos e Portas**. Marque e clique em **Usar escolhidos**. Serve para o que o clique no mapa não alcança: itens trancados, o fog, o mapa e itens escondidos. O **🎯** de cada linha seleciona o item e leva a tela até ele. Limites: mostra só itens da cena (não os locais de outras extensões, como a linha vermelha da porta do fog), até 400 linhas por vez (use a busca).
+
 ## Restrito e inventário (1.18.0)
 
 O Restrito (e a condição "tem item") vale também para o item guardado no **Inventário de mesa** do jogador que controla o token (a extensão Inventário publica os nomes no metadado do jogador). Continua valendo o item preso (attachment) no token. Item de inventário não é gasto pelos "usos" do Restrito (só o preso no token).

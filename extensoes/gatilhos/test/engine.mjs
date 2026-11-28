@@ -96,6 +96,22 @@ import { resolveFogDoors } from '../src/shared.js';
   t1('item normal passa direto, sem porta escolhida', [b.ids, b.idx, b.pos], [['fogX', 'outro'], '', null]);
 }
 
+// seletor de itens: acha trancados, fog, mapa e escondidos
+import { filterItems } from '../src/pickfilter.js';
+{
+  const its = [
+    { id: 'm', type: 'IMAGE', layer: 'MAP', name: 'Mapa do porão', locked: true, visible: true },
+    { id: 'f', type: 'PATH', layer: 'FOG', name: 'Fog sala 1', locked: true, visible: true },
+    { id: 'p', type: 'IMAGE', layer: 'PROP', name: 'Caixa', locked: false, visible: false },
+    { id: 'c', type: 'IMAGE', layer: 'CHARACTER', name: 'Guarda', locked: false, visible: true },
+  ];
+  const ids = (q, f, d) => filterItems(its, q, f, d).map((i) => i.id);
+  t1('seletor: todos, em ordem de camada (fog primeiro)', ids('', 'todos'), ['f', 'm', 'p', 'c']);
+  t1('seletor: só trancados / só fog / só mapa / escondidos', [ids('', 'trancado'), ids('', 'FOG'), ids('', 'MAP'), ids('', 'escondido')], [['f', 'm'], ['f'], ['m'], ['p']]);
+  t1('seletor: busca por nome ou camada, sem maiúsculas', [ids('PORÃO', 'todos'), ids('fog', 'todos'), ids('personagem', 'todos')], [['m'], ['f'], ['c']]);
+  t1('seletor: portas', ids('', 'porta', (i) => i.id === 'f'), ['f']);
+}
+
 // restrito: item preso (attachment) ao personagem
 import { hasRequired, attachmentsOf, denyText } from '../src/shared.js';
 const cena = [{ id: 'rex' }, { id: 'card', name: 'Cartão de Acesso Nível 3', attachedTo: 'rex' }, { id: 'bolsa', name: 'Bolsa', attachedTo: 'lia' }, { id: 'chave', text: { plainText: 'Chave mestra' }, attachedTo: 'bolsa' }, { id: 'lia' }];
