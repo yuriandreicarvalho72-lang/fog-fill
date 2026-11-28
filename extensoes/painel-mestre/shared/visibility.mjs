@@ -12,7 +12,8 @@ export const extensions = {
   "tetos": ["Tetos",320,380],
   "trocador": ["Trocador"],
   "anonimato": ["Anonimato",380,560],
-  "vigilancia": ["Vigilância",380,620]
+  "vigilancia": ["Vigilância",380,620],
+  "selecao": ["Seleção total"]
 };
 export const keyFor = id => "fog-fill.visibilidade/" + id;
 
