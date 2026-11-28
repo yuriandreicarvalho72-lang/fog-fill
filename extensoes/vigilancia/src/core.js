@@ -59,6 +59,20 @@ export function wallsFrom(items) {
     else if (it.metadata?.[SMOKE_VISION] === true && it.metadata?.[SMOKE_OFF] !== true) {
       if (it.type === "CURVE") walls.push(...segsOf((it.points || []).map((p) => toWorld(it, p)), !!it.style?.closed));
       else if (it.type === "LINE") walls.push({ a: toWorld(it, it.startPosition), b: toWorld(it, it.endPosition) });
+      else if (it.type === "PATH") { // caminho: comandos 0 mover, 1 reta, 2/3/4 curvas (só os pontos finais), 5 fechar
+        let cur = null;
+        const fim = () => { if (cur) walls.push(...segsOf(cur.pts, cur.closed)); cur = null; };
+        for (const c of it.commands || []) {
+          const k = Array.isArray(c) ? c[0] : -1, a = Array.isArray(c) ? c.slice(1) : [];
+          if (k === 0) { fim(); cur = { pts: [toWorld(it, { x: a[0], y: a[1] })], closed: false }; }
+          else if (cur && k >= 1 && k <= 4) { const o = k === 4 ? 3 : 2; cur.pts.push(toWorld(it, { x: a[a.length - o], y: a[a.length - o + 1] })); }
+          else if (k === 5 && cur) cur.closed = true;
+        }
+        fim();
+      } else if (it.type === "SHAPE" && it.shapeType === "RECTANGLE") {
+        const w = it.width ?? 0, h = it.height ?? 0;
+        walls.push(...segsOf([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }].map((p) => toWorld(it, p)), true));
+      }
     }
   }
   return walls;

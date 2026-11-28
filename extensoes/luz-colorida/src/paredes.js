@@ -40,6 +40,32 @@ export function segDist(px, py, s) {
 /** Uma linha de visão do Smoke & Spectre que está valendo (não desativada, nem porta aberta)? */
 export const isSmokeWall = (i) => i?.metadata?.[SMOKE_VISION] === true && i.metadata[SMOKE_OFF] !== true;
 
+/** Contorno(s) de uma forma da obstrução: lista de { pts (mundo), closed }. Tipos: LINE, CURVE, PATH, SHAPE (retângulo, círculo). Outros: []. */
+export function outlines(i) {
+  if (i.type === "LINE") return [{ pts: [toWorld(i, i.startPosition), toWorld(i, i.endPosition)], closed: false }];
+  if (i.type === "CURVE") return [{ pts: (i.points || []).map((p) => toWorld(i, p)), closed: !!i.style?.closed }];
+  if (i.type === "PATH") { // comandos: 0 mover, 1 reta, 2 quadrática, 3 cúbica, 4 cônica, 5 fechar (curvas: só os pontos finais)
+    const out = []; let cur = null;
+    for (const c of i.commands || []) {
+      const k = Array.isArray(c) ? c[0] : c.type ?? c.command, a = Array.isArray(c) ? c.slice(1) : null;
+      if (k === 0 && a) { cur = { pts: [toWorld(i, { x: a[0], y: a[1] })], closed: false }; out.push(cur); }
+      else if (cur && a && (k === 1 || k === 2 || k === 3 || k === 4)) { const n = a.length; cur.pts.push(toWorld(i, { x: a[n - 2 - (k === 4 ? 1 : 0)], y: a[n - 1 - (k === 4 ? 1 : 0)] })); }
+      else if (k === 5 && cur) cur.closed = true;
+    }
+    return out;
+  }
+  if (i.type === "SHAPE") {
+    const w = i.width ?? 0, h = i.height ?? 0;
+    if (i.shapeType === "RECTANGLE") return [{ pts: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }].map((p) => toWorld(i, p)), closed: true }];
+    if (i.shapeType === "CIRCLE") { // círculo: centro na posição, "width" é o diâmetro; 16 lados
+      const r = w / 2; const pts = [];
+      for (let k = 0; k < 16; k++) pts.push(toWorld(i, { x: r * Math.cos((k / 16) * 2 * Math.PI), y: r * Math.sin((k / 16) * 2 * Math.PI) }));
+      return [{ pts, closed: true }];
+    }
+  }
+  return [];
+}
+
 /** Todos os trechos { ax, ay, bx, by } que bloqueiam a luz, a partir dos itens locais e da cena. */
 export function wallSegs(items, { smoke = true } = {}) {
   const all = [];
@@ -51,10 +77,26 @@ export function wallSegs(items, { smoke = true } = {}) {
   for (const i of items) {
     if (i.type === "WALL") { if (i.blocking !== false) poly((i.points || []).map((p) => toWorld(i, p)), false); continue; }
     if (!smoke || !isSmokeWall(i)) continue;
-    if (i.type === "CURVE") poly((i.points || []).map((p) => toWorld(i, p)), !!i.style?.closed);
-    else if (i.type === "LINE") poly([toWorld(i, i.startPosition), toWorld(i, i.endPosition)], false);
+    for (const o of outlines(i)) poly(o.pts, o.closed);
   }
   return all;
+}
+
+/** Diagnóstico da obstrução do Smoke: quantos itens de cada tipo, quantos desativados e quantos de tipo desconhecido. */
+export function smokeReport(items) {
+  const r = { total: 0, ativos: 0, desativados: 0, porTipo: {}, naoLidos: {}, trechos: 0 };
+  for (const i of items) {
+    if (i?.metadata?.[SMOKE_VISION] !== true) continue;
+    r.total++;
+    const t = i.type === "SHAPE" ? `SHAPE/${i.shapeType}` : i.type;
+    r.porTipo[t] = (r.porTipo[t] || 0) + 1;
+    if (i.metadata[SMOKE_OFF] === true) { r.desativados++; continue; }
+    r.ativos++;
+    const o = outlines(i);
+    if (!o.length) r.naoLidos[t] = (r.naoLidos[t] || 0) + 1;
+  }
+  r.trechos = wallSegs(items.filter((i) => i.type !== "WALL")).length;
+  return r;
 }
 
 /** Os trechos mais próximos das luzes (as que o raio alcança), no máximo "max". */

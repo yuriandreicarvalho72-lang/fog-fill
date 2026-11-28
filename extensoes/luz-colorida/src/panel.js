@@ -1,6 +1,7 @@
 import "./visibility.js";
 import "./compact.js";
 import OBR from "@owlbear-rodeo/sdk";
+import { smokeReport } from "./paredes.js";
 import { CFG, SETTINGS, DEFAULT_SETTINGS, DF_LIGHT, BLENDS, applyTheme } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +30,12 @@ function render() {
 async function renderList() {
   const items = await OBR.scene.items.getItems((i) => i.metadata?.[DF_LIGHT] !== undefined);
   const colored = items.filter((i) => i.metadata?.[CFG]?.color);
+  const rep = smokeReport(await OBR.scene.items.getItems());
+  const tipos = Object.entries(rep.porTipo).map(([t, n]) => `${n} ${t}`).join(", ");
+  const nl = Object.entries(rep.naoLidos).map(([t, n]) => `${n} ${t}`).join(", ");
+  $("smokeinfo").textContent = rep.total
+    ? `Obstrução do Smoke: ${rep.ativos} ativa(s)${rep.desativados ? `, ${rep.desativados} desativada(s) ou porta aberta` : ""} (${tipos}); ${rep.trechos} trecho(s) de parede.${nl ? ` Não consegui ler: ${nl}.` : ""}`
+    : "Obstrução do Smoke: nenhuma linha encontrada na cena.";
   $("list").innerHTML = items.length
     ? `${items.length} luz(es) do Dynamic Fog, ${colored.length} com cor.` +
       colored.map((i) => `<div class="li"><span class="dot" style="background:${i.metadata[CFG].color}"></span>${i.name || "Token"}</div>`).join("")

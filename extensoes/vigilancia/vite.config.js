@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Vigilância",
-        version: "1.5.0",
+        version: "1.5.1",
         manifest_version: 1,
         author: "Yuri",
         description: "Câmeras, lasers, ruído, ronda de guardas, verdade por jogador e a camada RA da Matriz (hack com aprovação do mestre).",

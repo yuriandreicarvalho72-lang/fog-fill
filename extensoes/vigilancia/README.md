@@ -100,6 +100,10 @@ O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, ronda
 
 Testes: `node test/core.mjs` e `node test/extra.mjs`
 
+## Obstrução do Smoke em caminho e retângulo (1.5.1)
+
+As câmeras agora também param em linhas de visão do Smoke & Spectre desenhadas como **caminho (PATH)** e **retângulo**, além de linha e curva.
+
 ## Lasers (1.5)
 
 Feixe vermelho que dispara quando alguém o corta (alarme de cofre, corredor com sensores).

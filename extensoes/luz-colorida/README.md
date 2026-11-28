@@ -22,7 +22,8 @@ A sombra da luz agora respeita também as **linhas de obstrução do Smoke & Spe
 - **Porta do Smoke:** fechada bloqueia a luz; aberta (ou linha desativada) deixa passar. Abrir pelo Gatilhos ou pela ronda da Vigilância atualiza a luz sozinha.
 - Vale para as luzes de token e para as **luzes pontuais** (habilidades do Arsenal, efeitos soltos), que antes não tinham sombra. Na luz pontual as paredes são as do momento em que ela acende.
 - Painel: **Obstrução do Smoke & Spectre também bloqueia** (ligado por padrão); "As paredes bloqueiam a cor" desliga toda sombra.
-- Entram no limite de trechos de parede (padrão 48; o Otimizador reduz). Só linhas e curvas; caminhos (PATH) do Smoke não entram.
+- Entram no limite de trechos de parede (padrão 48; o Otimizador reduz).
+- **Formas lidas (1.4.1):** linha, curva, caminho (PATH), retângulo e círculo. Abaixo da opção, o painel mostra o que achou (ex.: "3 ativas (2 LINE, 1 PATH); 7 trechos") e avisa se há obstrução de tipo que ele não consegue ler.
 
 ## Luzes pontuais (1.3.0)
 
