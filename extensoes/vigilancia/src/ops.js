@@ -1,6 +1,6 @@
 // Operações da Vigilância com o SDK (usadas pelo segundo plano, pelo painel e pelo popover de aprovação).
-import OBR, { buildShape } from "@owlbear-rodeo/sdk";
-import { CAM, NODE, ACCESS, DEFAULT_CAM, newNode, nodeOf, stateLabel } from "./core.js";
+import OBR, { buildShape, buildLine } from "@owlbear-rodeo/sdk";
+import { CAM, NODE, ACCESS, DEFAULT_CAM, LASER, DEFAULT_LASER, isLaserShape, newNode, nodeOf, stateLabel } from "./core.js";
 import { RUIDO, RONDA, PONTO, VERDADE, ETIQ, DEFAULT_ETIQ, DEFAULT_RONDA, ruidoCfg, routeOf } from "./extra.js";
 
 export const ID = "vigilancia";
@@ -14,6 +14,8 @@ export const CH_RES = `${ID}/resposta`;         // mestre -> todos: { by, nodeNa
 export const CH_VISION = `${ID}/visao`;          // painel do jogador / Gatilhos -> líder: { targets: [id], mode: "termica"|"baixa"|"todos", on, from? }
 export const CH_PREFS = `${ID}/prefs`;          // painel -> segundo plano (LOCAL): preferências deste navegador mudaram
 export const CH_RUIDO = `${ID}/ruido`;          // qualquer um -> líder: { x, y, raio (quadrados), origem?, quem? } (um barulho no mapa)
+export const CH_LASER = `${ID}/laser`;           // líder -> todos: { id, q: {x,y}, cor, pulso } (um laser foi cortado: pisca em todas as telas)
+export const CH_LASER_TESTE = `${ID}/laser-teste`; // painel -> líder: { id } dispara o efeito do laser sem avisar o Gatilhos
 export const CH_OUVIU = `${ID}/ouviu`;          // líder -> todos: { camera, name, x, y, origem, raio }
 export const APPROVE = `${ID}/aprovar`;         // id do popover de aprovação
 
@@ -160,6 +162,47 @@ export async function editEtiqueta(ids, fn) {
       const cur = it.metadata[ETIQ] || { ...DEFAULT_ETIQ, titulo: it.name || "" };
       const next = fn(JSON.parse(JSON.stringify(cur)));
       if (next) it.metadata[ETIQ] = next; else delete it.metadata[ETIQ];
+    }
+  });
+}
+
+/** Transforma linhas/curvas em lasers (e em nós do tipo laser). Devolve quantos viraram. */
+export async function makeLaser(ids) {
+  const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+  const its = (await OBR.scene.items.getItems(ids)).filter(isLaserShape);
+  if (!its.length) return 0;
+  await OBR.scene.items.updateItems(its.map((i) => i.id), (d) => {
+    for (const it of d) {
+      if (!it.metadata[LASER]) it.metadata[LASER] = { ...DEFAULT_LASER };
+      if (!it.metadata[NODE]) it.metadata[NODE] = newNode(it, "laser");
+      it.style.strokeColor = it.metadata[LASER].cor || DEFAULT_LASER.cor;
+      it.style.strokeOpacity = 1;
+      it.style.strokeWidth = Math.max(4, dpi / 16);
+      it.style.strokeDash = [];
+    }
+  });
+  return its.length;
+}
+
+/** Cria um laser novo no meio da tela (uma linha de 3 quadrados, que o mestre arrasta e estica). */
+export async function createLaser() {
+  const [pos, sc, w, h, dpi] = await Promise.all([OBR.viewport.getPosition(), OBR.viewport.getScale(), OBR.viewport.getWidth(), OBR.viewport.getHeight(), OBR.scene.grid.getDpi().catch(() => 150)]);
+  const c = { x: (w / 2 - pos.x) / sc, y: (h / 2 - pos.y) / sc };
+  const line = buildLine().startPosition({ x: c.x - dpi * 1.5, y: c.y }).endPosition({ x: c.x + dpi * 1.5, y: c.y })
+    .strokeColor(DEFAULT_LASER.cor).strokeWidth(Math.max(4, dpi / 16)).layer("DRAWING").name("Laser")
+    .metadata({ [LASER]: { ...DEFAULT_LASER }, [NODE]: { name: "Laser", type: "laser", state: "ativo", hidden: false } }).build();
+  await OBR.scene.items.addItems([line]);
+  await OBR.player.select([line.id]);
+  return line.id;
+}
+
+/** Edita a configuração de um laser. */
+export async function editLaser(id, fn) {
+  await OBR.scene.items.updateItems([id], (d) => {
+    for (const it of d) {
+      if (!it.metadata[LASER]) continue;
+      it.metadata[LASER] = fn({ ...DEFAULT_LASER, ...it.metadata[LASER] });
+      if (it.style) it.style.strokeColor = it.metadata[LASER].cor || DEFAULT_LASER.cor;
     }
   });
 }

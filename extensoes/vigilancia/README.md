@@ -100,6 +100,18 @@ O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, ronda
 
 Testes: `node test/core.mjs` e `node test/extra.mjs`
 
+## Lasers (1.5)
+
+Feixe vermelho que dispara quando alguém o corta (alarme de cofre, corredor com sensores).
+
+- **Criar:** painel Vigilância → **🔴 Criar laser** (uma linha de 3 quadrados no meio da tela; arraste as pontas para posicionar), ou desenhe uma linha/curva/caminho de retas e use o botão direito → **Virar laser**.
+- **Dispara** quando um token encosta no feixe ou o atravessa (mesmo andando rápido). Disparar = aviso para o mestre, o evento "Uma câmera vê alguém" do **Gatilhos** (use o laser como "câmera" do gatilho; "quem ativou" = quem cortou) e o efeito abaixo. Botão direito no laser → Gatilhos: "esta câmera ou laser sobe o alerta" cria o gatilho pronto.
+- **Guardas e câmeras não disparam** (padrão); dá para escolher na lista quem mais não dispara. **Pausa entre disparos** (s) evita repetir; ficar parado em cima não repete. **Desativa depois de disparar** liga o modo "uma vez".
+- **Nó da Matriz:** o laser é um nó do tipo laser. Só laser **ativo** dispara; desativado, em loop ou **hackeado** (o decker) fica inofensivo e o brilho some.
+- **Efeito ao disparar:** o feixe pisca em branco e abre um anel vermelho em todas as telas. Opcional: um **vídeo .webm** por link ou um **visual do Arsenal** (ex.: `sparkles`), no ponto do feixe ou em cima de quem cortou, com o tamanho que quiser. **🧪 Testar o efeito** dispara sem avisar o Gatilhos.
+- Laser escondido (item escondido) só o mestre vê; combine com "só aparece em Térmica/Baixa luz" para lasers que só quem tem o modo enxerga. Jogadores veem o laser como qualquer desenho da cena.
+- Limites: dispara pelo centro do token com uma pequena margem; só o mestre líder detecta (precisa de um mestre na sala); o vídeo/visual precisa do Arsenal; testado só no emulador.
+
 ## Ignorar por lista e ícone do comlink (1.4.2)
 
 - **Não vê (aliados):** agora há uma **lista para escolher** (e × para voltar a ver) no painel da câmera. Antes só dava com "usar seleção", que trocava a seleção e fechava o painel da câmera. "usar seleção" continua existindo.

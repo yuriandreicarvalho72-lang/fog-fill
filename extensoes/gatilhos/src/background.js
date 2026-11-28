@@ -6,7 +6,7 @@ import OBR, { buildShape } from "@owlbear-rodeo/sdk";
 import { zoneShape, evaluate, haltPoint, routeFromPlan, itemsInZones, formation, pickReacher } from "./engine.js";
 import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
-import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, OBR_FOG_DOORS, OBR_FOG_DOOR_INDEX, resolveFogDoors, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
+import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_LASER, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, OBR_FOG_DOORS, OBR_FOG_DOOR_INDEX, resolveFogDoors, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
 
 let role = "PLAYER";
@@ -882,16 +882,16 @@ OBR.onReady(async () => {
   await controls.contextMenu.create({
     id: `${ID}/camera-alerta`,
     icons: [{
-      icon: url("icon.svg"), label: "Gatilhos: esta câmera sobe o alerta",
-      filter: { roles: ["GM"], every: [{ key: ["metadata", VIG_CAM], value: undefined, operator: "!=" }] },
+      icon: url("icon.svg"), label: "Gatilhos: esta câmera ou laser sobe o alerta",
+      filter: { roles: ["GM"], some: [{ key: ["metadata", VIG_CAM], value: undefined, operator: "!=" }, { key: ["metadata", VIG_LASER], value: undefined, operator: "!=" }] },
     }],
     onClick: async (ctx) => {
-      const cams = ctx.items.filter((i) => i.metadata?.[VIG_CAM]);
+      const cams = ctx.items.filter((i) => i.metadata?.[VIG_CAM] || i.metadata?.[VIG_LASER]);
       if (!cams.length) return;
       const t = newTrigger(cams.map((i) => i.id), cams.length > 1 ? `Alerta: câmeras (${cams.length})` : `Alerta: ${names(cams[0])}`);
       t.cause = "cameraSees"; t.once = false;
       const up = newEffect("alarm"); up.alarmOp = "up";
-      const msg = newEffect("notify"); msg.text = "📷 {quem} foi visto. Alerta {nivel}."; msg.audience = "gm";
+      const msg = newEffect("notify"); msg.text = "🚨 {quem} foi visto (ou cortou um laser). Alerta {nivel}."; msg.audience = "gm";
       t.effects = [up, msg];
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show("Pronto: quem a câmera vir faz o alerta subir 1 nível (até 3). Crie gatilhos com a causa \"O nível de alerta mudou\" para o que acontece em cada nível.", "SUCCESS");

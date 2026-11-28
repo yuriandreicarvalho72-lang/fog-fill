@@ -25,6 +25,7 @@ export const VIG_SEEN = "vigilancia/viu";       // Vigilância -> todos: { camer
 export const VIG_NODE = "vigilancia/no-mudou";  // Vigilância -> todos: { id, name, type, state, prev }
 export const VIG_SET = "vigilancia/mudar";      // { targets: [id], state, from } pede a troca de estado à Vigilância
 export const VIG_CAM = "vigilancia/camera";     // metadado do item: é câmera
+export const VIG_LASER = "vigilancia/laser";     // metadado do item: é laser (corta o feixe = mesma causa "cameraSees")
 export const VIG_NODE_META = "vigilancia/no";   // metadado do item: é nó da Matriz
 export const VIG_NOISE = "vigilancia/ruido";    // { x, y, raio (quadrados), origem, quem? } faz um barulho (a Vigilância calcula quem ouve)
 export const VIG_HEARD = "vigilancia/ouviu";    // Vigilância -> todos: { camera, name, x, y, origem, raio }
@@ -235,7 +236,7 @@ export const CAUSES = [
   { id: "appear", label: "A zona aparece (fica visível)" },
   { id: "disappear", label: "A zona some (fica escondida)" },
   { id: "interact", label: "Interagir: o jogador clica no objeto (alavanca, porta, botão…)" },
-  { id: "cameraSees", label: "Uma câmera vê alguém (Vigilância)" },
+  { id: "cameraSees", label: "Uma câmera vê alguém ou um laser é cortado (Vigilância)" },
   { id: "nodeState", label: "Nó da Matriz muda de estado (Vigilância)" },
   { id: "heard", label: "Um guarda/câmera ouve um ruído (Vigilância)" },
   { id: "destroyed", label: "Um objeto foi destruído (Arsenal)" },

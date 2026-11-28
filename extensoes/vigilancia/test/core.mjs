@@ -100,3 +100,27 @@ ok("câmera do térreo não vê quem está em cima", seenBy(camDown, [camDown, u
   const cam2 = { ...cam, metadata: { [CAM]: { angle: 360, range: 10, verGuardas: true } } };
   ok("com 'vê guardas' ligado, vê os dois", seenBy(cam2, [cam2, guarda, pc], [], 100).sort(), ['g', 'p']);
 }
+
+// ---- lasers ----
+{
+  const { laserOf, laserOn, laserSegments, nearOnSegment, stepCrosses, laserTouched, laserWatchers, laserStep, LASER } = await import("../src/core.js");
+  const lin = { id: 'l', type: 'LINE', position: { x: 0, y: 0 }, startPosition: { x: 0, y: 100 }, endPosition: { x: 300, y: 100 }, metadata: { [LASER]: {} } };
+  const tk = (id, x, y, extra = {}) => ({ id, type: 'IMAGE', layer: 'CHARACTER', position: { x, y }, image: { width: 100 }, grid: { dpi: 100 }, scale: { x: 1, y: 1 }, metadata: {}, ...extra });
+  ok("laser: segmento da linha", laserSegments(lin), [{ a: { x: 0, y: 100 }, b: { x: 300, y: 100 } }]);
+  ok("laser: ativo por padrão; desativado/hackeado não dispara", [laserOn(lin), laserOn({ ...lin, metadata: { [LASER]: {}, [NODE]: { state: 'desativado' } } }), laserOn({ ...lin, metadata: { [LASER]: {}, [NODE]: { state: 'hackeado' } } })], [true, false, false]);
+  ok("laser: caminho de retas e curva", [laserSegments({ type: 'PATH', position: { x: 10, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, commands: [[0, 0, 0], [1, 50, 0], [1, 50, 50], [5]] }).length, laserSegments({ type: 'CURVE', position: { x: 0, y: 0 }, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], style: {} }).length], [3, 2]);
+  ok("ponto mais perto no feixe", nearOnSegment({ x: 50, y: 130 }, { x: 0, y: 100 }, { x: 300, y: 100 }), { d: 30, q: { x: 50, y: 100 } });
+  ok("passo que atravessa", [stepCrosses({ x: 50, y: 60 }, { x: 50, y: 140 }, { x: 0, y: 100 }, { x: 300, y: 100 }), stepCrosses({ x: 50, y: 60 }, { x: 50, y: 90 }, { x: 0, y: 100 }, { x: 300, y: 100 })], [true, false]);
+  ok("encostar: token em cima do feixe sim, longe não", laserTouched(lin, [tk('a', 100, 110), tk('b', 100, 400)], null, 100).map((h) => h.id), ['a']);
+  ok("atravessou rápido (pulou o feixe): pega pelo passo anterior", laserTouched(lin, [tk('a', 100, 300)], new Map([['a', { x: 100, y: -100 }]]), 100).map((h) => h.id), ['a']);
+  const guarda = tk('g', 50, 100, { metadata: { [CAM]: {} } });
+  ok("guarda/câmera não corta o laser (padrão), nem quem está na lista", [laserWatchers(lin, [lin, guarda, tk('a', 1, 1), tk('i', 2, 2)]).length, laserWatchers({ ...lin, metadata: { [LASER]: { ignore: ['i'] } } }, [tk('a', 1, 1), tk('i', 2, 2)]).map((t) => t.id)], [2, ['a']]);
+  ok("com 'ignoraGuardas' desligado, o guarda corta", laserWatchers({ ...lin, metadata: { [LASER]: { ignoraGuardas: false } } }, [guarda]).length, 1);
+  const s1 = laserStep(new Set(), ['a'], 0, 10000, 3);
+  ok("entrou: dispara", [s1.fresh, s1.fire], [['a'], true]);
+  const s2 = laserStep(s1.inside, ['a'], 10000, 10400, 3);
+  ok("continua dentro: não repete", [s2.fresh, s2.fire], [[], false]);
+  const s3 = laserStep(new Set(), ['a'], 10000, 11000, 3);
+  ok("saiu e voltou dentro do cooldown: não dispara", s3.fire, false);
+  ok("passado o cooldown: dispara de novo", laserStep(new Set(), ['a'], 10000, 13100, 3).fire, true);
+}

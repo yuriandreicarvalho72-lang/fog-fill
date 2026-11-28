@@ -7,13 +7,14 @@ import {
   CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, toWorld, OLHAR, olharOf, conePolygon, seenBy, wallsFrom,
   hasAccess, canWatch, maskCommands, cmdsBounds, FEED, nodeChanges, doorLock, iconOf, stateLabel,
   VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS, sameFloor,
+  LASER, laserOf, laserOn, isLaserShape, laserSegments, laserTouched, laserWatchers, laserStep,
 } from "./core.js";
 import {
   ruidoCfg, hears, shotRaio, rondaOf, routeOf, portasStep, isDoorLine, doorOpenNow, doorLockedNow, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel,
 } from "./extra.js";
 import {
   CH_RUIDO, CH_OUVIU, ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
-  url, itemName, uid, getPrefs, setState, makeCamera, makeNode, decide, editEtiqueta,
+  CH_LASER, CH_LASER_TESTE, url, itemName, uid, getPrefs, setState, makeCamera, makeNode, makeLaser, decide, editEtiqueta,
 } from "./ops.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
 
@@ -98,6 +99,17 @@ function wanted(now) {
             .layer("DRAWING").name(`Cone: ${itemName(it)}`)).id(lid("cone", it.id)).build(),
         });
       }
+    }
+    // laser: brilho vermelho em volta do feixe (some se o laser não está ativo); o item escondido só aparece para o mestre
+    const las = laserOf(it);
+    if (las && laserOn(it) && (gm || it.visible !== false)) {
+      const segs = laserSegments(it);
+      const cmds = segs.flatMap((sg, i) => (i && sg.a.x === segs[i - 1].b.x && sg.a.y === segs[i - 1].b.y ? [[1, sg.b.x, sg.b.y]] : [[0, sg.a.x, sg.a.y], [1, sg.b.x, sg.b.y]]));
+      if (cmds.length) out.set(lid("laser", it.id), {
+        sig: JSON.stringify([cmds, las.cor]),
+        build: () => tag(buildPath().position({ x: 0, y: 0 }).commands(cmds).fillOpacity(0).strokeColor(las.cor).strokeOpacity(0.28)
+          .strokeWidth(Math.max(10, dpi / 6)).layer("DRAWING").name(`Brilho do laser: ${itemName(it)}`)).id(lid("laser", it.id)).build(),
+      });
     }
     // ver pela câmera: escurece tudo fora do cone, só nesta tela
     if (cam && watch === it.id && canWatch(it, myId, role, items, access)) {
@@ -302,6 +314,59 @@ function detect(now) {
   for (const id of [...prevSeen.keys()]) if (!items.some((i) => i.id === id)) prevSeen.delete(id);
 }
 
+// ---------- lasers: o mestre líder vê quem cortou o feixe ----------
+const laserInside = new Map(), laserLast = new Map();
+let laserPrev = new Map();
+function detectLasers(now) {
+  const lasers = items.filter((i) => laserOn(i));
+  for (const it of lasers) {
+    const l = laserOf(it);
+    const touched = laserTouched(it, laserWatchers(it, items, estGroups), laserPrev, dpi);
+    const st = laserStep(laserInside.get(it.id) || new Set(), touched.map((h) => h.id), laserLast.get(it.id) || 0, now, l.cooldown);
+    laserInside.set(it.id, st.inside);
+    if (st.fire) { laserLast.set(it.id, now); fireLaser(it, touched.filter((h) => st.fresh.includes(h.id)), touched.map((h) => h.id)); }
+  }
+  for (const id of [...laserInside.keys()]) if (!lasers.some((i) => i.id === id)) { laserInside.delete(id); laserLast.delete(id); }
+  laserPrev = new Map(items.filter((t) => t.type === "IMAGE").map((t) => [t.id, { x: t.position.x, y: t.position.y }]));
+}
+function fireLaser(it, fresh, all, test = false) {
+  const l = laserOf(it), name = nodeOf(it)?.name || itemName(it), q = fresh[0].q;
+  if (l.umaVez) setState([it.id], "desativado").catch(() => {});
+  if (!test) OBR.broadcast.sendMessage(CH_SEEN, { camera: it.id, name, tokens: fresh.map((h) => h.id), all, alertAll: !!l.alertAll, laser: true }, { destination: "ALL" }).catch(() => {});
+  OBR.broadcast.sendMessage(CH_LASER, { id: it.id, q, cor: l.cor, pulso: l.pulso !== false }, { destination: "ALL" }).catch(() => {});
+  // efeito do Arsenal (vídeo .webm por link, ou um visual da biblioteca): no ponto do feixe ou em cima de quem cortou
+  if (l.video || l.visual) {
+    const fx = l.video ? { video: { url: l.video, tipo: l.tipo || "area", giro: Number(l.giro) || 0 } } : { visual: l.visual };
+    const where = l.onde === "token" && fresh[0]?.id ? { targets: fresh.map((h) => h.id) } : { point: q };
+    OBR.broadcast.sendMessage("arsenal/efeito", { ...fx, ...where, dur: 0, tamanho: Number(l.tamanho) > 0 ? Number(l.tamanho) : undefined, tag: `Laser: ${name}`, origem: "Vigilância" }, { destination: "ALL" }).catch(() => {});
+  }
+}
+/** Pisca o feixe e abre um anel no ponto cortado (item local, some sozinho). */
+async function flashLaser(d) {
+  const it = items.find((i) => i.id === d.id);
+  if (!it || !d.pulso || (role !== "GM" && it.visible === false)) return;
+  const segs = laserSegments(it);
+  const cmds = segs.flatMap((sg) => [[0, sg.a.x, sg.a.y], [1, sg.b.x, sg.b.y]]);
+  const k = uid(), beam = lid("flashb", k), ring = lid("flashr", k);
+  const w0 = Math.max(8, dpi / 8), r0 = dpi * 0.2, r1 = dpi * 1.6;
+  const list = [];
+  if (cmds.length) list.push(tag(buildPath().position({ x: 0, y: 0 }).commands(cmds).fillOpacity(0).strokeColor("#ffffff").strokeOpacity(1).strokeWidth(w0).layer("DRAWING")).id(beam).build());
+  list.push(tag(buildShape().shapeType("CIRCLE").position(d.q).width(r0 * 2).height(r0 * 2).fillColor(d.cor || "#ff2a2a").fillOpacity(0.35).strokeColor("#ffffff").strokeOpacity(0.9).strokeWidth(Math.max(3, dpi / 30)).layer("DRAWING")).id(ring).build());
+  await OBR.scene.local.addItems(list).catch(() => {});
+  const N = 8;
+  for (let i = 1; i <= N; i++) {
+    await new Promise((r) => setTimeout(r, 110));
+    const f = i / N, r = r0 + (r1 - r0) * f;
+    await OBR.scene.local.updateItems([ring, beam], (arr) => {
+      for (const x of arr) {
+        if (x.id === ring) { x.width = r * 2; x.height = r * 2; x.style.fillOpacity = 0.35 * (1 - f); x.style.strokeOpacity = 0.9 * (1 - f); }
+        else { x.style.strokeOpacity = 1 - f; x.style.strokeWidth = w0 * (1 + f); x.style.strokeColor = f > 0.4 ? (d.cor || "#ff2a2a") : "#ffffff"; }
+      }
+    }).catch(() => {});
+  }
+  await OBR.scene.local.deleteItems([ring, beam]).catch(() => {});
+}
+
 function watchNodes() {
   const changes = nodeChanges(prevState, items);
   prevState.clear();
@@ -480,12 +545,14 @@ function loop() {
   clearTimeout(tm);
   const now = Date.now();
   const sweeping = items.some((i) => camOf(i)?.sweep > 0);
+  const hasLasers = items.some((i) => laserOn(i));
   if (ready) {
     if (leader && items.some((i) => camOf(i))) detect(now);
+    if (leader && hasLasers) detectLasers(now);
     // câmeras que giram: redesenha no ritmo do perfil do Otimizador (a detecção do mestre não muda)
     if (sweeping && now - lastSweep >= (perf?.vig?.sweepMs ?? 160) - 20) { lastSweep = now; draw(); }
   }
-  tm = setTimeout(loop, sweeping ? 160 : 400);
+  tm = setTimeout(loop, sweeping ? 160 : hasLasers ? 200 : 400);
 }
 let ptm = null;
 const patrolLoop = () => { clearTimeout(ptm); try { patrolTick(); } catch (e) { console.error(`[${ID}] ronda`, e); } ptm = setTimeout(patrolLoop, 250); };
@@ -559,6 +626,11 @@ OBR.onReady(async () => {
     onClick: async (ctx) => { await editEtiqueta(ctx.items.map((i) => i.id), (e) => e); controls.openPanel().catch(() => {}); },
   });
   await controls.contextMenu.create({
+    id: `${ID}/laser`,
+    icons: [{ icon: url("laser.svg"), label: "Virar laser (Vigilância)", filter: { ...GM, some: [{ key: "type", value: "LINE" }, { key: "type", value: "CURVE" }, { key: "type", value: "PATH" }], every: [{ key: ["metadata", LASER], value: undefined }] } }],
+    onClick: async (ctx) => { const n = await makeLaser(ctx.items.map((i) => i.id)); OBR.notification.show(n ? "Laser criado: quem cortar o feixe dispara o aviso. Ajuste no painel Vigilância." : "Vigilância: selecione uma linha, curva ou caminho de retas.", n ? "SUCCESS" : "WARNING"); controls.openPanel().catch(() => {}); },
+  });
+  await controls.contextMenu.create({
     id: `${ID}/hackear`,
     icons: [{ icon: url("node.svg"), label: "Hackear (Matriz)", filter: { roles: ["PLAYER"], max: 1, every: [{ key: ["metadata", NODE], value: undefined, operator: "!=" }] } }],
     onClick: (ctx) => {
@@ -573,7 +645,14 @@ OBR.onReady(async () => {
     const d = e.data || {};
     if (role !== "GM" && !d.alertAll) return;
     const who = (d.tokens || []).map((id) => itemName(items.find((i) => i.id === id))).join(", ");
-    OBR.notification.show(`📷 ${d.name} viu: ${who}`, "WARNING");
+    OBR.notification.show(d.laser ? `🔴 ${d.name}: ${who} cortou o laser` : `📷 ${d.name} viu: ${who}`, "WARNING");
+  });
+  OBR.broadcast.onMessage(CH_LASER, (e) => { flashLaser(e.data || {}).catch(() => {}); });
+  OBR.broadcast.onMessage(CH_LASER_TESTE, async (e) => {
+    if (!(await isLeader())) return;
+    const it = items.find((i) => i.id === e.data?.id);
+    const sg = it && laserSegments(it)[0];
+    if (sg) fireLaser(it, [{ id: "", q: { x: (sg.a.x + sg.b.x) / 2, y: (sg.a.y + sg.b.y) / 2 } }], [], true);
   });
   OBR.broadcast.onMessage(CH_RES, (e) => {
     const d = e.data || {};

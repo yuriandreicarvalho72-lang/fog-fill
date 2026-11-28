@@ -10,7 +10,7 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Gatilhos",
-        version: "1.25.1",
+        version: "1.25.2",
         manifest_version: 1,
         author: "Yuri",
         description: "Causa e efeito: armadilhas, placas, fios e portas que disparam sozinhos quando qualquer token se move.",

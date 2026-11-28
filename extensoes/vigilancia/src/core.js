@@ -12,7 +12,7 @@ export const STATES = [
   ["ativo", "ativo"], ["desativado", "desativado"], ["loop", "em loop"], ["hackeado", "hackeado"],
 ];
 export const TYPES = [
-  ["camera", "Câmera", "📷"], ["porta", "Porta", "🚪"], ["painel", "Painel", "🎛"], ["arquivo", "Arquivo", "🗂"], ["outro", "Outro", "◈"],
+  ["camera", "Câmera", "📷"], ["laser", "Laser", "🔴"], ["porta", "Porta", "🚪"], ["painel", "Painel", "🎛"], ["arquivo", "Arquivo", "🗂"], ["outro", "Outro", "◈"],
 ];
 export const STATE_COLOR = { ativo: "#4fc3ff", desativado: "#8a8f98", loop: "#c07bff", hackeado: "#3ddc84" };
 export const iconOf = (type) => TYPES.find((t) => t[0] === type)?.[2] || "◈";
@@ -259,4 +259,91 @@ export function sameFloor(a, b) {
   const fa = a?.metadata?.[FLOOR], fb = b?.metadata?.[FLOOR];
   if (!fa || !fb || fa.g !== fb.g) return true;
   return fa.f === fb.f;
+}
+
+// ---------------- lasers (feixes que disparam ao serem cortados) ----------------
+export const LASER = "vigilancia/laser";     // metadado do item (linha/curva): configuração do laser
+export const DEFAULT_LASER = {
+  cor: "#ff2a2a", cooldown: 3, umaVez: false, ignoraGuardas: true, ignore: [], hiddenSeen: false, alertAll: false,
+  pulso: true, video: "", tipo: "area", giro: 0, visual: "", tamanho: 0, onde: "laser",
+};
+export const laserOf = (it) => (it?.metadata?.[LASER] ? { ...DEFAULT_LASER, ...it.metadata[LASER] } : null);
+/** Só laser ATIVO dispara (desativado, em loop ou hackeado, não). */
+export const laserOn = (it) => !!laserOf(it) && (nodeOf(it)?.state ?? "ativo") === "ativo";
+/** Itens que podem virar laser: linha, curva ou caminho de retas. */
+export const isLaserShape = (it) => it?.type === "LINE" || it?.type === "CURVE" || it?.type === "PATH";
+
+/** Trechos retos do feixe, em coordenadas do mapa: [{ a, b }]. */
+export function laserSegments(it) {
+  if (it?.type === "LINE") return [{ a: toWorld(it, it.startPosition), b: toWorld(it, it.endPosition) }];
+  if (it?.type === "CURVE") return segsOf((it.points || []).map((p) => toWorld(it, p)), !!it.style?.closed);
+  if (it?.type === "PATH") {
+    const out = []; let cur = null, start = null;
+    for (const c of it.commands || []) {
+      if (c[0] === 0) { cur = toWorld(it, { x: c[1], y: c[2] }); start = cur; }
+      else if (c[0] === 1 && cur) { const n = toWorld(it, { x: c[1], y: c[2] }); out.push({ a: cur, b: n }); cur = n; }
+      else if (c[0] === 5 && cur && start) { out.push({ a: cur, b: start }); cur = start; }
+    }
+    return out;
+  }
+  return [];
+}
+
+/** Ponto mais perto de p no trecho a-b: { d: distância, q: ponto }. */
+export function nearOnSegment(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+  const t = L2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2));
+  const q = { x: a.x + dx * t, y: a.y + dy * t };
+  return { d: Math.hypot(p.x - q.x, p.y - q.y), q };
+}
+/** O passo p1→p2 cruza o trecho a-b? */
+export function stepCrosses(p1, p2, a, b) {
+  const o = (u, v, w) => (v.x - u.x) * (w.y - u.y) - (v.y - u.y) * (w.x - u.x);
+  const d1 = o(a, b, p1), d2 = o(a, b, p2), d3 = o(p1, p2, a), d4 = o(p1, p2, b);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+/** "Raio" do token para encostar no feixe (um pouco menos que meia casa do tamanho dele). */
+export function tokenRadius(t, dpi) {
+  const w = (t.image?.width || dpi) * Math.abs(t.scale?.x ?? 1) / (t.grid?.dpi || dpi);
+  return Math.max(dpi * 0.2, w * dpi * 0.35);
+}
+
+/**
+ * Quem está encostando (ou acabou de atravessar) o feixe. prev: Map id -> posição anterior (para não pular quem anda rápido).
+ * Devolve [{ id, q }] com q = ponto do feixe mais perto do token.
+ */
+export function laserTouched(it, tokens, prev, dpi) {
+  const segs = laserSegments(it);
+  const out = [];
+  for (const t of tokens) {
+    const r = tokenRadius(t, dpi);
+    let best = null;
+    for (const s of segs) {
+      const n = nearOnSegment(t.position, s.a, s.b);
+      let hit = n.d <= r, q = n.q;
+      const pp = prev?.get(t.id);
+      if (!hit && pp && stepCrosses(pp, t.position, s.a, s.b)) { hit = true; q = nearOnSegment(t.position, s.a, s.b).q; }
+      if (hit && (!best || n.d < best.d)) best = { d: n.d, q };
+    }
+    if (best) out.push({ id: t.id, q: best.q });
+  }
+  return out;
+}
+
+/** Quem pode cortar este laser: tokens, menos ignorados, guardas/câmeras (se ligado) e quem está em outro andar. */
+export function laserWatchers(it, items, groups = []) {
+  const l = laserOf(it);
+  const ign = new Set(l.ignore || []);
+  return items.filter((t) => isToken(t) && t.id !== it.id && !ign.has(t.id) && (!l.ignoraGuardas || !camOf(t))
+    && sameFloor(it, t) && (l.hiddenSeen || presentVisible(t, groups)));
+}
+
+/**
+ * Um passo do detector: quem entrou no feixe agora e se dispara.
+ * inside: ids que já estavam no feixe; touching: ids que estão agora; last: quando disparou por último (ms) ou 0.
+ */
+export function laserStep(inside, touching, last, now, cooldownS) {
+  const fresh = touching.filter((id) => !inside.has(id));
+  const fire = fresh.length > 0 && now - last >= Math.max(0, cooldownS) * 1000;
+  return { fresh, fire, inside: new Set(touching) };
 }

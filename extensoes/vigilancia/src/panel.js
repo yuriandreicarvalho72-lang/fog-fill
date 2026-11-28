@@ -3,9 +3,9 @@ import "./compact.js";
 // Painel da Vigilância. Mestre: monta câmeras e nós, decide pedidos de hack, diz quem vê a Matriz.
 // Jogador com commlink/cyberdeck: vê os nós e pede para hackear, pôr em loop, desativar ou reativar.
 import OBR from "@owlbear-rodeo/sdk";
-import { FEED, canWatch, nodesAround, CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
+import { FEED, canWatch, nodesAround, CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, laserOf, isLaserShape, LASER, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
 import { ruidoCfg, rondaOf, routeOf, verdadeOf, VERDADE, DEFAULT_RONDA, ETIQ, DEFAULT_ETIQ } from "./extra.js";
-import { editEtiqueta, fazerRuido, setRuido, editRonda, addPonto, clearRota, editVerdade, PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
+import { editEtiqueta, fazerRuido, setRuido, editRonda, addPonto, clearRota, editVerdade, PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, makeLaser, createLaser, editLaser, CH_LASER_TESTE, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -82,7 +82,7 @@ function nodeForm(it) {
 
 function renderSel() {
   const its = items.filter((i) => sel.includes(i.id));
-  if (!its.length) return '<p class="hint">Selecione um item no mapa para transformar em câmera (guarda, torreta, câmera) ou em nó da Matriz (porta, painel, arquivo). Ou use o botão direito no item.</p>';
+  if (!its.length) return '<p class="hint">Selecione um item no mapa para transformar em câmera (guarda, torreta, câmera) ou em nó da Matriz (porta, painel, arquivo). Ou use o botão direito no item.</p><div class="btns"><button type="button" id="newLaser">🔴 Criar laser</button></div><p class="hint">Laser: um feixe vermelho que dispara o aviso (e um efeito) quando alguém o corta. Você também pode desenhar uma linha e usar o botão direito → Virar laser.</p>';
   if (its.length > 1) {
     return `<p class="hint">${its.length} itens selecionados.</p><div class="btns"><button type="button" id="mkCam">📷 Virar câmeras</button><button type="button" id="mkNode">◈ Virar nós</button></div>
       <div class="row"><span class="hint grow">Estado de todos:</span></div><div class="states">${STATES.map(([v, l]) => `<button type="button" class="chip" data-stateall="${v}">${l}</button>`).join("")}</div>`;
@@ -90,14 +90,45 @@ function renderSel() {
   const it = its[0];
   const cam = camOf(it), node = nodeOf(it);
   return `<div class="row"><b class="grow">${esc(itemName(it))}</b></div>
+    ${laserOf(it) ? laserForm(it) : ""}
     ${cam ? camForm(it) : ""}
     ${node ? nodeForm(it) : ""}
-    ${!cam || !node ? `<div class="btns">${cam ? "" : '<button type="button" id="mkCam">📷 Virar câmera</button>'}${node ? "" : '<button type="button" id="mkNode">◈ Virar nó da Matriz</button>'}</div>` : ""}
+    ${isLaserShape(it) && !laserOf(it) ? '<div class="btns"><button type="button" id="mkLaser">🔴 Virar laser</button></div>' : ""}
+    ${(!cam || !node) && !isLaserShape(it) ? `<div class="btns">${cam ? "" : '<button type="button" id="mkCam">📷 Virar câmera</button>'}${node ? "" : '<button type="button" id="mkNode">◈ Virar nó da Matriz</button>'}</div>` : ""}
     ${isToken(it) ? `<label class="check"><input type="checkbox" id="deck" ${it.metadata?.[DECK] === true ? "checked" : ""} /> Tem commlink/cyberdeck (o dono deste token vê a Matriz)</label>` : ""}
     ${visionForm(it)}
     ${rondaForm(it)}
     ${verdadeForm(it)}
     ${etiquetaForm(it)}`;
+}
+
+/** Laser: feixe que dispara quando alguém o corta. Estado (ativo/desativado/loop/hackeado) é o do nó da Matriz. */
+function laserForm(it) {
+  const l = laserOf(it);
+  const ign = (l.ignore || []).map((id) => `<span class="chip">${esc(itemName(items.find((i) => i.id === id)))} <button type="button" class="mini" data-lsrm="${esc(id)}" title="Voltar a disparar">×</button></span>`).join(" ");
+  const cand = items.filter((i) => isToken(i) && !(l.ignore || []).includes(i.id));
+  const add = cand.length ? `<select id="lsAdd"><option value="">+ escolher da lista…</option>${cand.map((i) => `<option value="${esc(i.id)}">${esc(itemName(i))}</option>`).join("")}</select>` : "";
+  const tipos = [["area", "área"], ["alvo", "no alvo"], ["em-si", "em si"], ["linha", "linha"], ["cone", "cone"]];
+  return `<div class="effect">
+    <h3>🔴 Laser</h3>
+    <p class="hint">Quem corta o feixe dispara o aviso e o Gatilhos ("Uma câmera vê alguém" vale para o laser). Ligar/desligar, loop e hack: estado do nó da Matriz abaixo (só laser ativo dispara).</p>
+    <div class="row"><label class="inline">cor <input type="color" data-ls="cor" value="${esc(l.cor)}" /></label>
+      <label class="inline">pausa entre disparos <input type="number" data-lsn="cooldown" min="0" step="1" value="${Number(l.cooldown) || 0}" /> s</label></div>
+    <label class="check"><input type="checkbox" data-lsb="ignoraGuardas" ${l.ignoraGuardas !== false ? "checked" : ""} /> Guardas e câmeras não disparam</label>
+    <label class="check"><input type="checkbox" data-lsb="umaVez" ${l.umaVez ? "checked" : ""} /> Desativa depois de disparar (reative no estado do nó)</label>
+    <label class="check"><input type="checkbox" data-lsb="alertAll" ${l.alertAll ? "checked" : ""} /> Avisar os jogadores também</label>
+    <label class="check"><input type="checkbox" data-lsb="hiddenSeen" ${l.hiddenSeen ? "checked" : ""} /> Dispara com tokens escondidos</label>
+    <div class="sub">Não dispara com: ${ign || '<span class="hint">ninguém</span>'} ${add}</div>
+    <h3>✨ Efeito ao disparar</h3>
+    <label class="check"><input type="checkbox" data-lsb="pulso" ${l.pulso !== false ? "checked" : ""} /> Pisca o feixe e abre um anel vermelho (em todas as telas)</label>
+    <input type="text" data-ls="video" placeholder="vídeo do efeito (.webm por link, opcional)" value="${esc(l.video)}" />
+    <input type="text" data-ls="visual" placeholder="ou nome de um visual do Arsenal (ex.: sparkles)" value="${esc(l.visual)}" />
+    <div class="row"><select data-ls="tipo">${tipos.map(([v, t]) => `<option value="${v}" ${l.tipo === v ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <select data-ls="onde"><option value="laser" ${l.onde !== "token" ? "selected" : ""}>no ponto do feixe</option><option value="token" ${l.onde === "token" ? "selected" : ""}>em cima de quem cortou</option></select>
+      <label class="inline">tamanho <input type="number" data-lsn="tamanho" min="0" step="1" value="${Number(l.tamanho) || 0}" /> quadrados (0 = padrão)</label></div>
+    <p class="hint">O vídeo e o visual usam o Arsenal (precisa estar instalado). Com os dois vazios, só o pisca do feixe.</p>
+    <div class="btns"><button type="button" id="lsTest">🧪 Testar o efeito</button><button type="button" id="lsDel">Tirar o laser</button></div>
+  </div>`;
 }
 
 /** Etiqueta de RA: rótulo flutuante embaixo do item, visível só para quem tem commlink/cyberdeck (ou o mestre). */
@@ -247,6 +278,15 @@ function bindGM() {
   $("ignAdd")?.addEventListener("change", (e) => { const v = e.target.value; if (v) editCam(one.id, (c) => ({ ...c, ignore: [...new Set([...(c.ignore || []), v])] })); });
   for (const el of document.querySelectorAll("[data-ignrm]")) el.onclick = () => editCam(one.id, (c) => ({ ...c, ignore: (c.ignore || []).filter((x) => x !== el.dataset.ignrm) }));
   $("ignClr")?.addEventListener("click", () => editCam(one.id, (c) => ({ ...c, ignore: [] })));
+  for (const el of document.querySelectorAll("[data-ls]")) el.onchange = () => editLaser(one.id, (l) => ({ ...l, [el.dataset.ls]: el.type === "text" ? el.value.trim() : el.value }));
+  for (const el of document.querySelectorAll("[data-lsn]")) el.onchange = () => editLaser(one.id, (l) => ({ ...l, [el.dataset.lsn]: Math.max(0, Number(el.value) || 0) }));
+  for (const el of document.querySelectorAll("[data-lsb]")) el.onchange = () => editLaser(one.id, (l) => ({ ...l, [el.dataset.lsb]: el.checked }));
+  $("lsAdd")?.addEventListener("change", (e) => { const v = e.target.value; if (v) editLaser(one.id, (l) => ({ ...l, ignore: [...new Set([...(l.ignore || []), v])] })); });
+  for (const el of document.querySelectorAll("[data-lsrm]")) el.onclick = () => editLaser(one.id, (l) => ({ ...l, ignore: (l.ignore || []).filter((x) => x !== el.dataset.lsrm) }));
+  $("lsTest")?.addEventListener("click", () => OBR.broadcast.sendMessage(CH_LASER_TESTE, { id: one.id }, { destination: "ALL" }));
+  $("lsDel")?.addEventListener("click", () => OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) { delete it.metadata[LASER]; if (it.metadata[NODE]?.type === "laser") delete it.metadata[NODE]; } }));
+  $("mkLaser")?.addEventListener("click", () => makeLaser([one.id]));
+  $("newLaser")?.addEventListener("click", () => createLaser());
   $("camDel")?.addEventListener("click", () => OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) { delete it.metadata[CAM]; if (it.metadata[NODE]?.type === "camera") delete it.metadata[NODE]; } }));
   for (const el of document.querySelectorAll("[data-node]")) el.onchange = () => editNode(one.id, (n) => ({ ...n, [el.dataset.node]: el.value.trim() || n[el.dataset.node] }));
   for (const el of document.querySelectorAll("[data-nodeb]")) el.onchange = () => editNode(one.id, (n) => ({ ...n, [el.dataset.nodeb]: el.checked }));

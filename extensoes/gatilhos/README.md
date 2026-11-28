@@ -61,6 +61,11 @@ O efeito **Porta** e a **Porta animada** já abriam a névoa do Owlbear (Dynamic
 - **Linha vermelha da porta (1.24):** no Dynamic Fog a linha vermelha com o ícone da porta é um desenho local preso ao fog, não um item da cena. Agora, selecionando essa linha/ícone: o botão direito **Gatilhos: jogadores abrem e fecham esta porta** e o "usar seleção" do efeito trocam por **o fog dono + o número daquela porta**. No botão direito, o ponto de uso vira um círculo pequeno no centro da porta (o desenho do fog é enorme).
 Limites: a névoa do Owlbear não tem tranca; a numeração das portas segue a ordem de criação, então teste qual é qual.
 
+## Laser como causa (1.25.2)
+
+- A causa **Uma câmera vê alguém ou um laser é cortado (Vigilância)** também vale para os **lasers** da Vigilância 1.5: escolha o laser como "câmera" do gatilho; "quem ativou" = quem cortou o feixe.
+- Botão direito num laser → **Gatilhos: esta câmera ou laser sobe o alerta** cria o gatilho pronto (alerta +1).
+
 ## Porta animada com a porta do fog do Owlbear (1.25.1)
 
 - **Criar porta animada** agora funciona quando você seleciona a **linha vermelha / ícone da porta** do Dynamic Fog (ou o próprio fog). Antes dava "selecione a linha da porta…" porque esse item é um desenho local, não um item da cena.
