@@ -100,6 +100,14 @@ O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, ronda
 
 Testes: `node test/core.mjs` e `node test/extra.mjs`
 
+## Ronda: o guarda usa o gatilho da porta (1.6)
+
+Se a porta tem um gatilho **Interagir** do Gatilhos (Porta animada, Porta com imagem ou Porta da névoa que usa essa linha como alvo), o guarda **dispara esse gatilho** em vez de mexer na linha: toca o vídeo, troca a imagem e abre a linha, tudo junto. Depois de passar, dispara o gatilho de novo para fechar.
+- O guarda espera a animação (o "a porta muda N s depois do vídeo" do efeito) antes de seguir.
+- Vale o gatilho **armado**; desarme-o para o guarda não usar (volta a abrir a linha direto). Efeito só "abrir" ou só "fechar" serve só para aquela direção; "alternar" serve para as duas.
+- O guarda aparece como "quem ativou". As condições e o Restrito do gatilho não barram o guarda (é como o ⚡ do painel); porta trancada no Smoke continua sem abrir.
+- Sem gatilho, tudo como antes (a ronda abre e fecha a linha). Precisa do Gatilhos 1.25+ instalado.
+
 ## Obstrução do Smoke em caminho e retângulo (1.5.1)
 
 As câmeras agora também param em linhas de visão do Smoke & Spectre desenhadas como **caminho (PATH)** e **retângulo**, além de linha e curva.

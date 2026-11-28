@@ -141,6 +141,25 @@ export const SMOKE_PREFIX = "com.battle-system.smoke/";
 export const isDoorLine = (i) => i?.metadata?.[`${SMOKE_PREFIX}isDoor`] === true && (i.type === "LINE" || i.type === "CURVE");
 export const doorOpenNow = (i) => i?.metadata?.[`${SMOKE_PREFIX}doorOpen`] === true;
 export const doorLockedNow = (i) => i?.metadata?.[`${SMOKE_PREFIX}isDoorLocked`] === true;
+/**
+ * Gatilho "Interagir" armado que abre (open=true) ou fecha (open=false) esta linha de porta: tem um efeito
+ * Porta animada, Porta com imagem ou Porta da névoa que a usa como alvo, com op alternar ou a certa.
+ * Devolve { id, wait (segundos até a linha mudar, para o guarda esperar) } ou null.
+ */
+export function doorTrigger(list, doorId, open) {
+  for (const t of Array.isArray(list) ? list : []) {
+    if (t?.cause !== "interact" || t.armed === false) continue;
+    for (const e of t.effects || []) {
+      if (!["animDoor", "imgDoor", "door"].includes(e.action) || !(e.targets || []).includes(doorId)) continue;
+      const op = e.doorOp || "alternar";
+      if (op !== "alternar" && op !== (open ? "abrir" : "fechar")) continue;
+      const link = String((open ? e.vfxOpen : e.vfxClose) || "").trim();
+      const video = e.action === "animDoor" && /^https?:\/\/\S+$/i.test(link);
+      return { id: t.id, wait: (video ? Math.max(0, Number(e.vfxWait) || 0) : 0) + Math.max(0, Number(e.delay) || 0) + Math.max(0, Number(t.delay) || 0) };
+    }
+  }
+  return null;
+}
 /** Menor distância do ponto p ao segmento a-b. */
 export function distSeg(p, a, b) {
   const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;

@@ -10,7 +10,7 @@ import {
   LASER, laserOf, laserOn, isLaserShape, laserSegments, laserTouched, laserWatchers, laserStep,
 } from "./core.js";
 import {
-  ruidoCfg, hears, shotRaio, rondaOf, routeOf, portasStep, isDoorLine, doorOpenNow, doorLockedNow, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel,
+  ruidoCfg, hears, shotRaio, rondaOf, routeOf, portasStep, doorTrigger, isDoorLine, doorOpenNow, doorLockedNow, patrolInit, patrolStep, investigate, hold, verdadeOf, versionFor, appearance, ETIQ, etiquetaOf, etiquetaTexto, etiquetaVisivel,
 } from "./extra.js";
 import {
   CH_RUIDO, CH_OUVIU, ID, PENDING, CH_SEEN, CH_NODE, CH_SET, CH_REQ, CH_RES, CH_PREFS, CH_VISION, APPROVE,
@@ -472,6 +472,26 @@ function onStepNoise(e) {
 
 // ---------- ronda (líder): move os guardas pela rota ----------
 let lastPatrol = 0;
+let gatilhos = []; // gatilhos da cena (extensão Gatilhos): a porta com gatilho "Interagir" é aberta por ele
+const doorBusy = new Map(); // "porta:abrir|fechar" -> até quando não dispara de novo
+const TRIG_LIST = "gatilhos/lista", CH_TRIG_FIRE = "gatilhos/disparar";
+/** Abre/fecha portas: onde há gatilho Interagir da porta, o guarda o dispara (vídeo, troca de imagem e linha juntos); nas outras, mexe na linha. Devolve a espera (ms) do guarda. */
+function useDoors(ids, open, guard, first) {
+  const now = Date.now(), plain = [];
+  let waitMs = 0;
+  for (const id of ids) {
+    const t = doorTrigger(gatilhos, id, open);
+    if (!t) { plain.push(id); continue; }
+    const key = `${id}:${open ? "abrir" : "fechar"}`;
+    if ((doorBusy.get(key) || 0) > now) continue;
+    const win = Math.round((t.wait + 1.5) * 1000);
+    doorBusy.set(key, now + (open ? Math.max(win, 6000) : win)); // se a porta não abrir (barrada), não insiste a cada instante
+    OBR.broadcast.sendMessage(CH_TRIG_FIRE, { id: t.id, force: true, on: [guard] }, { destination: "LOCAL" }).catch(() => {});
+    if (open && first.has(id)) waitMs = Math.max(waitMs, win);
+  }
+  if (plain.length) setDoors(plain, open);
+  return waitMs;
+}
 const SMK = "com.battle-system.smoke/";
 function doorList() {
   return items.filter(isDoorLine).map((it) => {
@@ -510,9 +530,10 @@ function patrolTick() {
         const had = new Set(r.st.abri || []);
         const pr = portasStep(r.st, r.pos, doors, rd, dpi);
         r.st = pr.st;
-        if (pr.abrir.some((id) => !had.has(id))) r.st.wait = Math.max(r.st.wait || 0, 600);
-        if (pr.abrir.length) doorOps.push({ ids: pr.abrir, open: true });
-        if (pr.fechar.length) doorOps.push({ ids: pr.fechar, open: false });
+        const first = new Set(pr.abrir.filter((id) => !had.has(id)));
+        if (first.size) r.st.wait = Math.max(r.st.wait || 0, 600);
+        if (pr.abrir.length) doorOps.push({ ids: pr.abrir, open: true, guard: it.id, first, st: r.st });
+        if (pr.fechar.length) doorOps.push({ ids: pr.fechar, open: false, guard: it.id, first: new Set(), st: r.st });
       }
     }
     patrols.set(it.id, r.st);
@@ -528,7 +549,10 @@ function patrolTick() {
     if (moved || turned || flip != null) upd.push({ id: it.id, pos: r.pos, rot: r.rotation, flip });
   }
   for (const id of [...patrols.keys()]) if (!alive.has(id)) patrols.delete(id);
-  for (const op of doorOps) setDoors(op.ids, op.open);
+  for (const op of doorOps) {
+    const w = useDoors(op.ids, op.open, op.guard, op.first);
+    if (w > 0) op.st.wait = Math.max(op.st.wait || 0, w); // o guarda espera a animação da porta
+  }
   if (!upd.length) return;
   const by = new Map(upd.map((u) => [u.id, u]));
   OBR.scene.items.updateItems(upd.map((u) => u.id), (d) => {
@@ -566,6 +590,7 @@ async function loadScene() {
   walls = wallsFrom([...localWalls, ...items]);
   const md0 = await OBR.scene.getMetadata();
   access = { players: [], autoApprove: false, ...(md0[ACCESS] || {}) };
+  gatilhos = Array.isArray(md0[TRIG_LIST]) ? md0[TRIG_LIST] : [];
   estGroups = Array.isArray(md0[EST_GROUPS]) ? md0[EST_GROUPS] : [];
   ruido = ruidoCfg(md0);
   prevSeen.clear(); prevState.clear();
@@ -692,6 +717,7 @@ OBR.onReady(async () => {
     access = { players: [], autoApprove: false, ...(md[ACCESS] || {}) };
     estGroups = Array.isArray(md[EST_GROUPS]) ? md[EST_GROUPS] : [];
     ruido = ruidoCfg(md);
+    gatilhos = Array.isArray(md[TRIG_LIST]) ? md[TRIG_LIST] : [];
     draw();
   });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; draw(); });

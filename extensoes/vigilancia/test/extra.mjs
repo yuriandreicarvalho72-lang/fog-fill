@@ -77,6 +77,19 @@ ok("vale o token mais perto", etiquetaVisivel(e1, at, { playerId: "a", decks: [{
 ok("marcado sem token com commlink: vê sempre", etiquetaVisivel(e1, at, { playerId: "a", decks: [], cell: 100 }), true);
 ok("só para: fora da lista não vê", [etiquetaVisivel({ ...et, para: ["ana"] }, at, { playerId: "bob" }), etiquetaVisivel({ ...et, para: ["ana"] }, at, { playerId: "ana" })], [false, true]);
 
+// ---- portas por gatilho ----
+{
+  const { doorTrigger } = await import("../src/extra.js");
+  const ef = (o) => ({ action: "animDoor", targets: ["lin"], doorOp: "alternar", vfxOpen: "https://x.io/a.webm", vfxClose: "", vfxWait: 2, delay: 0, ...o });
+  const t = (o = {}, e = {}) => ({ id: "g1", cause: "interact", armed: true, delay: 0, effects: [ef(e)], ...o });
+  ok("acha o gatilho da porta e espera a animação", doorTrigger([t()], "lin", true), { id: "g1", wait: 2 });
+  ok("fechar sem vídeo de fechar: sem espera", doorTrigger([t()], "lin", false), { id: "g1", wait: 0 });
+  ok("outra porta: nada", doorTrigger([t()], "outra", true), null);
+  ok("desarmado não vale", doorTrigger([t({ armed: false })], "lin", true), null);
+  ok("só abrir não serve para fechar", [doorTrigger([t({}, { doorOp: "abrir" })], "lin", false), doorTrigger([t({}, { doorOp: "abrir" })], "lin", true)?.id], [null, "g1"]);
+  ok("porta com imagem (sem vídeo)", doorTrigger([t({}, { action: "imgDoor" })], "lin", true), { id: "g1", wait: 0 });
+  ok("só gatilho Interagir", doorTrigger([t({ cause: "enter" })], "lin", true), null);
+}
 // ---- portas na ronda ----
 {
   const { portasStep } = await import("../src/extra.js");
