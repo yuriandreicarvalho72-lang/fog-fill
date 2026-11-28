@@ -18,6 +18,6 @@ Ferramenta de seleção só do mestre que pega **qualquer item**, inclusive os *
 
 - A área de clique é a **caixa** do item (retângulo que o contém). Um fog ou caminho torto responde dentro da caixa, não só sobre o traço; por isso a pilha por clique repetido.
 - Em cenas com milhares de itens o clique pode demorar um instante (a caixa de cada item é calculada no clique).
-- Mover não encaixa na grade e não desfaz com Ctrl+Z do Owlbear; se errar, arraste de volta (Esc durante o arrasto cancela).
+- Mover não encaixa na grade; se errar, arraste de volta.
 - Só o mestre vê a ferramenta. Aparece no Painel do Mestre como "Seleção total" (liga/desliga a visibilidade).
 - Testado no emulador (clique, pilha até o fog e o mapa, soma com Shift, caixa e caixa com Alt, mover o trancado, mapa só com Alt). Ainda não numa sala real do Owlbear: em especial se a seleção por extensão de itens trancados fica ativa para o botão direito e para o fog do Dynamic Fog.
