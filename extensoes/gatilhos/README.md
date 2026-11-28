@@ -61,6 +61,19 @@ O efeito **Porta** e a **Porta animada** já abriam a névoa do Owlbear (Dynamic
 - **Linha vermelha da porta (1.24):** no Dynamic Fog a linha vermelha com o ícone da porta é um desenho local preso ao fog, não um item da cena. Agora, selecionando essa linha/ícone: o botão direito **Gatilhos: jogadores abrem e fecham esta porta** e o "usar seleção" do efeito trocam por **o fog dono + o número daquela porta**. No botão direito, o ponto de uso vira um círculo pequeno no centro da porta (o desenho do fog é enorme).
 Limites: a névoa do Owlbear não tem tranca; a numeração das portas segue a ordem de criação, então teste qual é qual.
 
+## Prefab: copiar a porta com os gatilhos (1.26.0)
+
+O Prefabs insere uma cópia dos itens com ids novos, e os gatilhos apontam para ids; por isso a cópia vinha sem gatilho. Agora o pacote de gatilhos viaja dentro dos itens.
+
+1. Monte a porta e os gatilhos como sempre.
+2. Selecione os itens do prefab (imagem da porta, linha/fog, ponto de uso…) → botão direito → **Gatilhos: guardar nos itens (para Prefab / copiar)**. Entram no pacote todos os gatilhos que usam esses itens, mais os que eles chamam (corrente, rearmar, cancelar).
+3. Crie o prefab (Prefabs → Create Prefab) com esses mesmos itens.
+4. Ao inserir o prefab, os gatilhos são recriados sozinhos, apontando para a cópia (ids novos, armados). Itens que ficaram fora do prefab (uma lâmpada, um alarme) continuam sendo os mesmos do original.
+- Também funciona com copiar e colar do Owlbear e com várias cópias de uma vez.
+- Mudou um gatilho? Guarde de novo e refaça o prefab. **Esquecer o pacote deste item** remove o pacote.
+- Se a cópia veio sem algum item que o gatilho usa, aquele gatilho não é criado e o mestre é avisado.
+- Só o mestre líder recria. Os itens guardam uma cópia dos gatilhos no próprio metadado.
+
 ## Laser como causa (1.25.2)
 
 - A causa **Uma câmera vê alguém ou um laser é cortado (Vigilância)** também vale para os **lasers** da Vigilância 1.5: escolha o laser como "câmera" do gatilho; "quem ativou" = quem cortou o feixe.

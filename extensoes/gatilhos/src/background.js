@@ -8,6 +8,7 @@ import { condsOk } from "./conditions.js";
 import { involvedIds, animDoorPlan, META_DOOR } from "./shared.js";
 import { INV_META, ID, LIST, ALERT, ESTADOS, ALERT_CAUSES, VIG_CAM, alertLevel, alertNext, alertMatches, CH_FIRE, CH_NOTE, CH_LOG, CH_PATH, CH_HALT, CH_INTERACT, FLAG, CLIMA, CLIMA_FLASH, LUZ, ESTADOS_SET, ARSENAL_FIRE, TROCADOR_SWAP, VIG_SEEN, VIG_LASER, VIG_NODE, VIG_SET, VIG_CAUSES, VIG_VISION, VIG_NOISE, VIG_HEARD, ARSENAL_DESTROYED, ARSENAL_BLAST, ARSENAL_DETONATE, ARSENAL_CAUSES, ARSENAL_FX, ARSENAL_FX_END, ARSENAL_HAB_USE, HANDOUTS_SHOW, handoutPara, CH_DENY, CH_GIVE, META_ITEM, hasRequired, findRequired, nodeHacked, isInvItem, canGive, holderOf, nearby, denyText, attachPos, SMOKE, OBR_FOG_DOORS, OBR_FOG_DOOR_INDEX, resolveFogDoors, isFogDoor, isSmokeDoor, doorIsOpen, doorIsLocked, setDoor, url, newTrigger, newEffect, isToken, isInteract } from "./shared.js";
 import { startInteract, tryInteract } from "./interact.js";
+import { PKG, DONO, pack, orphans, instantiate } from "./prefab.js";
 
 let role = "PLAYER";
 let myId = "";               // usuário deste navegador
@@ -613,6 +614,31 @@ async function startGM() {
   for (const t of items.filter(isToken)) prevPos.set(t.id, { ...t.position });
   for (const i of items) prevVis.set(i.id, i.visible !== false);
   lastItems = items;
+  syncPrefab(items);
+}
+
+/** Cópias de itens com pacote de gatilhos (Prefabs, copiar e colar): recria os gatilhos apontando para a cópia. Só o mestre líder. */
+let prefabBusy = false;
+async function syncPrefab(items) {
+  if (prefabBusy || !items.some((i) => i.metadata?.[PKG])) return;
+  const novas = orphans(items);
+  if (!novas.length || !(await isLeader())) return;
+  prefabBusy = true;
+  try {
+    const feitos = [];
+    for (const inst of novas) {
+      const pacote = inst.carriers.map((c) => c.metadata[PKG].triggers || []).sort((a, b) => b.length - a.length)[0] || [];
+      const r = instantiate(pacote, inst);
+      // marca a cópia como dona primeiro: assim, mesmo se algo falhar, os gatilhos não se repetem a cada mudança
+      await OBR.scene.items.updateItems(inst.carriers.map((c) => c.id), (its) => { for (const it of its) it.metadata[DONO] = it.id; });
+      if (r.triggers.length) await saveTriggers((l) => [...l, ...r.triggers]);
+      feitos.push(r);
+    }
+    const n = feitos.reduce((a, r) => a + r.triggers.length, 0), pulados = feitos.reduce((a, r) => a + r.skipped, 0);
+    if (n || pulados) OBR.notification.show(`${n} gatilho${n === 1 ? "" : "s"} copiado${n === 1 ? "" : "s"} junto com os itens.${pulados ? ` ${pulados} ficou de fora porque usa um item que não veio na cópia.` : ""}`, n ? "SUCCESS" : "WARNING");
+  } catch (e) {
+    console.error("Gatilhos: prefab", e);
+  } finally { prefabBusy = false; }
 }
 
 OBR.onReady(async () => {
@@ -789,7 +815,7 @@ OBR.onReady(async () => {
     const lvl = alertLevel(md);
     if (role === "GM" && alertPrev !== null && lvl !== alertPrev) { const prev = alertPrev; alertPrev = lvl; onAlert(lvl, prev); } else if (role === "GM") alertPrev = lvl;
   });
-  OBR.scene.items.onChange((items) => { if (role === "GM") check(items); });
+  OBR.scene.items.onChange((items) => { if (role === "GM") { check(items); syncPrefab(items); } });
   OBR.scene.grid.onChange((g) => { dpi = g.dpi || dpi; gridSquare = g.type === "SQUARE"; });
 
   // a Régua avisa o caminho antes de andar: se ele passa por um gatilho que para o token,
@@ -895,6 +921,29 @@ OBR.onReady(async () => {
       t.effects = [up, msg];
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show("Pronto: quem a câmera vir faz o alerta subir 1 nível (até 3). Crie gatilhos com a causa \"O nível de alerta mudou\" para o que acontece em cada nível.", "SUCCESS");
+    },
+  });
+
+  // Prefab: guarda os gatilhos dos itens selecionados dentro deles (o Prefabs e o copiar/colar levam o pacote junto)
+  await controls.contextMenu.create({
+    id: `${ID}/prefab-guardar`,
+    icons: [{ icon: url("icon.svg"), label: "Gatilhos: guardar nos itens (para Prefab / copiar)", filter: { roles: ["GM"] } }],
+    onClick: async (ctx) => {
+      const md = await OBR.scene.getMetadata();
+      const p = pack(ctx.items, Array.isArray(md[LIST]) ? md[LIST] : []);
+      if (!p) { OBR.notification.show("Nenhum gatilho usa estes itens. Crie os gatilhos antes e selecione os itens deles (porta, linha da porta…).", "WARNING"); return; }
+      await OBR.scene.items.updateItems(ctx.items.map((i) => i.id), (its) => {
+        for (const it of its) { it.metadata[PKG] = { id: p.pkg, k: p.keys[it.id], triggers: p.triggers }; it.metadata[DONO] = it.id; }
+      });
+      OBR.notification.show(`${p.triggers.length} gatilho${p.triggers.length === 1 ? "" : "s"} guardado${p.triggers.length === 1 ? "" : "s"} em ${ctx.items.length} iten${ctx.items.length === 1 ? "" : "s"}. Agora crie o prefab com estes itens; ao inserir, os gatilhos voltam. Mudou um gatilho? Guarde de novo antes de refazer o prefab.`, "SUCCESS");
+    },
+  });
+  await controls.contextMenu.create({
+    id: `${ID}/prefab-esquecer`,
+    icons: [{ icon: url("icon.svg"), label: "Gatilhos: esquecer o pacote deste item", filter: { roles: ["GM"], some: [{ key: ["metadata", PKG], value: undefined, operator: "!=" }] } }],
+    onClick: async (ctx) => {
+      await OBR.scene.items.updateItems(ctx.items.map((i) => i.id), (its) => { for (const it of its) { delete it.metadata[PKG]; delete it.metadata[DONO]; } });
+      OBR.notification.show("Pacote de gatilhos removido destes itens (os gatilhos da cena continuam).", "SUCCESS");
     },
   });
 
