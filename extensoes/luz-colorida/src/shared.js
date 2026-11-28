@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
   blend: "SCREEN",     // como a cor se mistura com o mapa
   layer: "DRAWING",    // DRAWING = sob os tokens; ATTACHMENT = sobre os tokens
   shadows: true,       // paredes bloqueiam a cor
+  smoke: true,         // linhas de obstrução do Smoke & Spectre também bloqueiam (portas abertas deixam passar)
   maxSegments: 48,     // limite de trechos de parede considerados por vez
   dirOffset: -90,      // ajuste da direção das luzes em cone (graus)
   posMode: "local", // como o shader acha a posição no mundo: "standalone" (A) ou "viewport" (B)

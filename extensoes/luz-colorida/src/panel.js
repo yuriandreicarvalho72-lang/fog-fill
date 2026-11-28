@@ -15,6 +15,7 @@ function render() {
   $("blend").value = settings.blend;
   $("layer").value = settings.layer;
   $("shadows").checked = !!settings.shadows;
+  $("smoke").checked = settings.smoke !== false;
   $("maxSegments").value = settings.maxSegments;
   $("o-maxSegments").textContent = settings.maxSegments;
   $("dirOffset").value = settings.dirOffset;
@@ -59,6 +60,7 @@ OBR.onReady(async () => {
   $("blend").addEventListener("change", (e) => save({ blend: e.target.value }));
   $("layer").addEventListener("change", (e) => save({ layer: e.target.value }));
   $("shadows").addEventListener("change", (e) => save({ shadows: e.target.checked }));
+  $("smoke").addEventListener("change", (e) => save({ smoke: e.target.checked }));
   $("maxSegments").addEventListener("input", (e) => { $("o-maxSegments").textContent = e.target.value; });
   $("maxSegments").addEventListener("change", (e) => save({ maxSegments: Number(e.target.value) }));
   $("dirOffset").addEventListener("input", (e) => { $("o-dirOffset").textContent = `${e.target.value}°`; });

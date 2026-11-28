@@ -14,7 +14,7 @@ const MAX_VIVAS = 10;
 const live = new Map(); // id -> { itemId, timers, tag, lista }
 const sem = (s) => String(s || "").toLowerCase().trim();
 
-export async function setupPontuais({ getSettings, getPerf }) {
+export async function setupPontuais({ getSettings, getPerf, getWalls }) {
   const apaga = async (id) => {
     const r = live.get(id);
     if (!r) return;
@@ -31,7 +31,8 @@ export async function setupPontuais({ getSettings, getPerf }) {
     live.set(req.id, rec);
     const dur = req.dur === "fim" ? "fim" : Math.max(0.2, Number(req.dur) || 1.5);
     const fade = Math.max(0, Number(req.fade) || 0);
-    const b0 = buildPontual(req, s, envelope(0, dur, fade));
+    const segs = await (getWalls?.({ x: req.x, y: req.y, radius: Math.max(8, Number(req.raio) || 150) }).catch(() => []) ?? []); // sombra das paredes (Dynamic Fog e Smoke & Spectre), as de agora
+    const b0 = buildPontual(req, s, envelope(0, dur, fade), segs);
     const eff = buildEffect().effectType("STANDALONE").sksl(b0.sksl).uniforms(b0.uniforms).blendMode(s.blend).layer(s.layer)
       .position({ x: b0.rect.x, y: b0.rect.y }).width(b0.rect.w).height(b0.rect.h).locked(true).disableHit(true)
       .name("Luz pontual").metadata({ [MARCA]: true }).build();
@@ -45,7 +46,7 @@ export async function setupPontuais({ getSettings, getPerf }) {
         const q = Math.round(k * 20);
         if (q === last) return; // só atualiza quando o brilho muda de verdade
         last = q;
-        const b = buildPontual(req, s, k);
+        const b = buildPontual(req, s, k, segs);
         await OBR.scene.local.updateItems([eff.id], (d) => { for (const it of d) it.uniforms = b.uniforms; }).catch(() => {});
       }, 90);
     }

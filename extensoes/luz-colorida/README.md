@@ -16,9 +16,17 @@ Cada luz colorida é um efeito preso ao token (`attachedTo`): a cor anda junto n
 no teleporte do Gatilhos e na troca de estado do Estados. Token escondido ou apagado: a cor some junto.
 O efeito não gira nem cresce com o token (o raio vem da luz do Dynamic Fog).
 
+## Obstrução do Smoke & Spectre (1.4.0)
+
+A sombra da luz agora respeita também as **linhas de obstrução do Smoke & Spectre** (linhas e curvas com "vision line"), além das paredes do Dynamic Fog.
+- **Porta do Smoke:** fechada bloqueia a luz; aberta (ou linha desativada) deixa passar. Abrir pelo Gatilhos ou pela ronda da Vigilância atualiza a luz sozinha.
+- Vale para as luzes de token e para as **luzes pontuais** (habilidades do Arsenal, efeitos soltos), que antes não tinham sombra. Na luz pontual as paredes são as do momento em que ela acende.
+- Painel: **Obstrução do Smoke & Spectre também bloqueia** (ligado por padrão); "As paredes bloqueiam a cor" desliga toda sombra.
+- Entram no limite de trechos de parede (padrão 48; o Otimizador reduz). Só linhas e curvas; caminhos (PATH) do Smoke não entram.
+
 ## Luzes pontuais (1.3.0)
 
-Outras extensões (habilidades do Arsenal, efeitos soltos) pedem uma luz colorida num ponto do mapa, sem token: canal `luz-colorida/pontual` (`{ id, x, y, cor, raio (px), intens, anim, dur, fade }`) para luzes de até 8 s, ou a lista `luz-colorida/pontuais` no metadado da cena para as longas. Cada navegador desenha a sua, com a mesma camada e mistura dos ajustes, e apaga suavemente. Máximo de 10 ao mesmo tempo; o Otimizador (luz desligada) vale. Sem sombra de parede nessas luzes.
+Outras extensões (habilidades do Arsenal, efeitos soltos) pedem uma luz colorida num ponto do mapa, sem token: canal `luz-colorida/pontual` (`{ id, x, y, cor, raio (px), intens, anim, dur, fade }`) para luzes de até 8 s, ou a lista `luz-colorida/pontuais` no metadado da cena para as longas. Cada navegador desenha a sua, com a mesma camada e mistura dos ajustes, e apaga suavemente. Máximo de 10 ao mesmo tempo; o Otimizador (luz desligada) vale. Sombra de parede desde a 1.4.0 (ver acima).
 
 ## Limites
 - Até 16 luzes coloridas ao mesmo tempo (dá para subir no painel, até 24).

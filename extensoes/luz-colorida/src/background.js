@@ -4,6 +4,7 @@ import { buildSksl, buildUniforms, MAX_LIGHTS, animId } from "./shader.js";
 import { ID, CFG, SETTINGS, DEFAULT_SETTINGS, DF_LIGHT } from "./shared.js";
 import { readPerf, onPerf, onClean } from "./perf.js";
 import { setupPontuais } from "./pontuais.js";
+import { wallSegs, nearest } from "./paredes.js";
 
 const url = (name) => new URL(`${import.meta.env.BASE_URL}${name}`, window.location.href).href;
 const rad = (deg) => (deg * Math.PI) / 180;
@@ -21,37 +22,6 @@ function schedule(delay = 50) {
   }, delay);
 }
 
-function toWorld(item, p) {
-  const sx = item.scale?.x ?? 1, sy = item.scale?.y ?? 1;
-  const a = rad(item.rotation ?? 0);
-  const x = p.x * sx, y = p.y * sy;
-  return { x: item.position.x + x * Math.cos(a) - y * Math.sin(a), y: item.position.y + x * Math.sin(a) + y * Math.cos(a) };
-}
-
-// simplificação de polilinha (menos trechos = shader mais leve)
-function rdp(pts, eps) {
-  if (pts.length < 3) return pts;
-  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
-  const st = [[0, pts.length - 1]];
-  while (st.length) {
-    const [i0, i1] = st.pop(); const a = pts[i0], b = pts[i1];
-    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
-    let md = -1, mi = -1;
-    for (let i = i0 + 1; i < i1; i++) {
-      const d = Math.abs(dy * pts[i].x - dx * pts[i].y + b.x * a.y - b.y * a.x) / L;
-      if (d > md) { md = d; mi = i; }
-    }
-    if (md > eps) { keep[mi] = 1; st.push([i0, mi], [mi, i1]); }
-  }
-  return pts.filter((_, i) => keep[i]);
-}
-
-function segDist(px, py, s) {
-  const dx = s.bx - s.ax, dy = s.by - s.ay, L2 = dx * dx + dy * dy || 1;
-  const t = Math.max(0, Math.min(1, ((px - s.ax) * dx + (py - s.ay) * dy) / L2));
-  return Math.hypot(px - (s.ax + t * dx), py - (s.ay + t * dy));
-}
-
 // Efeitos desenhados por este navegador. Modos "local" e "standalone": um efeito POR LUZ, preso ao token
 // (attachedTo), então a cor acompanha o token na hora (arrastar, Régua, teleporte do Gatilhos, Estados).
 // Modo "viewport": um efeito só cobrindo a tela (como antes).
@@ -66,23 +36,7 @@ async function removeAll() {
 /** Trechos de parede dentro do alcance das luzes, os mais próximos primeiro. */
 function wallSegments(local, items, lights) {
   if (!settings.shadows || perf?.luz?.shadows === false) return [];
-  const walls = [...local, ...items].filter((i) => i.type === "WALL" && i.blocking !== false);
-  const all = [];
-  for (const wl of walls) {
-    const pts = rdp((wl.points || []).map((p) => toWorld(wl, p)), 3);
-    for (let k = 0; k < pts.length - 1; k++) all.push({ ax: pts[k].x, ay: pts[k].y, bx: pts[k + 1].x, by: pts[k + 1].y });
-  }
-  const scored = [];
-  for (const s of all) {
-    let best = Infinity;
-    for (const l of lights) {
-      const d = segDist(l.x, l.y, s);
-      if (d < l.radius) best = Math.min(best, d / l.radius);
-    }
-    if (best < Infinity) scored.push([best, s]);
-  }
-  scored.sort((a, b) => a[0] - b[0]);
-  return scored.slice(0, Math.min(settings.maxSegments, perf?.luz?.maxSegments ?? Infinity)).map(([, s]) => s);
+  return nearest(wallSegs([...local, ...items], { smoke: settings.smoke !== false }), lights, Math.min(settings.maxSegments, perf?.luz?.maxSegments ?? Infinity));
 }
 
 /** O que cada efeito precisa ter: { key, attach, sksl, uniforms, rect, effectType } */
@@ -233,7 +187,7 @@ OBR.onReady(async () => {
     schedule(0);
   };
   perf = readPerf();
-  setupPontuais({ getSettings: () => settings, getPerf: () => perf }).catch((e) => console.error(`[${ID}] pontuais`, e));
+  setupPontuais({ getSettings: () => settings, getPerf: () => perf, getWalls: async (l) => { const [local, items] = await Promise.all([OBR.scene.local.getItems(), OBR.scene.items.getItems()]); return wallSegments(local, items, [l]); } }).catch((e) => console.error(`[${ID}] pontuais`, e));
   onPerf((p) => { perf = p; schedule(0); });
   onClean(() => start());
   if (await OBR.scene.isReady()) await start();

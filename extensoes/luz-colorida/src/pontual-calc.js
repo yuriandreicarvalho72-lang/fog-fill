@@ -8,15 +8,15 @@ export function envelope(t, dur, fade) {
   return Math.max(0, Math.min(up, (dur - t) / fade));
 }
 
-export function buildPontual(req, settings, mult = 1) {
+export function buildPontual(req, settings, mult = 1, segs = []) {
   const radius = Math.max(8, Number(req.raio) || 150);
   const l = { x: req.x, y: req.y, radius, softness: 0.55, intensity: Math.min(1, Math.max(0.05, (Number(req.intens) || 0.7) * mult)), color: req.cor || "#ffffff", dir: 0, inner: Math.PI, outer: Math.PI, anim: animId(req.anim), speed: 1 };
   const m = 20, W = 2 * (2 * radius + 2 * m);
   const rect = { x: l.x - radius - m, y: l.y - radius - m, w: W, h: W };
   const animated = l.anim > 0;
-  const uniforms = buildUniforms([l], [], animated, { x: rect.x, y: rect.y });
+  const uniforms = buildUniforms([l], segs, animated, { x: rect.x, y: rect.y });
   uniforms.push({ name: "wsize", value: { x: W, y: W } });
   const mode = settings.posMode === "standalone" ? "standalone" : "local";
-  return { rect, uniforms, sksl: buildSksl(1, 0, mode, false, animated) };
+  return { rect, uniforms, sksl: buildSksl(1, segs.length, mode, false, animated) };
 }
 

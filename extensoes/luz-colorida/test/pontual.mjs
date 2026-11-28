@@ -16,6 +16,9 @@ for (const anim of ["none", "flicker", "beacon", "strobe"]) {
   ok(`shader ${anim} compila`, !!eff, true);
   ok(`retângulo ${anim} centrado na luz`, [b.rect.x + b.rect.w / 2 - 20 * 0, b.rect.w > 0], [b.rect.x + b.rect.w / 2, true]);
 }
+const comParede = buildPontual({ x: 500, y: 300, cor: "#ff8a1f", raio: 150, intens: 0.8 }, { posMode: "local" }, 1, [{ ax: 450, ay: 250, bx: 450, by: 350 }]);
+ok("shader com parede compila", !!CK.RuntimeEffect.Make(comParede.sksl, (e) => { bad++; console.log("ERRO shader", e); }), true);
+ok("a parede vira uniform", comParede.uniforms.some((u) => u.name === "sa0"), true);
 const k = buildPontual({ x: 0, y: 0, cor: "#fff", raio: 100, intens: 1 }, {}, 0.5);
 ok("brilho multiplicado", k.uniforms.find((u) => u.name === "la0").value.z, 0.5);
 if (bad) process.exit(1);
