@@ -76,7 +76,11 @@ export async function resolveFogDoors(OBR, ids) {
 }
 /** Quantas portas a névoa nativa tem neste item (Smoke: 1 linha = 1 porta). */
 export const fogDoorCount = (i) => (isSmokeDoor(i) ? 1 : obrDoors(i).length);
-export const doorIsOpen = (i) => (isSmokeDoor(i) ? i.metadata[`${SMOKE}doorOpen`] === true : obrDoors(i).some((d) => d?.open === true));
+export const doorIsOpen = (i, idx) => {
+  if (isSmokeDoor(i)) return i.metadata[`${SMOKE}doorOpen`] === true;
+  const hasIdx = idx !== undefined && idx !== null && idx !== "" && obrDoors(i)[Number(idx)];
+  return hasIdx ? obrDoors(i)[Number(idx)].open === true : obrDoors(i).some((d) => d?.open === true);
+};
 export const doorIsLocked = (i) => isSmokeDoor(i) && i.metadata[`${SMOKE}isDoorLocked`] === true;
 /** Muda a porta (rascunho do item). op: abrir | fechar | alternar | trancar | destrancar. Devolve o estado final (aberta?). */
 export function setDoor(it, op, idx) {

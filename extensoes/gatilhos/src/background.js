@@ -319,7 +319,7 @@ async function doEffect(e, ctx, depth, trigger) {
       const imgIds = (e.doorImgs || []).filter(Boolean);
       const imgs = imgIds.length ? await OBR.scene.items.getItems(imgIds) : [];
       if (!lines.length && !imgs.length) return warn(`"${trigger.name}": a porta animada está sem a linha da porta nem a imagem dela.`);
-      const state = lines.length ? doorIsOpen(lines[0]) : imgs[0]?.metadata?.[META_DOOR]?.open === true;
+      const state = lines.length ? doorIsOpen(lines[0], e.doorIdx) : imgs[0]?.metadata?.[META_DOOR]?.open === true;
       const p = animDoorPlan(e, state);
       if (p.noop) return null;
       if (p.opening && lines.some((d) => doorIsLocked(d) && !doorIsOpen(d))) {
@@ -334,7 +334,7 @@ async function doEffect(e, ctx, depth, trigger) {
       }
       const finish = async () => {
         if (imgs.length) OBR.broadcast.sendMessage(TROCADOR_SWAP, { targets: imgs.map((i) => i.id), to: p.to, from: trigger.name }, { destination: "ALL" }).catch(() => {});
-        if (lines.length) await OBR.scene.items.updateItems(lines.map((d) => d.id), (d) => { for (const it of d) setDoor(it, p.opening ? "abrir" : "fechar"); });
+        if (lines.length) await OBR.scene.items.updateItems(lines.map((d) => d.id), (d) => { for (const it of d) setDoor(it, p.opening ? "abrir" : "fechar", e.doorIdx); });
         if (imgs.length) await OBR.scene.items.updateItems(imgs.map((i) => i.id), (d) => { for (const it of d) it.metadata[META_DOOR] = { open: p.opening }; });
       };
       log(`🚪 ${trigger.name}: ${p.opening ? "abrindo" : "fechando"}${p.wait ? ` (em ${p.wait} s)` : ""}`);
@@ -683,13 +683,24 @@ OBR.onReady(async () => {
       filter: { roles: ["GM"], every: [{ key: "layer", value: "CHARACTER", operator: "!=" }, { key: "layer", value: "MOUNT", operator: "!=" }] },
     }],
     onClick: async (ctx) => {
-      const lines = ctx.items.filter(isFogDoor);
+      // aceita também a linha vermelha/ícone da porta do fog do Owlbear (item local): vira o fog dono + o número da porta
+      const r = await resolveFogDoors(OBR, ctx.items.map((i) => i.id));
+      const lines = (r.ids.length ? await OBR.scene.items.getItems(r.ids) : []).filter(isFogDoor);
       const imgs = ctx.items.filter((i) => i.type === "IMAGE" && !isFogDoor(i) && !isToken(i));
       if (!lines.length && !imgs.length) return OBR.notification.show("Gatilhos: selecione a linha da porta (Smoke & Spectre com Enable Door, ou a névoa) e/ou a imagem da porta, e use de novo.", "WARNING");
       const nm = names(imgs[0] || lines[0]);
-      const t = newTrigger((imgs.length ? imgs : lines).map((i) => i.id), `Porta animada: ${nm}`);
+      // fog do Owlbear sem imagem: o desenho do fog é enorme, então o ponto de uso vira um círculo pequeno no centro da porta escolhida
+      let zones = (imgs.length ? imgs : lines).map((i) => i.id);
+      if (!imgs.length && r.pos && r.idx !== "") {
+        const dpi = await OBR.scene.grid.getDpi().catch(() => 150);
+        const m = buildShape().shapeType("CIRCLE").width(dpi * 1.2).height(dpi * 1.2).position(r.pos)
+          .fillColor("#ffe9a8").fillOpacity(0.12).strokeOpacity(0).layer("PROP").locked(true).name(`Porta ${Number(r.idx) + 1} (ponto de uso)`).build();
+        await OBR.scene.items.addItems([m]);
+        zones = [m.id];
+      }
+      const t = newTrigger(zones, `Porta animada: ${nm}`);
       t.cause = "interact"; t.once = false; t.reach = 1;
-      const fx = newEffect("animDoor"); fx.targets = lines.map((i) => i.id); fx.doorImgs = imgs.map((i) => i.id); fx.doorOp = "alternar";
+      const fx = newEffect("animDoor"); fx.targets = lines.map((i) => i.id); fx.doorImgs = imgs.map((i) => i.id); fx.doorOp = "alternar"; if (r.idx !== "") fx.doorIdx = String(r.idx);
       t.effects = [fx];
       await saveTriggers((l) => [...l, t]);
       OBR.notification.show(`Porta animada criada. No painel Gatilhos, cole o link do vídeo (.webm) de abrir${imgs.length ? " e guarde as imagens fechada/aberta no Trocador (botão direito na imagem → Trocar imagem → + imagens)" : ""}.`, "SUCCESS");

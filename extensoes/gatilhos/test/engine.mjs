@@ -193,3 +193,9 @@ import { animDoorPlan } from '../src/shared.js';
   t1('sem vídeo de fechar ou com link inválido: sem vídeo, troca na hora', [animDoorPlan({ ...e, vfxClose: '' }, true).url, animDoorPlan({ ...e, vfxOpen: 'javascript:x', vfxWait: 0 }, false).url, animDoorPlan({ vfxOpen: '' }, false).wait], ['', '', 0]);
   t1('porta animada: a imagem entra na lista de itens do gatilho', involvedIds({ zones: ['img'], effects: [{ targets: ['linha'], doorImgs: ['img', 'img2'] }] }), ['img', 'linha', 'img2']);
 }
+
+// ---- porta animada com fog de várias portas: o estado vem da porta escolhida ----
+{
+  const fog = { metadata: { 'rodeo.owlbear.dynamic-fog/doors': [{ open: true, start: {}, end: {} }, { open: false, start: {}, end: {} }] } };
+  t1('doorIsOpen com índice olha só aquela porta', [doorIsOpen(fog, '0'), doorIsOpen(fog, '1'), doorIsOpen(fog, ''), doorIsOpen(fog)], [true, false, true, true]);
+}
