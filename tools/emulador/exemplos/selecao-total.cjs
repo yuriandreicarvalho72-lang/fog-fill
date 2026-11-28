@@ -14,7 +14,8 @@ const { chromium } = require('playwright');
       OBR_PLAYER_GET_ROLE: () => ({ role: 'GM' }), OBR_PLAYER_GET_ID: () => ({ id: 'gm' }), OBR_PLAYER_GET_CONNECTION_ID: () => ({ connectionId: 'c1' }),
       OBR_PARTY_GET_PLAYERS: () => ({ players: [] }), OBR_SCENE_IS_READY: () => ({ ready: true }), OBR_ROOM_GET_METADATA: () => ({ metadata: {} }),
       OBR_SCENE_ITEMS_GET_ALL_ITEMS: () => ({ items: window.items }),
-      OBR_SCENE_ITEMS_GET_ITEMS: () => ({ items: window.items }),
+      OBR_SCENE_ITEMS_GET_ITEMS: (d) => ({ items: window.items.filter((i) => !d.ids || d.ids.includes(i.id)) }),
+      OBR_SCENE_ITEMS_UPDATE_ITEMS: (d) => { for (const u of d.updates) { const it = window.items.find((i) => i.id === u.id); for (const [k, v] of Object.entries(u)) { if (k === 'position') { const dx = v.x - it.position.x, dy = v.y - it.position.y; it.position = v; it._b = { min: { x: it._b.min.x + dx, y: it._b.min.y + dy }, max: { x: it._b.max.x + dx, y: it._b.max.y + dy } }; } } } return {}; },
       OBR_SCENE_ITEMS_GET_ITEM_BOUNDS: (d) => ({ bounds: window.items.find((i) => i.id === d.ids[0])._b }),
       OBR_PLAYER_GET_SELECTION: () => ({ selection: window.sel }),
       OBR_PLAYER_SELECT: (d) => { window.sel = d.items; return {}; }, OBR_PLAYER_DESELECT: () => { window.sel = []; return {}; },
@@ -43,6 +44,27 @@ const { chromium } = require('playwright');
   await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_END', 300, 300, { altKey: true }); await p.waitForTimeout(400);
   ok('caixa com Alt: encosta no mapa, fog e cofre', (await sel()).sort(), ['cofre', 'fog', 'mapa']);
   await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 3000, 3000); await p.waitForTimeout(300); await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 3000, 3000); await p.waitForTimeout(300);
+  // mover: seleciona o cofre trancado e arrasta de dentro dele
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 150, 130); await p.waitForTimeout(300);
+  ok('cofre selecionado', await sel(), ['cofre']);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DOWN', 150, 130); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_START', 155, 130); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_MOVE', 250, 180);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_END', 250, 180); await p.waitForTimeout(600);
+  ok('arrastar o cofre trancado: moveu +100,+50', await p.evaluate(() => window.items.find((i) => i.id === 'cofre').position), { x: 200, y: 150 });
+  ok('só ele andou (fog e mapa ficam)', await p.evaluate(() => window.items.filter((i) => i.id === 'fog' || i.id === 'mapa').map((i) => i.position)), [{ x: -1000, y: -1000 }, { x: -1000, y: -1000 }]);
+  // arrastar fora do selecionado = caixa (não move)
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DOWN', 800, 800); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_START', 810, 810); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_MOVE', 900, 900);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_END', 900, 900); await p.waitForTimeout(500);
+  ok('arrastar fora do selecionado não move o cofre', await p.evaluate(() => window.items.find((i) => i.id === 'cofre').position), { x: 200, y: 150 });
+  // mapa só anda com Alt
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 3000, 3000); await p.waitForTimeout(300); await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 3000, 3000); await p.waitForTimeout(300);
+  const selMapa = await sel();
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DOWN', 3000, 3000); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_START', 3010, 3000); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_MOVE', 3100, 3000);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_END', 3100, 3000); await p.waitForTimeout(500);
+  ok('mapa selecionado, arrastar sem Alt não o move', [selMapa, await p.evaluate(() => window.items.find((i) => i.id === 'mapa').position)], [['mapa'], { x: -1000, y: -1000 }]);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 3500, 3500); await p.waitForTimeout(300); await ev('OBR_TOOL_MODE_EVENT_TOOL_CLICK', 3500, 3500); await p.waitForTimeout(300);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DOWN', 3000, 3000, { altKey: true }); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_START', 3010, 3000, { altKey: true }); await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_MOVE', 3100, 3000);
+  await ev('OBR_TOOL_MODE_EVENT_TOOL_DRAG_END', 3100, 3000); await p.waitForTimeout(500);
+  ok('com Alt o mapa anda +100', await p.evaluate(() => window.items.find((i) => i.id === 'mapa').position), { x: -900, y: -1000 });
   console.log('avisos:', JSON.stringify((await p.evaluate(() => window.notes)).slice(0, 3)));
   console.log('erros:', JSON.stringify(errs));
   await b.close();

@@ -10,10 +10,10 @@ function manifest() {
     generateBundle() {
       const m = {
         name: "Seleção total",
-        version: "1.0.0",
+        version: "1.1.0",
         manifest_version: 1,
         author: "Yuri",
-        description: "Ferramenta de seleção do mestre que pega até itens trancados, o fog e o mapa (clique, ciclo e caixa).",
+        description: "Seleção do mestre que pega itens trancados, fog e mapa (clique, caixa) e também move o que está trancado.",
         icon: `${BASE}icon.svg`,
         background_url: `${BASE}background.html`,
       };
