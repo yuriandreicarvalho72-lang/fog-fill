@@ -45,7 +45,10 @@ const render = () => (role === "GM" ? renderGM() : renderPlayer());
 function camForm(it) {
   const c = camOf(it);
   const n = nodeOf(it);
-  const ign = (c.ignore || []).map((id) => esc(itemName(items.find((i) => i.id === id)))).join(", ");
+  const ignIds = c.ignore || [];
+  const ign = ignIds.map((id) => `<span class="chip">${esc(itemName(items.find((i) => i.id === id)))} <button type="button" class="mini" data-ignrm="${esc(id)}" title="Voltar a ver">×</button></span>`).join(" ");
+  const ignCand = items.filter((i) => isToken(i) && i.id !== it.id && !ignIds.includes(i.id));
+  const ignAdd = ignCand.length ? `<select id="ignAdd"><option value="">+ escolher da lista…</option>${ignCand.map((i) => `<option value="${esc(i.id)}">${esc(itemName(i))}</option>`).join("")}</select>` : "";
   return `<div class="effect">
     <h3>📷 Câmera</h3>
     <label>Abertura <output>${c.angle}°</output><input type="range" data-cam="angle" min="10" max="360" step="5" value="${c.angle}" /></label>
@@ -59,7 +62,7 @@ function camForm(it) {
     <label class="check"><input type="checkbox" data-camb="hiddenSeen" ${c.hiddenSeen ? "checked" : ""} /> Vê tokens escondidos</label>
     <label class="check"><input type="checkbox" data-camb="verGuardas" ${c.verGuardas ? "checked" : ""} /> Vê guardas e outras câmeras (desligado: eles não ativam esta câmera)</label>
     <label class="check"><input type="checkbox" data-camb="ouve" ${c.ouve ? "checked" : ""} /> 👂 Ouve ruídos (tiros, barulhos${ruido.on ? "" : "; o ruído está desligado na cena"})</label>
-    <div class="sub">Não vê (aliados): ${ign || '<span class="hint">ninguém</span>'} <button type="button" class="mini" id="ignSel">usar seleção</button> ${ign ? '<button type="button" class="mini" id="ignClr">limpar</button>' : ""}</div>
+    <div class="sub">Não vê (aliados): ${ign || '<span class="hint">ninguém</span>'} ${ignAdd} <button type="button" class="mini" id="ignSel">usar seleção</button> ${ign ? '<button type="button" class="mini" id="ignClr">limpar</button>' : ""}</div>
     <div class="row"><span class="hint grow">Estado: ${chip(n?.state || "ativo")}</span><button type="button" class="mini danger" id="camDel">deixar de ser câmera</button></div>
   </div>`;
 }
@@ -241,6 +244,8 @@ function bindGM() {
   }
   for (const el of document.querySelectorAll("[data-camb]")) el.onchange = () => editCam(one.id, (c) => ({ ...c, [el.dataset.camb]: el.checked }));
   $("ignSel")?.addEventListener("click", async () => { const s = (await OBR.player.getSelection()) || []; editCam(one.id, (c) => ({ ...c, ignore: [...new Set([...(c.ignore || []), ...s.filter((x) => x !== one.id)])] })); });
+  $("ignAdd")?.addEventListener("change", (e) => { const v = e.target.value; if (v) editCam(one.id, (c) => ({ ...c, ignore: [...new Set([...(c.ignore || []), v])] })); });
+  for (const el of document.querySelectorAll("[data-ignrm]")) el.onclick = () => editCam(one.id, (c) => ({ ...c, ignore: (c.ignore || []).filter((x) => x !== el.dataset.ignrm) }));
   $("ignClr")?.addEventListener("click", () => editCam(one.id, (c) => ({ ...c, ignore: [] })));
   $("camDel")?.addEventListener("click", () => OBR.scene.items.updateItems([one.id], (d) => { for (const it of d) { delete it.metadata[CAM]; if (it.metadata[NODE]?.type === "camera") delete it.metadata[NODE]; } }));
   for (const el of document.querySelectorAll("[data-node]")) el.onchange = () => editNode(one.id, (n) => ({ ...n, [el.dataset.node]: el.value.trim() || n[el.dataset.node] }));

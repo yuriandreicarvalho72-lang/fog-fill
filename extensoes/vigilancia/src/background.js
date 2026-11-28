@@ -523,6 +523,13 @@ OBR.onReady(async () => {
   });
   OBR.party.onChange(() => refreshLeader());
 
+  // ----- ícone do comlink na barra lateral (o jogador abre o painel da Matriz) -----
+  await controls.tool.createAction({
+    id: `${ID}/comlink`,
+    icons: [{ icon: url("comlink.svg"), label: "Comlink (Matriz: nós ao redor e câmeras)", filter: { roles: ["PLAYER"] } }],
+    onClick: () => { controls.openPanel().catch(() => {}); },
+  });
+
   // ----- menus do botão direito -----
   const GM = { roles: ["GM"] };
   await controls.contextMenu.create({

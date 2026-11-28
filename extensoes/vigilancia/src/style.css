@@ -98,3 +98,7 @@ body.pop main { padding: 10px 12px; }
 button.ok { background: #2e7d4f; border-color: #3ddc84; }
 .chip { white-space: nowrap; }
 .mrow .chip { font-size: 11px; padding: 0 6px; }
+
+.chip { display: inline-block; background: rgba(255,255,255,.08); border-radius: 10px; padding: 1px 4px 1px 8px; margin: 0 2px 2px 0; }
+.chip .mini { padding: 0 5px; }
+#ignAdd { max-width: 100%; margin: 2px 0; }

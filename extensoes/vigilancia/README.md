@@ -100,6 +100,11 @@ O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, ronda
 
 Testes: `node test/core.mjs` e `node test/extra.mjs`
 
+## Ignorar por lista e ícone do comlink (1.4.2)
+
+- **Não vê (aliados):** agora há uma **lista para escolher** (e × para voltar a ver) no painel da câmera. Antes só dava com "usar seleção", que trocava a seleção e fechava o painel da câmera. "usar seleção" continua existindo.
+- **Ícone do comlink** na barra lateral de ferramentas do Owlbear (só para jogadores): um toque abre o painel da Matriz (nós ao redor, hackear, ver pela câmera).
+
 ## Guardas não ativam a câmera (1.4.1)
 
 - Antes, uma câmera que via um guarda (um token que também é câmera) disparava o aviso e os gatilhos "câmera vê alguém". Agora ela ignora guardas e outras câmeras.
