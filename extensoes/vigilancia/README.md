@@ -100,6 +100,12 @@ O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, ronda
 
 Testes: `node test/core.mjs` e `node test/extra.mjs`
 
+## Guardas não ativam a câmera (1.4.1)
+
+- Antes, uma câmera que via um guarda (um token que também é câmera) disparava o aviso e os gatilhos "câmera vê alguém". Agora ela ignora guardas e outras câmeras.
+- Para uma câmera específica ver guardas de novo (ex.: vigiar guardas inimigos), marque **Vê guardas e outras câmeras** no painel dela.
+- Guarda que não foi transformado em câmera continua sendo visto; use "Não vê (aliados)" para ignorá-lo.
+
 ## Ver pela câmera e nós ao redor (1.4.0)
 
 - **Painel Matriz (só quem tem commlink/cyberdeck):** o painel lateral lista os **nós ao redor**, ordenados pela distância (em quadrados) até o commlink mais perto do jogador. O campo **Alcance do seu commlink** (padrão 12; 0 = todos) esconde o que está longe e diz quantos ficaram de fora. Jogador liberado pelo mestre sem token com commlink vê todos, sem distância. Quem não tem acesso continua vendo só o aviso.

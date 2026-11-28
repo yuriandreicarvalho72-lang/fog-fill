@@ -90,3 +90,13 @@ ok("câmera do térreo não vê quem está em cima", seenBy(camDown, [camDown, u
   ok("alcance 0 = todos", nodesAround([n('c', 3000)], [{ x: 0, y: 0 }], 100, 0).perto.length, 1);
   ok("sem commlink (acesso do mestre): todos, sem distância", nodesAround([n('a', 5)], [], 100, 10).perto.map((x) => x.dist), [null]);
 }
+
+// ---- guardas não ativam a câmera ----
+{
+  const cam = { id: 'c', layer: 'PROP', type: 'IMAGE', position: { x: 0, y: 0 }, metadata: { [CAM]: { angle: 360, range: 10 } } };
+  const guarda = { id: 'g', type: 'IMAGE', layer: 'CHARACTER', position: { x: 100, y: 0 }, metadata: { [CAM]: { angle: 90, range: 5 } } };
+  const pc = { id: 'p', type: 'IMAGE', layer: 'CHARACTER', position: { x: 0, y: 100 }, metadata: {} };
+  ok("câmera não vê guarda por padrão, vê o jogador", seenBy(cam, [cam, guarda, pc], [], 100), ['p']);
+  const cam2 = { ...cam, metadata: { [CAM]: { angle: 360, range: 10, verGuardas: true } } };
+  ok("com 'vê guardas' ligado, vê os dois", seenBy(cam2, [cam2, guarda, pc], [], 100).sort(), ['g', 'p']);
+}

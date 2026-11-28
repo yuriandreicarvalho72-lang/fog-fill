@@ -57,6 +57,7 @@ function camForm(it) {
     <label class="check"><input type="checkbox" data-camb="showAll" ${c.showAll ? "checked" : ""} /> Jogadores também veem o cone</label>
     <label class="check"><input type="checkbox" data-camb="alertAll" ${c.alertAll ? "checked" : ""} /> Avisar os jogadores quando ela vê alguém</label>
     <label class="check"><input type="checkbox" data-camb="hiddenSeen" ${c.hiddenSeen ? "checked" : ""} /> Vê tokens escondidos</label>
+    <label class="check"><input type="checkbox" data-camb="verGuardas" ${c.verGuardas ? "checked" : ""} /> Vê guardas e outras câmeras (desligado: eles não ativam esta câmera)</label>
     <label class="check"><input type="checkbox" data-camb="ouve" ${c.ouve ? "checked" : ""} /> 👂 Ouve ruídos (tiros, barulhos${ruido.on ? "" : "; o ruído está desligado na cena"})</label>
     <div class="sub">Não vê (aliados): ${ign || '<span class="hint">ninguém</span>'} <button type="button" class="mini" id="ignSel">usar seleção</button> ${ign ? '<button type="button" class="mini" id="ignClr">limpar</button>' : ""}</div>
     <div class="row"><span class="hint grow">Estado: ${chip(n?.state || "ativo")}</span><button type="button" class="mini danger" id="camDel">deixar de ser câmera</button></div>

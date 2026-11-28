@@ -18,7 +18,7 @@ export const STATE_COLOR = { ativo: "#4fc3ff", desativado: "#8a8f98", loop: "#c0
 export const iconOf = (type) => TYPES.find((t) => t[0] === type)?.[2] || "◈";
 export const stateLabel = (s) => STATES.find((x) => x[0] === s)?.[1] || s;
 
-export const DEFAULT_CAM = { angle: 90, range: 8, dir: 0, sweep: 0, period: 8, showAll: false, alertAll: false, ignore: [], hiddenSeen: false, ouve: false };
+export const DEFAULT_CAM = { angle: 90, range: 8, dir: 0, sweep: 0, period: 8, showAll: false, alertAll: false, ignore: [], hiddenSeen: false, ouve: false, verGuardas: false };
 
 export const camOf = (it) => (it?.metadata?.[CAM] ? { ...DEFAULT_CAM, ...it.metadata[CAM] } : null);
 export function nodeOf(it) {
@@ -136,6 +136,7 @@ export function seenBy(camItem, items, walls, cell, now = Date.now(), groups = [
   const dir = coneDir(camItem, cam, now);
   const ignore = new Set(cam.ignore || []);
   return items.filter((t) => isToken(t) && t.id !== camItem.id && !ignore.has(t.id)
+    && (cam.verGuardas || !camOf(t)) // guardas e outras câmeras não disparam a câmera (a menos que ligado)
     && sameFloor(camItem, t)
     && (cam.hiddenSeen || presentVisible(t, groups))
     && sees(camItem.position, dir, cam, t.position, walls, cell)).map((t) => t.id);
