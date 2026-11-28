@@ -5,6 +5,7 @@ export const CAM = "vigilancia/camera";     // metadado do item: configuração 
 export const NODE = "vigilancia/no";        // metadado do item: nó da Matriz { name, type, state, hidden }
 export const DECK = "vigilancia/commlink";  // metadado do token: tem commlink/cyberdeck (o dono do token vê a Matriz)
 export const ACCESS = "vigilancia/acesso";  // metadado da cena: { players: [id do jogador] }
+export const FEED = "vigilancia/assistindo"; // metadado do jogador: id da câmera que ele está vendo
 export const ARSENAL_OWNER = "arsenal/dono"; // dono do token marcado no Arsenal (também conta como dono)
 
 export const STATES = [
@@ -145,6 +146,37 @@ export function hasAccess(playerId, role, items, access) {
   if (role === "GM") return true;
   if ((access?.players || []).includes(playerId)) return true;
   return items.some((i) => i.metadata?.[DECK] === true && (i.createdUserId === playerId || i.metadata?.[ARSENAL_OWNER] === playerId));
+}
+
+/**
+ * Nós da Matriz ao redor: distância (em quadrados) do nó até o commlink/cyberdeck mais perto do jogador.
+ * Sem token com commlink (liberado só pelo mestre) não há "ao redor": devolve todos, sem distância.
+ * raio 0 = sem limite. Devolve { perto: [{ item, dist }] ordenado, longe: [item], temDeck }.
+ */
+export function nodesAround(nodes, decks, dpi, raio) {
+  if (!decks.length) return { perto: nodes.map((item) => ({ item, dist: null })), longe: [], temDeck: false };
+  const rows = nodes.map((item) => ({ item, dist: Math.min(...decks.map((d) => Math.hypot(item.position.x - d.x, item.position.y - d.y))) / dpi }));
+  const near = rows.filter((r) => !(raio > 0) || r.dist <= raio).sort((a, b) => a.dist - b.dist);
+  return { perto: near, longe: rows.filter((r) => !near.includes(r)).map((r) => r.item), temDeck: true };
+}
+
+/** Este jogador pode ver pela câmera? Jogador: só câmera HACKEADA e com acesso à Matriz. Mestre: qualquer câmera (para testar). */
+export function canWatch(it, playerId, role, items, access) {
+  if (!camOf(it)) return false;
+  if (role === "GM") return true;
+  return (nodeOf(it)?.state ?? "ativo") === "hackeado" && hasAccess(playerId, role, items, access);
+}
+
+/** Máscara "vendo pela câmera": retângulo enorme com o cone como buraco (comandos relativos à posição da câmera). */
+export function maskCommands(coneCmds, big = 100000) {
+  return [[0, -big, -big], [1, big, -big], [1, big, big], [1, -big, big], [5], ...coneCmds];
+}
+/** Caixa (mín/máx) de um conjunto de comandos de caminho, somada à posição. */
+export function cmdsBounds(cmds, pos) {
+  const xs = [], ys = [];
+  for (const c of cmds) if (c.length >= 3) { xs.push(pos.x + c[1]); ys.push(pos.y + c[2]); }
+  if (!xs.length) return null;
+  return { min: { x: Math.min(...xs), y: Math.min(...ys) }, max: { x: Math.max(...xs), y: Math.max(...ys) } };
 }
 
 /** Pedido de hack: qual estado o nó vai ter. */

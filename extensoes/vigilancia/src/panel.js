@@ -3,13 +3,14 @@ import "./compact.js";
 // Painel da Vigilância. Mestre: monta câmeras e nós, decide pedidos de hack, diz quem vê a Matriz.
 // Jogador com commlink/cyberdeck: vê os nós e pede para hackear, pôr em loop, desativar ou reativar.
 import OBR from "@owlbear-rodeo/sdk";
-import { CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
+import { FEED, canWatch, nodesAround, CAM, NODE, DECK, STATES, TYPES, ACTIONS, STATE_COLOR, camOf, nodeOf, hasAccess, iconOf, stateLabel, isToken, VISION, ONLY, MODES, visionOf, ownedBy, modeLabel } from "./core.js";
 import { ruidoCfg, rondaOf, routeOf, verdadeOf, VERDADE, DEFAULT_RONDA, ETIQ, DEFAULT_ETIQ } from "./extra.js";
 import { editEtiqueta, fazerRuido, setRuido, editRonda, addPonto, clearRota, editVerdade, PENDING, CH_REQ, CH_RES, CH_VISION, getPrefs, setPrefs, getAccess, setAccess, makeCamera, makeNode, editCam, editNode, setState, decide, itemName, applyTheme } from "./ops.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 let role = "PLAYER", myId = "";
+let watching = "", dpiP = 150;
 let items = [], sel = [], pending = [], access = { players: [], autoApprove: false }, players = [], ruido = ruidoCfg({});
 const asked = new Map(); // jogador: nó -> ação pedida (para mostrar "aguardando")
 
@@ -23,10 +24,11 @@ function panelSig(list, selection, md, plist) {
   const keep = (m) => Object.fromEntries(Object.entries(m || {}).filter(([k]) => k.startsWith("vigilancia/") && k !== "vigilancia/olhar"));
   return JSON.stringify([
     list.map((i) => [i.id, i.name, i.layer, i.visible, i.createdUserId, i.text?.plainText, keep(i.metadata)]),
-    selection, md, plist.map((p) => [p.id, p.name, p.role]),
+    selection, watching, md, plist.map((p) => [p.id, p.name, p.role]),
   ]);
 }
 async function load() {
+  dpiP = await OBR.scene.grid.getDpi().catch(() => dpiP);
   [items, sel, players] = await Promise.all([OBR.scene.items.getItems(), OBR.player.getSelection().then((s) => s || []), OBR.party.getPlayers().catch(() => [])]);
   const md = await OBR.scene.getMetadata();
   pending = Array.isArray(md[PENDING]) ? md[PENDING] : [];
@@ -326,16 +328,25 @@ function renderPlayer() {
     bindVision();
     return;
   }
-  const nodes = items.filter((i) => nodeOf(i) && !nodeOf(i).hidden && i.visible !== false);
-  $("main").innerHTML = `<h1>Matriz</h1>
-    <label class="check"><input type="checkbox" id="pRa" ${prefs.ra ? "checked" : ""} /> Ver a camada RA no mapa</label>
-    <p class="hint">Escolha o que fazer com um nó: o mestre decide (role o teste dele).</p>
-    ${nodes.length ? nodes.map((i) => { const n = nodeOf(i); const wait = asked.get(i.id); return `<div class="effect">
-      <div class="row"><span class="ico">${iconOf(n.type)}</span><b class="grow mname">${esc(n.name)}</b>${chip(n.state)}</div>
+  const all = items.filter((i) => nodeOf(i) && !nodeOf(i).hidden && i.visible !== false);
+  const decks = ownedBy(myId, items).filter((i) => i.metadata?.[DECK] === true).map((i) => i.position);
+  const raio = Number.isFinite(Number(prefs.raio)) ? Number(prefs.raio) : 12;
+  const ar = nodesAround(all, decks, dpiP, raio);
+  const row = ({ item: i, dist }) => { const n = nodeOf(i); const wait = asked.get(i.id); return `<div class="effect">
+      <div class="row"><span class="ico">${iconOf(n.type)}</span><b class="grow mname">${esc(n.name)}</b>${dist != null ? `<span class="tag">${dist < 10 ? dist.toFixed(1) : Math.round(dist)} ▢</span>` : ""}${chip(n.state)}</div>
+      ${canWatch(i, myId, role, items, access) ? `<div class="btns"><button type="button" class="mini" data-feed="${watching === i.id ? "" : i.id}">${watching === i.id ? "■ Parar de ver a câmera" : "👁 Ver pela câmera"}</button></div>` : (camOf(i) ? '<p class="hint">Para ver por esta câmera, hackeie-a primeiro.</p>' : "")}
       ${wait ? `<p class="hint">Aguardando o mestre: ${esc(stateLabel(wait))}…</p>` : `<div class="btns">${ACTIONS.filter(([v]) => v !== n.state).map(([v, l]) => `<button type="button" class="mini" data-req="${i.id}" data-act="${v}">${l}</button>`).join("")}</div>`}
-    </div>`; }).join("") : '<p class="hint">Nenhum nó da Matriz por aqui.</p>'}
+    </div>`; };
+  $("main").innerHTML = `<h1>Matriz: nós ao redor</h1>
+    <label class="check"><input type="checkbox" id="pRa" ${prefs.ra ? "checked" : ""} /> Ver a camada RA no mapa</label>
+    ${ar.temDeck ? `<label>Alcance do seu commlink (quadrados, 0 = todos)<input type="number" id="pRaio" min="0" step="1" value="${raio}" /></label>` : '<p class="hint">Seu acesso foi liberado pelo mestre (sem token com commlink): aparecem todos os nós.</p>'}
+    <p class="hint">Escolha o que fazer com um nó: o mestre decide (role o teste dele).</p>
+    ${ar.perto.length ? ar.perto.map(row).join("") : '<p class="hint">Nenhum nó da Matriz ao seu alcance.</p>'}
+    ${ar.longe.length ? `<p class="hint">${ar.longe.length} nó(s) fora do alcance (aumente o alcance para ver).</p>` : ""}
     ${vis}`;
+  $("pRaio")?.addEventListener("change", (e) => { setPrefs({ ...getPrefs(), raio: Math.max(0, Number(e.target.value) || 0) }); render(); });
   $("pRa").onchange = (e) => setPrefs({ ...getPrefs(), ra: e.target.checked });
+  for (const b of document.querySelectorAll("[data-feed]")) b.onclick = () => OBR.player.setMetadata({ [FEED]: b.dataset.feed });
   for (const b of document.querySelectorAll("[data-req]")) {
     b.onclick = () => {
       asked.set(b.dataset.req, b.dataset.act);
@@ -356,6 +367,7 @@ OBR.onReady(async () => {
   applyTheme(await OBR.theme.getTheme());
   role = await OBR.player.getRole();
   myId = await OBR.player.getId();
+  watching = (await OBR.player.getMetadata().catch(() => ({})))?.[FEED] || "";
   if (await OBR.scene.isReady()) await load();
   OBR.scene.onReadyChange((r) => r && load());
   let tm = null;
@@ -367,6 +379,6 @@ OBR.onReady(async () => {
   });
   OBR.scene.onMetadataChange(later);
   OBR.party.onChange(later);
-  OBR.player.onChange((p) => { if (JSON.stringify(p.selection || []) !== JSON.stringify(sel)) later(); });
+  OBR.player.onChange((p) => { const w = p.metadata?.[FEED] || ""; if (w !== watching) { watching = w; later(); } if (JSON.stringify(p.selection || []) !== JSON.stringify(sel)) later(); });
   OBR.broadcast.onMessage(CH_RES, (e) => { if (e.data?.by === myId && !e.data.ok) { for (const [id] of asked) if (items.find((i) => i.id === id && nodeOf(i)?.name === e.data.nodeName)) asked.delete(id); later(); } });
 });

@@ -99,3 +99,10 @@ O painel só se redesenha quando algo que ele mostra muda (câmeras, nós, ronda
   `vigilancia/ruido` { on, tiro, corpo, passos, paredes } na cena; `vigilancia/acesso` e `vigilancia/pedidos` na cena. Cones e etiquetas da Matriz são itens locais (nada é salvo na cena).
 
 Testes: `node test/core.mjs` e `node test/extra.mjs`
+
+## Ver pela câmera e nós ao redor (1.4.0)
+
+- **Painel Matriz (só quem tem commlink/cyberdeck):** o painel lateral lista os **nós ao redor**, ordenados pela distância (em quadrados) até o commlink mais perto do jogador. O campo **Alcance do seu commlink** (padrão 12; 0 = todos) esconde o que está longe e diz quantos ficaram de fora. Jogador liberado pelo mestre sem token com commlink vê todos, sem distância. Quem não tem acesso continua vendo só o aviso.
+- **Ver pela câmera:** o botão **👁 Ver pela câmera** aparece só para câmeras **hackeadas** (o hack já passa pela aprovação do mestre). A tela do jogador é **enquadrada na câmera** e tudo fora do cone fica **escuro** (máscara local na camada Pointer, só nesta tela; o cone respeita as paredes e acompanha a varredura). **■ Parar de ver a câmera** devolve o enquadramento. Se o mestre desfaz o hack (ou a câmera some), a visão cai sozinha. O mestre pode ver por qualquer câmera, para testar.
+- **Limite:** o Owlbear não deixa um jogador ver o mapa que o fog dele esconde. A máscara escurece o resto, mas dentro do cone continua valendo o fog do jogador: para ele ver a área, ela precisa estar revelada.
+- Testes: `node test/core.mjs`; `tools/emulador/exemplos/vigilancia-ver-pela-camera.cjs`.

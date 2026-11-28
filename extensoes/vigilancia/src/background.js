@@ -5,7 +5,7 @@ import { controls } from "./visibility.js";
 import OBR, { buildPath, buildLabel, buildShape, buildEffect, buildCurve } from "@owlbear-rodeo/sdk";
 import {
   CAM, NODE, DECK, ACCESS, STATE_COLOR, camOf, camOn, nodeOf, coneDir, toWorld, OLHAR, olharOf, conePolygon, seenBy, wallsFrom,
-  hasAccess, nodeChanges, doorLock, iconOf, stateLabel,
+  hasAccess, canWatch, maskCommands, cmdsBounds, FEED, nodeChanges, doorLock, iconOf, stateLabel,
   VISION, ONLY, TINT, activeModes, toggleVision, visionOf, ownedBy, EST_GROUPS, sameFloor,
 } from "./core.js";
 import {
@@ -28,6 +28,8 @@ let prefs = getPrefs();
 let perf = null; // perfil do Otimizador neste navegador (null = sem perfil): filtro de cor e frequência da varredura
 let lastSweep = 0;
 let dpi = 150;
+let watch = "";      // câmera que ESTE jogador está vendo (metadado do jogador)
+let viewBefore = null; // enquadramento antes de ver pela câmera
 let ready = false;
 let estGroups = []; // prédios/andares do Estados (câmeras só veem o próprio andar)
 let ruido = ruidoCfg({});    // chave geral e alcances do ruído (metadado da cena)
@@ -96,6 +98,16 @@ function wanted(now) {
             .layer("DRAWING").name(`Cone: ${itemName(it)}`)).id(lid("cone", it.id)).build(),
         });
       }
+    }
+    // ver pela câmera: escurece tudo fora do cone, só nesta tela
+    if (cam && watch === it.id && canWatch(it, myId, role, items, access)) {
+      const cmds = maskCommands(coneCommands(it, cam, now));
+      out.set(lid("feed", it.id), {
+        sig: JSON.stringify([it.position, cmds]),
+        live: { cmds, mask: true },
+        build: () => tag(buildPath().position(it.position).commands(cmds).fillRule("evenodd").fillColor("#05070a").fillOpacity(0.9)
+          .strokeOpacity(0).strokeWidth(0).layer("POINTER").name(`Vendo pela câmera: ${itemName(it)}`)).id(lid("feed", it.id)).build(),
+      });
     }
     // visão especial: o item "só em térmica/baixa luz" fica escondido; quem tem o modo ligado vê uma cópia local
     const only = it.metadata?.[ONLY];
@@ -213,9 +225,10 @@ async function draw() {
         await OBR.scene.local.updateItems(relive, (d) => {
           for (const it of d) {
             const w = want.get(it.id);
-            const camItem = items.find((x) => lid("cone", x.id) === it.id);
+            const camItem = items.find((x) => lid("cone", x.id) === it.id || lid("feed", x.id) === it.id);
             if (camItem) it.position = { ...camItem.position };
             it.commands = w.live.cmds;
+            if (w.live.mask) continue;
             it.style.fillColor = w.live.look.fill; it.style.fillOpacity = w.live.look.op;
             it.style.strokeColor = w.live.look.stroke; it.style.strokeDash = w.live.look.dash;
           }
@@ -237,6 +250,39 @@ async function clearLocal() {
   const mine = (await OBR.scene.local.getItems().catch(() => [])).filter((i) => i.metadata?.[LOCAL]);
   if (mine.length) await OBR.scene.local.deleteItems(mine.map((i) => i.id)).catch(() => {});
   shown.clear();
+}
+
+// ---------- ver pela câmera (só nesta tela) ----------
+async function stopWatching(msg) {
+  if (watch) { watch = ""; await OBR.player.setMetadata({ [FEED]: "" }).catch(() => {}); }
+  if (viewBefore) {
+    const v = viewBefore; viewBefore = null;
+    await OBR.viewport.setPosition(v.pos).catch(() => {}); await OBR.viewport.setScale(v.scale).catch(() => {});
+  }
+  if (msg) OBR.notification.show(msg, "INFO");
+  draw();
+}
+/** Liga/desliga o modo conforme o metadado do jogador; sai sozinho se a câmera deixou de poder ser vista. */
+async function syncFeed(want) {
+  want = want || "";
+  const it = items.find((i) => i.id === want);
+  if (want && !(it && canWatch(it, myId, role, items, access))) {
+    watch = want;
+    return stopWatching("Matriz: a conexão com a câmera caiu.");
+  }
+  if (want === watch) return;
+  const entering = !!want && !watch;
+  watch = want;
+  if (entering && !viewBefore) viewBefore = { pos: await OBR.viewport.getPosition().catch(() => ({ x: 0, y: 0 })), scale: await OBR.viewport.getScale().catch(() => 1) };
+  if (!want) return stopWatching();
+  draw();
+  const cam = camOf(it);
+  const b = cmdsBounds(coneCommands(it, cam, Date.now()), it.position);
+  if (b) {
+    const m = dpi * 2;
+    const min = { x: b.min.x - m, y: b.min.y - m }, max = { x: b.max.x + m, y: b.max.y + m };
+    await OBR.viewport.animateToBounds({ min, max, center: { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 }, width: max.x - min.x, height: max.y - min.y }).catch(() => {});
+  }
 }
 
 // ---------- mestre líder: quem as câmeras veem, nós que mudaram ----------
@@ -461,6 +507,8 @@ async function loadScene() {
   for (const it of items) if (camOf(it)) prevSeen.set(it.id, new Set(seenBy(it, items, walls, dpi, Date.now(), estGroups)));
   ready = true;
   draw();
+  const pm = await OBR.player.getMetadata().catch(() => ({}));
+  if (pm?.[FEED]) syncFeed(pm[FEED]);
 }
 
 OBR.onReady(async () => {
@@ -468,7 +516,11 @@ OBR.onReady(async () => {
   myId = await OBR.player.getId().catch(() => "");
   myConn = await OBR.player.getConnectionId().catch(() => "");
   await refreshLeader();
-  OBR.player.onChange((p) => { if (p.role !== role) { role = p.role; refreshLeader(); draw(); } });
+  OBR.player.onChange((p) => {
+    if (p.role !== role) { role = p.role; refreshLeader(); draw(); }
+    const w = p.metadata?.[FEED] || "";
+    if (w !== watch) syncFeed(w);
+  });
   OBR.party.onChange(() => refreshLeader());
 
   // ----- menus do botão direito -----
@@ -541,7 +593,7 @@ OBR.onReady(async () => {
   // ----- cena -----
   if (await OBR.scene.isReady()) await loadScene();
   OBR.scene.onReadyChange((r) => { if (r) loadScene(); else { ready = false; shown.clear(); } });
-  OBR.scene.items.onChange((list) => { items = list; walls = wallsFrom([...localWalls, ...items]); watchNodes(); draw(); });
+  OBR.scene.items.onChange((list) => { items = list; walls = wallsFrom([...localWalls, ...items]); watchNodes(); if (watch) syncFeed(watch); draw(); });
   OBR.scene.local.onChange((list) => {
     const w = list.filter((i) => i.type === "WALL" || i.metadata?.["com.battle-system.smoke/isVisionLine"]);
     const sig = JSON.stringify(w.map((i) => [i.id, i.position, i.rotation, i.points, i.blocking]));

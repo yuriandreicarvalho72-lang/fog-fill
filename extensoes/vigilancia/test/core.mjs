@@ -1,4 +1,4 @@
-import { CAM, NODE, DECK, wallsFrom, rayDist, blocked, inCone, sees, coneDir, conePolygon, seenBy, camOn, nodeOf, hasAccess, nodeChanges, doorLock } from "../src/core.js";
+import { nodesAround, canWatch, maskCommands, cmdsBounds, CAM, NODE, DECK, wallsFrom, rayDist, blocked, inCone, sees, coneDir, conePolygon, seenBy, camOn, nodeOf, hasAccess, nodeChanges, doorLock } from "../src/core.js";
 const ok = (n, v, e) => console.log((JSON.stringify(v) === JSON.stringify(e) ? "ok  " : "ERRO") + " " + n + ": " + JSON.stringify(v));
 const r1 = (v) => Math.round(v * 10) / 10;
 
@@ -67,3 +67,26 @@ ok("token escondido só porque o andar dele não é o mostrado: presente", prese
 ok("mesmo andar / outro andar / sem andar", [sameFloor(camUp, up), sameFloor(camDown, up), sameFloor(camera, up)], [true, false, true]);
 ok("câmera do andar de cima vê o token de cima (mesmo com o térreo mostrado)", seenBy(camUp, [camUp, up], [], cell, 0, groups), ["u"]);
 ok("câmera do térreo não vê quem está em cima", seenBy(camDown, [camDown, up], [], cell, 0, groups), []);
+
+// ---- ver pela câmera ----
+{
+  const dk = { id: 'tk', metadata: { [DECK]: true }, createdUserId: 'p1' };
+  const camH = { id: 'c1', position: { x: 100, y: 100 }, metadata: { [CAM]: {}, [NODE]: { state: 'hackeado' } } };
+  const camA = { id: 'c2', position: { x: 0, y: 0 }, metadata: { [CAM]: {} } };
+  const semCam = { id: 'x', metadata: {} };
+  ok("ver pela câmera: jogador com commlink só vê câmera hackeada", [canWatch(camH, 'p1', 'PLAYER', [dk], {}), canWatch(camA, 'p1', 'PLAYER', [dk], {})], [true, false]);
+  ok("ver pela câmera: sem commlink não vê", canWatch(camH, 'p2', 'PLAYER', [dk], {}), false);
+  ok("ver pela câmera: item que não é câmera não serve; mestre vê qualquer câmera", [canWatch(semCam, 'p1', 'PLAYER', [dk], {}), canWatch(camA, 'gm', 'GM', [], {})], [false, true]);
+  const m = maskCommands([[0, 0, 0], [1, 50, 0], [1, 0, 50], [5]], 1000);
+  ok("máscara: retângulo grande + buraco do cone", [m.length, m[0], m[4], m[5]], [9, [0, -1000, -1000], [5], [0, 0, 0]]);
+  ok("caixa do cone somada à posição da câmera", cmdsBounds([[0, 0, 0], [1, 50, 0], [1, 0, -20], [5]], { x: 100, y: 100 }), { min: { x: 100, y: 80 }, max: { x: 150, y: 100 } });
+}
+
+// ---- nós ao redor ----
+{
+  const n = (id, x) => ({ id, position: { x, y: 0 } });
+  const r = nodesAround([n('a', 500), n('b', 100), n('c', 3000)], [{ x: 0, y: 0 }], 100, 10);
+  ok("nós ao redor: ordenados por distância e com alcance", [r.perto.map((x) => [x.item.id, x.dist]), r.longe.map((i) => i.id), r.temDeck], [[['b', 1], ['a', 5]], ['c'], true]);
+  ok("alcance 0 = todos", nodesAround([n('c', 3000)], [{ x: 0, y: 0 }], 100, 0).perto.length, 1);
+  ok("sem commlink (acesso do mestre): todos, sem distância", nodesAround([n('a', 5)], [], 100, 10).perto.map((x) => x.dist), [null]);
+}
